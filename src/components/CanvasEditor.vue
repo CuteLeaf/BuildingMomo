@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch, onMounted } from 'vue'
+import { ref, onMounted } from 'vue'
 import { useEditorStore } from '../stores/editorStore'
 import { useCommandStore } from '../stores/commandStore'
 import { useCanvasZoom } from '../composables/useCanvasZoom'
@@ -32,12 +32,8 @@ const { isSpacePressed } = useKeyboardShortcuts({
 })
 
 // 选择和拖拽
-const { selectionRect, handleMouseDown, handleMouseMove, handleMouseUp } = useCanvasSelection(
-  editorStore,
-  stageRef,
-  scale,
-  isSpacePressed
-)
+const { selectionRect, isMiddleMousePressed, handleMouseDown, handleMouseMove, handleMouseUp } =
+  useCanvasSelection(editorStore, stageRef, scale, isSpacePressed, stageConfig)
 const { selectedItems, handleDragStart, handleDragMove, handleDragEnd } = useCanvasDrag(
   editorStore,
   selectedLayerRef
@@ -164,9 +160,9 @@ onMounted(() => {
       v-if="editorStore.items.length > 0"
       class="absolute right-4 bottom-4 flex items-center gap-2"
     >
-      <!-- 空格键拖拽模式提示 -->
+      <!-- 画布拖拽模式提示 -->
       <div
-        v-if="isSpacePressed"
+        v-if="isSpacePressed || isMiddleMousePressed"
         class="flex items-center gap-1 rounded-md bg-green-600 px-3 py-2 text-xs font-medium text-white shadow-sm"
       >
         <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">

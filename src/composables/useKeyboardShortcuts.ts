@@ -53,6 +53,17 @@ export function useKeyboardShortcuts(options: UseKeyboardShortcutsOptions) {
     return parts.join('+')
   }
 
+  // 更新画布拖动模式
+  function updateDragMode(isDragMode: boolean) {
+    stageConfig.value.draggable = isDragMode
+
+    const stage = stageRef.value?.getStage()
+    if (stage) {
+      const container = stage.container()
+      container.style.cursor = isDragMode ? 'grab' : 'default'
+    }
+  }
+
   // 键盘按下事件
   function handleKeyDown(event: KeyboardEvent) {
     // 如果在输入框中，不处理快捷键
@@ -65,14 +76,7 @@ export function useKeyboardShortcuts(options: UseKeyboardShortcutsOptions) {
     if (event.code === 'Space' && !isSpacePressed.value) {
       event.preventDefault()
       isSpacePressed.value = true
-      stageConfig.value.draggable = true
-
-      // 更新鼠标光标样式
-      const stage = stageRef.value?.getStage()
-      if (stage) {
-        const container = stage.container()
-        container.style.cursor = 'grab'
-      }
+      updateDragMode(true)
       return
     }
 
@@ -93,14 +97,15 @@ export function useKeyboardShortcuts(options: UseKeyboardShortcutsOptions) {
     if (event.code === 'Space') {
       event.preventDefault()
       isSpacePressed.value = false
-      stageConfig.value.draggable = false
+      updateDragMode(false)
+    }
+  }
 
-      // 恢复默认光标
-      const stage = stageRef.value?.getStage()
-      if (stage) {
-        const container = stage.container()
-        container.style.cursor = 'default'
-      }
+  // 窗口失焦时重置状态
+  function handleBlur() {
+    if (isSpacePressed.value) {
+      isSpacePressed.value = false
+      updateDragMode(false)
     }
   }
 
@@ -108,12 +113,14 @@ export function useKeyboardShortcuts(options: UseKeyboardShortcutsOptions) {
   onMounted(() => {
     window.addEventListener('keydown', handleKeyDown)
     window.addEventListener('keyup', handleKeyUp)
+    window.addEventListener('blur', handleBlur)
     console.log(`[Shortcuts] Registered ${shortcutMap.value.size} keyboard shortcuts`)
   })
 
   onUnmounted(() => {
     window.removeEventListener('keydown', handleKeyDown)
     window.removeEventListener('keyup', handleKeyUp)
+    window.removeEventListener('blur', handleBlur)
     console.log('[Shortcuts] Unregistered keyboard shortcuts')
   })
 

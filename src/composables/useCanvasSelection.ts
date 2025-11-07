@@ -4,14 +4,30 @@ import type { AppItem } from '../types/editor'
 
 export function useCanvasSelection(
   editorStore: ReturnType<typeof useEditorStore>,
-  _stageRef: Ref<any>,
+  stageRef: Ref<any>,
   scale: Ref<number>,
-  isSpacePressed: Ref<boolean>
+  isCanvasDragMode: Ref<boolean>,
+  stageConfig: Ref<any>
 ) {
   // 框选状态
   const selectionRect = ref<{ x: number; y: number; width: number; height: number } | null>(null)
   const isSelecting = ref(false)
   const selectionStart = ref<{ x: number; y: number } | null>(null)
+
+  // 鼠标中键状态
+  const isMiddleMousePressed = ref(false)
+  const lastPointerPos = ref<{ x: number; y: number } | null>(null)
+
+  // 更新画布拖动模式
+  function updateDragMode(isDragMode: boolean) {
+    stageConfig.value.draggable = isDragMode
+
+    const stage = stageRef.value?.getStage()
+    if (stage) {
+      const container = stage.container()
+      container.style.cursor = isDragMode ? 'grab' : 'default'
+    }
+  }
 
   // 点选功能：手动碰撞检测
   function handleStageClick(e: any) {
@@ -57,8 +73,23 @@ export function useCanvasSelection(
 
   // 框选功能
   function handleMouseDown(e: any) {
-    // 如果按住空格键，不触发框选（此时是画布拖拽模式）
-    if (isSpacePressed.value) return
+    const evt = e.evt as MouseEvent
+
+    // 检测鼠标中键（button === 1）
+    if (evt.button === 1) {
+      evt.preventDefault() // 阻止浏览器默认行为（如自动滚动）
+      isMiddleMousePressed.value = true
+      updateDragMode(true)
+      const stage = e.target.getStage()
+      const pos = stage?.getPointerPosition()
+      if (pos) {
+        lastPointerPos.value = { x: pos.x, y: pos.y }
+      }
+      return // 不触发框选
+    }
+
+    // 如果处于画布拖动模式（空格键），不触发框选
+    if (isCanvasDragMode.value) return
 
     // 只在点击 Stage 背景时触发框选
     if (e.target !== e.target.getStage()) return
@@ -80,6 +111,21 @@ export function useCanvasSelection(
   }
 
   function handleMouseMove(e: any) {
+    // 中键拖动画布：手动更新 Stage 位置（Konva 只支持左键拖拽）
+    if (isMiddleMousePressed.value) {
+      const stage = e.target.getStage()
+      const pos = stage.getPointerPosition()
+      if (stage && pos && lastPointerPos.value) {
+        const dx = pos.x - lastPointerPos.value.x
+        const dy = pos.y - lastPointerPos.value.y
+        stage.x(stage.x() + dx)
+        stage.y(stage.y() + dy)
+        lastPointerPos.value = { x: pos.x, y: pos.y }
+        stage.batchDraw()
+      }
+      return
+    }
+
     if (!isSelecting.value || !selectionStart.value) return
 
     const stage = e.target.getStage()
@@ -102,6 +148,16 @@ export function useCanvasSelection(
   }
 
   function handleMouseUp(e: any) {
+    const evt = e.evt as MouseEvent
+
+    // 检测鼠标中键释放
+    if (evt.button === 1) {
+      isMiddleMousePressed.value = false
+      updateDragMode(false)
+      lastPointerPos.value = null
+      return
+    }
+
     // 如果正在框选，处理框选逻辑
     if (isSelecting.value && selectionRect.value) {
       // 检测矩形内的圆点
@@ -133,6 +189,7 @@ export function useCanvasSelection(
   return {
     selectionRect,
     isSelecting,
+    isMiddleMousePressed,
     handleMouseDown,
     handleMouseMove,
     handleMouseUp,
