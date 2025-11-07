@@ -161,12 +161,12 @@ function createItemsShape() {
       // 基础半径6像素，添加上下限避免极端情况
       const baseRadius = 6
       const compensatedRadius = baseRadius / currentScale
-      const radius = Math.max(4, Math.min(12, compensatedRadius))
+      const radius = Math.max(4, compensatedRadius)
       
       // 边框宽度也需要补偿
       const baseStrokeWidth = 1
       const compensatedStrokeWidth = baseStrokeWidth / currentScale
-      const strokeWidth = Math.max(0.5, Math.min(2, compensatedStrokeWidth))
+      const strokeWidth = Math.max(0.5, compensatedStrokeWidth)
       
       // 批量绘制所有圆点
       items.forEach(item => {
@@ -276,18 +276,18 @@ if (typeof window !== 'undefined') {
           :config="{
             x: 0,
             y: 0,
-            radius: 8,
+            radius: Math.max(4, 8 / scale),
             fill: '#ef4444',
             stroke: '#dc2626',
-            strokeWidth: 2
+            strokeWidth: Math.max(0.5, 2 / scale)
           }"
         />
         <v-text
           :config="{
-            x: 10,
-            y: -5,
+            x: Math.max(5, 10 / scale),
+            y: Math.max(-3, -5 / scale),
             text: 'Origin (0, 0)',
-            fontSize: 12,
+            fontSize: Math.max(8, 12 / scale),
             fill: '#ef4444'
           }"
         />

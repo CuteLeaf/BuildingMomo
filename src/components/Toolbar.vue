@@ -56,7 +56,7 @@ function handleFileChange(event: Event) {
     
     <!-- 标题 -->
     <div class="flex-1 flex items-center justify-center">
-      <h1 class="text-lg font-semibold text-gray-700">游戏建造坐标辅助器</h1>
+      <h1 class="text-lg font-semibold text-gray-700">建造坐标辅助器</h1>
     </div>
     
     <!-- 占位，保持标题居中 -->
