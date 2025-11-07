@@ -27,8 +27,10 @@ const stageRef = ref<any>(null)
 const zoom = useCanvasZoom(editorStore, stageRef)
 const { scale, stageConfig, handleWheel, resetView, fitToView, zoomIn, zoomOut } = zoom
 
-const { mainLayerRef, interactionLayerRef, setHideSelectedItems } =
-  useCanvasRendering(editorStore, scale)
+const { mainLayerRef, interactionLayerRef, setHideSelectedItems } = useCanvasRendering(
+  editorStore,
+  scale
+)
 
 // 快捷键系统
 const { isSpacePressed } = useKeyboardShortcuts({
@@ -48,7 +50,16 @@ const { startDrag, moveDrag, endDrag } = useCanvasDrag(
 
 // 选择系统（集成拖拽）
 const { selectionRect, isMiddleMousePressed, handleMouseDown, handleMouseMove, handleMouseUp } =
-  useCanvasSelection(editorStore, stageRef, scale, isSpacePressed, stageConfig, startDrag, moveDrag, endDrag)
+  useCanvasSelection(
+    editorStore,
+    stageRef,
+    scale,
+    isSpacePressed,
+    stageConfig,
+    startDrag,
+    moveDrag,
+    endDrag
+  )
 
 // 右键菜单状态
 const contextMenuOpen = ref(false)
@@ -137,7 +148,7 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="relative flex-1 overflow-hidden bg-gray-100">
+  <div class="relative h-full flex-1 overflow-hidden bg-gray-100">
     <!-- Dropdown Menu (代替 Context Menu) -->
     <DropdownMenu v-model:open="contextMenuOpen" :modal="false">
       <!-- 虚拟触发器：不可见但存在于 DOM 中，动态定位到鼠标位置 -->

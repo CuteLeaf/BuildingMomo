@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import type { AppItem, GameItem, GameDataFile, HeightFilter } from '../types/editor'
+import type { AppItem, GameItem, GameDataFile, HeightFilter, HomeScheme } from '../types/editor'
 
 // 生成简单的UUID
 function generateUUID(): string {
@@ -12,20 +12,31 @@ function generateUUID(): string {
 }
 
 export const useEditorStore = defineStore('editor', () => {
-  // 状态
-  const items = ref<AppItem[]>([])
-  const heightFilter = ref<HeightFilter>({
-    min: 0,
-    max: 0,
-    currentMin: 0,
-    currentMax: 0,
-  })
+  // 多方案状态
+  const schemes = ref<HomeScheme[]>([])
+  const activeSchemeId = ref<string | null>(null)
 
-  // 初始视图配置（用于重置视图）
-  const initialViewConfig = ref<{ scale: number; x: number; y: number } | null>(null)
+  // 全局剪贴板（支持跨方案复制粘贴）
+  const clipboard = ref<AppItem[]>([])
 
-  // 选中状态
-  const selectedItemIds = ref<Set<string>>(new Set())
+  // 计算属性：当前激活的方案
+  const activeScheme = computed(
+    () => schemes.value.find((s) => s.id === activeSchemeId.value) ?? null
+  )
+
+  // 向后兼容的计算属性（指向当前激活方案）
+  const items = computed(() => activeScheme.value?.items ?? [])
+  const heightFilter = computed(
+    () =>
+      activeScheme.value?.heightFilter ?? {
+        min: 0,
+        max: 0,
+        currentMin: 0,
+        currentMax: 0,
+      }
+  )
+  const selectedItemIds = computed(() => activeScheme.value?.selectedItemIds ?? new Set<string>())
+  const initialViewConfig = computed(() => activeScheme.value?.initialViewConfig ?? null)
 
   // 计算属性：边界框
   const bounds = computed(() => {
@@ -74,8 +85,32 @@ export const useEditorStore = defineStore('editor', () => {
     return items.value.filter((item) => selectedItemIds.value.has(item.internalId))
   })
 
-  // 导入JSON数据
-  function importJSON(fileContent: string) {
+  // 方案管理：创建新方案
+  function createScheme(name: string = '未命名方案'): string {
+    const newScheme: HomeScheme = {
+      id: generateUUID(),
+      name,
+      items: [],
+      heightFilter: {
+        min: 0,
+        max: 0,
+        currentMin: 0,
+        currentMax: 0,
+      },
+      selectedItemIds: new Set(),
+    }
+
+    schemes.value.push(newScheme)
+    activeSchemeId.value = newScheme.id
+
+    return newScheme.id
+  }
+
+  // 方案管理：导入JSON为新方案
+  function importJSONAsScheme(
+    fileContent: string,
+    fileName: string
+  ): { success: boolean; schemeId?: string; error?: string } {
     try {
       const data: GameDataFile = JSON.parse(fileContent)
 
@@ -94,15 +129,19 @@ export const useEditorStore = defineStore('editor', () => {
         originalData: gameItem,
       }))
 
-      items.value = newItems
-
       // 自动计算Z轴范围
+      let filter: HeightFilter = {
+        min: 0,
+        max: 0,
+        currentMin: 0,
+        currentMax: 0,
+      }
+
       if (newItems.length > 0) {
         const zValues = newItems.map((item) => item.z)
         const minZ = Math.min(...zValues)
         const maxZ = Math.max(...zValues)
-
-        heightFilter.value = {
+        filter = {
           min: minZ,
           max: maxZ,
           currentMin: minZ,
@@ -110,60 +149,126 @@ export const useEditorStore = defineStore('editor', () => {
         }
       }
 
-      return { success: true, itemCount: newItems.length }
+      // 从文件名提取方案名称（去除.json后缀）
+      const schemeName = fileName.replace(/\.json$/i, '')
+
+      // 创建新方案
+      const newScheme: HomeScheme = {
+        id: generateUUID(),
+        name: schemeName,
+        filePath: fileName,
+        items: newItems,
+        heightFilter: filter,
+        selectedItemIds: new Set(),
+      }
+
+      schemes.value.push(newScheme)
+      activeSchemeId.value = newScheme.id
+
+      return { success: true, schemeId: newScheme.id }
     } catch (error) {
       console.error('Failed to import JSON:', error)
       return { success: false, error: error instanceof Error ? error.message : 'Unknown error' }
     }
   }
 
+  // 方案管理：关闭方案
+  function closeScheme(schemeId: string) {
+    const index = schemes.value.findIndex((s) => s.id === schemeId)
+    if (index === -1) return
+
+    schemes.value.splice(index, 1)
+
+    // 如果关闭的是当前激活方案，切换到其他方案
+    if (activeSchemeId.value === schemeId) {
+      if (schemes.value.length > 0) {
+        // 优先切换到前一个，否则切换到第一个
+        const newIndex = Math.max(0, index - 1)
+        const nextScheme = schemes.value[newIndex]
+        if (nextScheme) {
+          activeSchemeId.value = nextScheme.id
+        }
+      } else {
+        activeSchemeId.value = null
+      }
+    }
+  }
+
+  // 方案管理：切换激活方案
+  function setActiveScheme(schemeId: string) {
+    if (schemes.value.some((s) => s.id === schemeId)) {
+      activeSchemeId.value = schemeId
+    }
+  }
+
+  // 方案管理：重命名方案
+  function renameScheme(schemeId: string, newName: string) {
+    const scheme = schemes.value.find((s) => s.id === schemeId)
+    if (scheme) {
+      scheme.name = newName
+    }
+  }
+
+  // 兼容旧API：导入JSON（导入到当前方案或创建新方案）
+  function importJSON(fileContent: string) {
+    const result = importJSONAsScheme(fileContent, '导入的方案')
+    return {
+      success: result.success,
+      itemCount: result.success ? (activeScheme.value?.items.length ?? 0) : 0,
+      error: result.error,
+    }
+  }
+
   // 更新高度过滤器
   function updateHeightFilter(newMin: number, newMax: number) {
-    heightFilter.value.currentMin = newMin
-    heightFilter.value.currentMax = newMax
+    if (!activeScheme.value) return
+    activeScheme.value.heightFilter.currentMin = newMin
+    activeScheme.value.heightFilter.currentMax = newMax
   }
 
   // 清空数据
   function clearData() {
-    items.value = []
-    heightFilter.value = {
-      min: 0,
-      max: 0,
-      currentMin: 0,
-      currentMax: 0,
-    }
-    selectedItemIds.value.clear()
+    schemes.value = []
+    activeSchemeId.value = null
+    clipboard.value = []
   }
 
   // 选择功能
   function toggleSelection(itemId: string, additive: boolean) {
+    if (!activeScheme.value) return
+
     if (additive) {
-      if (selectedItemIds.value.has(itemId)) {
-        selectedItemIds.value.delete(itemId)
+      if (activeScheme.value.selectedItemIds.has(itemId)) {
+        activeScheme.value.selectedItemIds.delete(itemId)
       } else {
-        selectedItemIds.value.add(itemId)
+        activeScheme.value.selectedItemIds.add(itemId)
       }
     } else {
-      selectedItemIds.value.clear()
-      selectedItemIds.value.add(itemId)
+      activeScheme.value.selectedItemIds.clear()
+      activeScheme.value.selectedItemIds.add(itemId)
     }
   }
 
   function updateSelection(itemIds: string[], additive: boolean) {
+    if (!activeScheme.value) return
+
     if (!additive) {
-      selectedItemIds.value.clear()
+      activeScheme.value.selectedItemIds.clear()
     }
-    itemIds.forEach((id) => selectedItemIds.value.add(id))
+    itemIds.forEach((id) => activeScheme.value!.selectedItemIds.add(id))
   }
 
   function clearSelection() {
-    selectedItemIds.value.clear()
+    if (!activeScheme.value) return
+    activeScheme.value.selectedItemIds.clear()
   }
 
   // 移动选中物品
   function moveSelectedItems(dx: number, dy: number) {
-    items.value = items.value.map((item) => {
-      if (selectedItemIds.value.has(item.internalId)) {
+    if (!activeScheme.value) return
+
+    activeScheme.value.items = activeScheme.value.items.map((item) => {
+      if (activeScheme.value!.selectedItemIds.has(item.internalId)) {
         return {
           ...item,
           x: item.x + dx,
@@ -184,12 +289,14 @@ export const useEditorStore = defineStore('editor', () => {
 
   // 复制选中物品（带偏移）
   function duplicateSelected(offsetX: number = 50, offsetY: number = 50): string[] {
+    if (!activeScheme.value) return []
+
     const newIds: string[] = []
     const duplicates: AppItem[] = []
     let nextInstanceId = getNextInstanceId()
 
-    items.value.forEach((item) => {
-      if (selectedItemIds.value.has(item.internalId)) {
+    activeScheme.value.items.forEach((item) => {
+      if (activeScheme.value!.selectedItemIds.has(item.internalId)) {
         const newId = generateUUID()
         const newInstanceId = nextInstanceId++
         newIds.push(newId)
@@ -216,50 +323,82 @@ export const useEditorStore = defineStore('editor', () => {
       }
     })
 
-    items.value.push(...duplicates)
+    activeScheme.value.items.push(...duplicates)
 
     // 选中新副本
-    selectedItemIds.value.clear()
-    newIds.forEach((id) => selectedItemIds.value.add(id))
+    activeScheme.value.selectedItemIds.clear()
+    newIds.forEach((id) => activeScheme.value!.selectedItemIds.add(id))
 
     return newIds
   }
 
   // 删除选中物品
   function deleteSelected() {
-    items.value = items.value.filter((item) => !selectedItemIds.value.has(item.internalId))
-    selectedItemIds.value.clear()
+    if (!activeScheme.value) return
+
+    activeScheme.value.items = activeScheme.value.items.filter(
+      (item) => !activeScheme.value!.selectedItemIds.has(item.internalId)
+    )
+    activeScheme.value.selectedItemIds.clear()
   }
 
   // 全选可见物品
   function selectAll() {
-    selectedItemIds.value.clear()
+    if (!activeScheme.value) return
+
+    activeScheme.value.selectedItemIds.clear()
     visibleItems.value.forEach((item) => {
-      selectedItemIds.value.add(item.internalId)
+      activeScheme.value!.selectedItemIds.add(item.internalId)
     })
   }
 
   // 反选
   function invertSelection() {
+    if (!activeScheme.value) return
+
     const newSelection = new Set<string>()
     visibleItems.value.forEach((item) => {
-      if (!selectedItemIds.value.has(item.internalId)) {
+      if (!activeScheme.value!.selectedItemIds.has(item.internalId)) {
         newSelection.add(item.internalId)
       }
     })
-    selectedItemIds.value = newSelection
+    activeScheme.value.selectedItemIds = newSelection
   }
 
   // 获取下一个唯一的 InstanceID（自增策略）
   function getNextInstanceId(): number {
-    if (items.value.length === 0) return 1
+    if (!activeScheme.value || activeScheme.value.items.length === 0) return 1
 
-    const maxId = items.value.reduce((max, item) => Math.max(max, item.instanceId), 0)
+    const maxId = activeScheme.value.items.reduce((max, item) => Math.max(max, item.instanceId), 0)
     return maxId + 1
   }
 
-  // 粘贴物品（从剪贴板）
+  // 跨方案剪贴板：复制到剪贴板
+  function copyToClipboard() {
+    if (!activeScheme.value) return
+
+    clipboard.value = activeScheme.value.items
+      .filter((item) => activeScheme.value!.selectedItemIds.has(item.internalId))
+      .map((item) => ({ ...item })) // 深拷贝
+  }
+
+  // 跨方案剪贴板：剪切到剪贴板
+  function cutToClipboard() {
+    copyToClipboard()
+    deleteSelected()
+  }
+
+  // 跨方案剪贴板：从剪贴板粘贴
+  function pasteFromClipboard(offsetX: number = 50, offsetY: number = 50): string[] {
+    if (!activeScheme.value || clipboard.value.length === 0) return []
+
+    return pasteItems(clipboard.value, offsetX, offsetY)
+  }
+
+  // 粘贴物品（内部方法）
   function pasteItems(clipboardItems: AppItem[], offsetX: number, offsetY: number): string[] {
+    if (!activeScheme.value) return []
+
     const newIds: string[] = []
     const newItems: AppItem[] = []
     let nextInstanceId = getNextInstanceId()
@@ -290,16 +429,23 @@ export const useEditorStore = defineStore('editor', () => {
       })
     })
 
-    items.value.push(...newItems)
+    activeScheme.value.items.push(...newItems)
 
     // 选中新粘贴的物品
-    selectedItemIds.value.clear()
-    newIds.forEach((id) => selectedItemIds.value.add(id))
+    activeScheme.value.selectedItemIds.clear()
+    newIds.forEach((id) => activeScheme.value!.selectedItemIds.add(id))
 
     return newIds
   }
 
   return {
+    // 多方案状态
+    schemes,
+    activeSchemeId,
+    activeScheme,
+    clipboard,
+
+    // 向后兼容的计算属性
     items,
     heightFilter,
     bounds,
@@ -308,17 +454,35 @@ export const useEditorStore = defineStore('editor', () => {
     selectedItemIds,
     selectedItems,
     initialViewConfig,
+
+    // 方案管理
+    createScheme,
+    importJSONAsScheme,
+    closeScheme,
+    setActiveScheme,
+    renameScheme,
+
+    // 兼容旧API
     importJSON,
     updateHeightFilter,
     clearData,
+
+    // 选择操作
     toggleSelection,
     updateSelection,
     clearSelection,
+    selectAll,
+    invertSelection,
+
+    // 编辑操作
     moveSelectedItems,
     duplicateSelected,
     deleteSelected,
-    selectAll,
-    invertSelection,
+
+    // 跨方案剪贴板
+    copyToClipboard,
+    cutToClipboard,
+    pasteFromClipboard,
     pasteItems,
   }
 })

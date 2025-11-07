@@ -28,10 +28,11 @@ export function useFileOperations(
         const reader = new FileReader()
         reader.onload = (e) => {
           const content = e.target?.result as string
-          const result = editorStore.importJSON(content)
+          // 使用新的多方案导入API
+          const result = editorStore.importJSONAsScheme(content, file.name)
 
           if (result.success) {
-            console.log(`[FileOps] Successfully imported ${result.itemCount} items`)
+            console.log(`[FileOps] Successfully imported scheme: ${file.name}`)
             // 导入成功后调用回调
             onImportSuccess?.()
           } else {
