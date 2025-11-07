@@ -1,27 +1,37 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { ref, watch, onMounted } from 'vue'
 import { useEditorStore } from '../stores/editorStore'
+import { useCommandStore } from '../stores/commandStore'
 import { useCanvasZoom } from '../composables/useCanvasZoom'
 import { useCanvasSelection } from '../composables/useCanvasSelection'
 import { useCanvasDrag } from '../composables/useCanvasDrag'
-import { useCanvasKeyboard } from '../composables/useCanvasKeyboard'
 import { useCanvasRendering } from '../composables/useCanvasRendering'
+import { useKeyboardShortcuts } from '../composables/useKeyboardShortcuts'
 
 const editorStore = useEditorStore()
+const commandStore = useCommandStore()
 
 // Stage 引用
 const stageRef = ref<any>(null)
 
 // 组合各个功能模块
-const { scale, stageConfig, handleWheel, resetView, fitToView } = useCanvasZoom(
-  editorStore,
-  stageRef
-)
-const { isSpacePressed } = useCanvasKeyboard(editorStore, stageRef, stageConfig)
+const zoom = useCanvasZoom(editorStore, stageRef)
+const { scale, stageConfig, handleWheel, resetView, fitToView, zoomIn, zoomOut } = zoom
+
 const { unselectedLayerRef, selectedLayerRef, interactionLayerRef } = useCanvasRendering(
   editorStore,
   scale
 )
+
+// 快捷键系统
+const { isSpacePressed } = useKeyboardShortcuts({
+  commands: commandStore.commands,
+  executeCommand: commandStore.executeCommand,
+  stageRef,
+  stageConfig,
+})
+
+// 选择和拖拽
 const { selectionRect, handleMouseDown, handleMouseMove, handleMouseUp } = useCanvasSelection(
   editorStore,
   stageRef,
@@ -32,6 +42,11 @@ const { selectedItems, handleDragStart, handleDragMove, handleDragEnd } = useCan
   editorStore,
   selectedLayerRef
 )
+
+// 将缩放函数注册到命令系统
+onMounted(() => {
+  commandStore.setZoomFunctions(zoomIn, zoomOut, resetView)
+})
 
 // 监听边界框变化，自动计算最佳视图
 watch(

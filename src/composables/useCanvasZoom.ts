@@ -142,6 +142,70 @@ export function useCanvasZoom(editorStore: ReturnType<typeof useEditorStore>, st
     }
   }
 
+  // 放大（以画布中心为基准）
+  function zoomIn() {
+    const stage = stageRef.value?.getStage()
+    if (!stage) return
+
+    const oldScale = stage.scaleX()
+    const scaleBy = 1.2
+    const newScale = Math.min(10, oldScale * scaleBy) // 最大10倍
+
+    // 以画布中心为缩放中心
+    const centerPoint = {
+      x: stageWidth.value / 2,
+      y: stageHeight.value / 2,
+    }
+
+    const mousePointTo = {
+      x: (centerPoint.x - stage.x()) / oldScale,
+      y: (centerPoint.y - stage.y()) / oldScale,
+    }
+
+    scale.value = newScale
+    stage.scale({ x: newScale, y: newScale })
+
+    const newPos = {
+      x: centerPoint.x - mousePointTo.x * newScale,
+      y: centerPoint.y - mousePointTo.y * newScale,
+    }
+    stage.position(newPos)
+    stageConfig.value.x = newPos.x
+    stageConfig.value.y = newPos.y
+  }
+
+  // 缩小（以画布中心为基准）
+  function zoomOut() {
+    const stage = stageRef.value?.getStage()
+    if (!stage) return
+
+    const oldScale = stage.scaleX()
+    const scaleBy = 1.2
+    const newScale = Math.max(0.01, oldScale / scaleBy) // 最小0.01倍
+
+    // 以画布中心为缩放中心
+    const centerPoint = {
+      x: stageWidth.value / 2,
+      y: stageHeight.value / 2,
+    }
+
+    const mousePointTo = {
+      x: (centerPoint.x - stage.x()) / oldScale,
+      y: (centerPoint.y - stage.y()) / oldScale,
+    }
+
+    scale.value = newScale
+    stage.scale({ x: newScale, y: newScale })
+
+    const newPos = {
+      x: centerPoint.x - mousePointTo.x * newScale,
+      y: centerPoint.y - mousePointTo.y * newScale,
+    }
+    stage.position(newPos)
+    stageConfig.value.x = newPos.x
+    stageConfig.value.y = newPos.y
+  }
+
   // 生命周期钩子
   onMounted(() => {
     window.addEventListener('resize', handleResize)
@@ -159,5 +223,7 @@ export function useCanvasZoom(editorStore: ReturnType<typeof useEditorStore>, st
     handleWheel,
     fitToView,
     resetView,
+    zoomIn,
+    zoomOut,
   }
 }

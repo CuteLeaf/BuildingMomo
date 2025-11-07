@@ -228,6 +228,63 @@ export const useEditorStore = defineStore('editor', () => {
     selectedItemIds.value.clear()
   }
 
+  // 全选可见物品
+  function selectAll() {
+    selectedItemIds.value.clear()
+    visibleItems.value.forEach((item) => {
+      selectedItemIds.value.add(item.internalId)
+    })
+  }
+
+  // 反选
+  function invertSelection() {
+    const newSelection = new Set<string>()
+    visibleItems.value.forEach((item) => {
+      if (!selectedItemIds.value.has(item.internalId)) {
+        newSelection.add(item.internalId)
+      }
+    })
+    selectedItemIds.value = newSelection
+  }
+
+  // 粘贴物品（从剪贴板）
+  function pasteItems(clipboardItems: AppItem[], offsetX: number, offsetY: number): string[] {
+    const newIds: string[] = []
+    const newItems: AppItem[] = []
+
+    clipboardItems.forEach((item) => {
+      const newId = generateUUID()
+      // 生成随机数字 InstanceID（使用时间戳 + 随机数）
+      const newInstanceId = Date.now() + Math.floor(Math.random() * 1000000)
+      newIds.push(newId)
+
+      newItems.push({
+        ...item,
+        internalId: newId,
+        instanceId: newInstanceId,
+        x: item.x + offsetX,
+        y: item.y + offsetY,
+        originalData: {
+          ...item.originalData,
+          InstanceID: newInstanceId,
+          Location: {
+            ...item.originalData.Location,
+            X: item.x + offsetX,
+            Y: item.y + offsetY,
+          },
+        },
+      })
+    })
+
+    items.value.push(...newItems)
+
+    // 选中新粘贴的物品
+    selectedItemIds.value.clear()
+    newIds.forEach((id) => selectedItemIds.value.add(id))
+
+    return newIds
+  }
+
   return {
     items,
     heightFilter,
@@ -246,5 +303,8 @@ export const useEditorStore = defineStore('editor', () => {
     moveSelectedItems,
     duplicateSelected,
     deleteSelected,
+    selectAll,
+    invertSelection,
+    pasteItems,
   }
 })
