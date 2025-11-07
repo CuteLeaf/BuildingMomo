@@ -1,99 +1,100 @@
 import { ref, watch, type Ref } from 'vue'
-import Konva from 'konva'
 import type { useEditorStore } from '../stores/editorStore'
+import Konva from 'konva'
 
 export function useCanvasRendering(
   editorStore: ReturnType<typeof useEditorStore>,
   scale: Ref<number>
 ) {
   // Layer 引用
-  const unselectedLayerRef = ref<any>(null)
-  const selectedLayerRef = ref<any>(null)
+  const mainLayerRef = ref<any>(null)
   const interactionLayerRef = ref<any>(null)
-  const unselectedShapeRef = ref<any>(null)
 
-  // 创建批量绘制未选中圆点的 Shape
-  function createUnselectedItemsShape() {
-    return new Konva.Shape({
-      sceneFunc: (context, _shape) => {
-        const selectedIds = editorStore.selectedItemIds
-        const currentScale = scale.value
+  // 是否隐藏选中物品（拖拽时使用）
+  const hideSelectedItems = ref(false)
 
-        // 只绘制未选中的圆点
-        const unselectedItems = editorStore.visibleItems.filter(
-          (item) => !selectedIds.has(item.internalId)
-        )
+  // 批量绘制所有物品
+  function updateMainLayer() {
+    const layer = mainLayerRef.value?.getNode()
+    if (!layer) return
 
-        const baseRadius = 6
-        const compensatedRadius = baseRadius / currentScale
-        const radius = Math.max(4, compensatedRadius)
+    // 清空现有内容
+    layer.destroyChildren()
 
-        const baseStrokeWidth = 1
-        const compensatedStrokeWidth = baseStrokeWidth / currentScale
-        const strokeWidth = Math.max(0.5, compensatedStrokeWidth)
+    const visibleItems = editorStore.visibleItems
+    if (visibleItems.length === 0) {
+      layer.batchDraw()
+      return
+    }
 
-        unselectedItems.forEach((item) => {
+    // 创建批量绘制的 Shape
+    const shape = new Konva.Shape({
+      sceneFunc: (context) => {
+        const radius = Math.max(4, 6 / scale.value)
+        const strokeWidth = Math.max(0.5, 1 / scale.value)
+
+        visibleItems.forEach((item) => {
+          const isSelected = editorStore.selectedItemIds.has(item.internalId)
+          
+          // 拖拽时跳过选中物品的渲染
+          if (hideSelectedItems.value && isSelected) return
+
           context.beginPath()
           context.arc(item.x, item.y, radius, 0, Math.PI * 2, false)
-          context.fillStyle = '#94a3b8'
-          context.globalAlpha = 0.8
+          
+          // 选中物品用蓝色，未选中用灰色
+          context.fillStyle = isSelected ? '#3b82f6' : '#94a3b8'
           context.fill()
-          context.strokeStyle = '#475569'
+          context.strokeStyle = isSelected ? '#2563eb' : '#475569'
           context.lineWidth = strokeWidth
           context.stroke()
         })
+      },
+      // 启用碰撞检测
+      hitFunc: (context, shape) => {
+        const radius = Math.max(4, 6 / scale.value)
+        const hitRadius = radius + Math.max(2, 4 / scale.value)
 
-        context.globalAlpha = 1
+        visibleItems.forEach((item) => {
+          // 拖拽时跳过选中物品的碰撞检测
+          if (hideSelectedItems.value && editorStore.selectedItemIds.has(item.internalId)) return
+
+          context.beginPath()
+          context.arc(item.x, item.y, hitRadius, 0, Math.PI * 2, false)
+          context.fillStrokeShape(shape)
+        })
       },
     })
+
+    layer.add(shape)
+    layer.batchDraw()
   }
 
-  // 更新批量绘制的 Shape
-  function updateUnselectedItemsShape() {
-    const layer = unselectedLayerRef.value?.getNode()
-    if (!layer) return
-
-    // 移除旧的 shape
-    if (unselectedShapeRef.value) {
-      unselectedShapeRef.value.destroy()
-    }
-
-    // 创建新的 shape
-    if (editorStore.visibleItems.length > 0) {
-      unselectedShapeRef.value = createUnselectedItemsShape()
-      layer.add(unselectedShapeRef.value)
-      layer.batchDraw()
-    }
+  // 设置是否隐藏选中物品
+  function setHideSelectedItems(hide: boolean) {
+    hideSelectedItems.value = hide
+    updateMainLayer()
   }
 
-  // 监听可见物品变化，更新批量绘制
+  // 监听变化，自动更新
   watch(
-    () => editorStore.visibleItems,
+    () => [
+      editorStore.visibleItems.length,
+      editorStore.selectedItemIds.size,
+      editorStore.heightFilter.currentMin,
+      editorStore.heightFilter.currentMax,
+      scale.value,
+    ],
     () => {
-      updateUnselectedItemsShape()
+      updateMainLayer()
     },
-    { deep: true }
+    { immediate: true }
   )
-
-  // 监听选中状态变化，更新批量绘制
-  watch(
-    () => editorStore.selectedItems,
-    () => {
-      updateUnselectedItemsShape()
-    },
-    { deep: true }
-  )
-
-  // 监听缩放变化，更新批量绘制（因为圆点大小依赖于缩放）
-  watch(scale, () => {
-    updateUnselectedItemsShape()
-  })
 
   return {
-    unselectedLayerRef,
-    selectedLayerRef,
+    mainLayerRef,
     interactionLayerRef,
-    unselectedShapeRef,
-    updateUnselectedItemsShape,
+    updateMainLayer,
+    setHideSelectedItems,
   }
 }

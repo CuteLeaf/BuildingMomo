@@ -7,13 +7,20 @@ export function useCanvasSelection(
   stageRef: Ref<any>,
   scale: Ref<number>,
   isCanvasDragMode: Ref<boolean>,
-  stageConfig: Ref<any>
+  stageConfig: Ref<any>,
+  onDragStart?: (worldPos: { x: number; y: number }, isAltPressed: boolean) => void,
+  onDragMove?: (worldPos: { x: number; y: number }) => void,
+  onDragEnd?: (worldPos: { x: number; y: number }) => void
 ) {
   // 框选状态
   const selectionRect = ref<{ x: number; y: number; width: number; height: number } | null>(null)
   const isSelecting = ref(false)
   const selectionStart = ref<{ x: number; y: number } | null>(null)
   const mouseDownScreenPos = ref<{ x: number; y: number } | null>(null) // 记录屏幕坐标起始位置
+  
+  // 拖拽状态
+  const isDraggingItem = ref(false)
+  const draggedItem = ref<AppItem | null>(null)
 
   // 鼠标中键状态
   const isMiddleMousePressed = ref(false)
@@ -72,6 +79,25 @@ export function useCanvasSelection(
     }
   }
 
+  // 检测点击位置是否在选中物品上
+  function findItemAtPosition(worldPos: { x: number; y: number }): AppItem | null {
+    const clickRadius = Math.max(4, 6 / scale.value) + 2
+    let closestItem: AppItem | null = null
+    let minDistance = clickRadius
+
+    for (const item of editorStore.visibleItems) {
+      const distance = Math.sqrt(
+        Math.pow(item.x - worldPos.x, 2) + Math.pow(item.y - worldPos.y, 2)
+      )
+      if (distance < minDistance) {
+        minDistance = distance
+        closestItem = item
+      }
+    }
+
+    return closestItem
+  }
+
   // 框选功能
   function handleMouseDown(e: any) {
     const evt = e.evt as MouseEvent
@@ -111,6 +137,21 @@ export function useCanvasSelection(
       y: (pos.y - stage.y()) / stage.scaleY(),
     }
 
+    // 检测是否点击在选中物品上
+    const clickedItem = findItemAtPosition(worldPos)
+    if (clickedItem && editorStore.selectedItemIds.has(clickedItem.internalId)) {
+      // 点击在选中物品上，准备拖拽
+      isDraggingItem.value = true
+      draggedItem.value = clickedItem
+      
+      // 触发拖拽开始
+      if (onDragStart) {
+        onDragStart(worldPos, evt.altKey)
+      }
+      return
+    }
+
+    // 否则开始框选
     isSelecting.value = true
     selectionStart.value = worldPos
     selectionRect.value = { x: worldPos.x, y: worldPos.y, width: 0, height: 0 }
@@ -132,11 +173,8 @@ export function useCanvasSelection(
       return
     }
 
-    if (!isSelecting.value || !selectionStart.value) return
-
     const stage = e.target.getStage()
     const pos = stage.getPointerPosition()
-
     if (!pos) return
 
     const worldPos = {
@@ -144,12 +182,23 @@ export function useCanvasSelection(
       y: (pos.y - stage.y()) / stage.scaleY(),
     }
 
-    // 更新框选矩形
-    selectionRect.value = {
-      x: Math.min(selectionStart.value.x, worldPos.x),
-      y: Math.min(selectionStart.value.y, worldPos.y),
-      width: Math.abs(worldPos.x - selectionStart.value.x),
-      height: Math.abs(worldPos.y - selectionStart.value.y),
+    // 如果正在拖拽物品
+    if (isDraggingItem.value) {
+      if (onDragMove) {
+        onDragMove(worldPos)
+      }
+      return
+    }
+
+    // 如果正在框选
+    if (isSelecting.value && selectionStart.value) {
+      // 更新框选矩形
+      selectionRect.value = {
+        x: Math.min(selectionStart.value.x, worldPos.x),
+        y: Math.min(selectionStart.value.y, worldPos.y),
+        width: Math.abs(worldPos.x - selectionStart.value.x),
+        height: Math.abs(worldPos.y - selectionStart.value.y),
+      }
     }
   }
 
@@ -169,9 +218,29 @@ export function useCanvasSelection(
       return
     }
 
+    const stage = e.target.getStage()
+    const pos = stage.getPointerPosition()
+    
+    if (pos) {
+      const worldPos = {
+        x: (pos.x - stage.x()) / stage.scaleX(),
+        y: (pos.y - stage.y()) / stage.scaleY(),
+      }
+
+      // 如果正在拖拽物品
+      if (isDraggingItem.value) {
+        if (onDragEnd) {
+          onDragEnd(worldPos)
+        }
+        isDraggingItem.value = false
+        draggedItem.value = null
+        mouseDownScreenPos.value = null
+        return
+      }
+    }
+
     // 如果正在框选，检查是点击还是拖拽
     if (isSelecting.value && selectionRect.value && mouseDownScreenPos.value) {
-      const stage = e.target.getStage()
       const endPos = stage.getPointerPosition()
 
       // 计算屏幕坐标移动距离

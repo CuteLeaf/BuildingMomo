@@ -27,10 +27,8 @@ const stageRef = ref<any>(null)
 const zoom = useCanvasZoom(editorStore, stageRef)
 const { scale, stageConfig, handleWheel, resetView, fitToView, zoomIn, zoomOut } = zoom
 
-const { unselectedLayerRef, selectedLayerRef, interactionLayerRef } = useCanvasRendering(
-  editorStore,
-  scale
-)
+const { mainLayerRef, interactionLayerRef, updateMainLayer, setHideSelectedItems } =
+  useCanvasRendering(editorStore, scale)
 
 // 快捷键系统
 const { isSpacePressed } = useKeyboardShortcuts({
@@ -40,13 +38,17 @@ const { isSpacePressed } = useKeyboardShortcuts({
   stageConfig,
 })
 
-// 选择和拖拽
-const { selectionRect, isMiddleMousePressed, handleMouseDown, handleMouseMove, handleMouseUp } =
-  useCanvasSelection(editorStore, stageRef, scale, isSpacePressed, stageConfig)
-const { selectedItems, handleDragStart, handleDragMove, handleDragEnd } = useCanvasDrag(
+// 拖拽系统
+const { startDrag, moveDrag, endDrag } = useCanvasDrag(
   editorStore,
-  selectedLayerRef
+  stageRef,
+  scale,
+  setHideSelectedItems
 )
+
+// 选择系统（集成拖拽）
+const { selectionRect, isMiddleMousePressed, handleMouseDown, handleMouseMove, handleMouseUp } =
+  useCanvasSelection(editorStore, stageRef, scale, isSpacePressed, stageConfig, startDrag, moveDrag, endDrag)
 
 // 右键菜单状态
 const contextMenuOpen = ref(false)
@@ -228,34 +230,12 @@ onMounted(() => {
       @mouseup="handleMouseUp"
       @contextmenu="handleCanvasContextMenu"
     >
-      <!-- Layer 1: 批量绘制未选中圆点 -->
-      <v-layer ref="unselectedLayerRef">
-        <!-- 通过 updateUnselectedItemsShape() 动态添加 -->
+      <!-- Layer 1: 批量绘制所有物品 -->
+      <v-layer ref="mainLayerRef">
+        <!-- 通过 updateMainLayer() 动态添加 -->
       </v-layer>
 
-      <!-- Layer 2: 单独渲染选中圆点（可拖拽） -->
-      <v-layer ref="selectedLayerRef">
-        <v-circle
-          v-for="item in selectedItems"
-          :key="item.internalId"
-          :config="{
-            x: item.x,
-            y: item.y,
-            radius: Math.max(4, 6 / scale),
-            fill: '#3b82f6',
-            stroke: '#2563eb',
-            strokeWidth: Math.max(0.5, 1 / scale),
-            draggable: true,
-            itemId: item.internalId,
-            name: 'selectedCircle',
-          }"
-          @dragstart="(e: any) => handleDragStart(item, e)"
-          @dragmove="(e: any) => handleDragMove(item, e)"
-          @dragend="(e: any) => handleDragEnd(item, e)"
-        />
-      </v-layer>
-
-      <!-- Layer 3: 交互层（框选矩形、原点标记） -->
+      <!-- Layer 2: 交互层（框选矩形、原点标记） -->
       <v-layer ref="interactionLayerRef">
         <!-- 原点标记 -->
         <v-circle

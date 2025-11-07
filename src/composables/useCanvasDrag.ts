@@ -1,101 +1,126 @@
-import { ref, computed, type Ref } from 'vue'
+import { ref, type Ref } from 'vue'
 import type { useEditorStore } from '../stores/editorStore'
-import type { AppItem } from '../types/editor'
+import Konva from 'konva'
 
 export function useCanvasDrag(
   editorStore: ReturnType<typeof useEditorStore>,
-  selectedLayerRef: Ref<any>
+  stageRef: Ref<any>,
+  scale: Ref<number>,
+  setHideSelectedItems: (hide: boolean) => void
 ) {
   // 拖拽状态
-  const dragStartPositions = ref<Map<string, { x: number; y: number }>>(new Map())
   const isDragging = ref(false)
-  const isAltPressed = ref(false)
+  const ghostLayer = ref<Konva.Layer | null>(null)
+  const dragStartPos = ref({ x: 0, y: 0 })
 
-  // 计算属性：选中的物品
-  const selectedItems = computed(() => {
-    return editorStore.visibleItems.filter((item) =>
+  // 创建 Ghost Layer
+  function createGhostLayer() {
+    const stage = stageRef.value?.getNode()
+    if (!stage) return null
+
+    const layer = new Konva.Layer()
+    
+    // 获取选中物品
+    const selectedItems = editorStore.visibleItems.filter((item) =>
       editorStore.selectedItemIds.has(item.internalId)
     )
-  })
 
-  // 拖拽功能
-  function handleDragStart(_draggedItem: AppItem, e: any) {
-    isDragging.value = true
-    isAltPressed.value = e.evt.altKey
+    // 批量绘制选中物品
+    const ghostShape = new Konva.Shape({
+      sceneFunc: (context) => {
+        const radius = Math.max(4, 6 / scale.value)
+        const strokeWidth = Math.max(0.5, 1 / scale.value)
 
-    if (isAltPressed.value) {
-      // Alt 复制：复制选中物品并开始拖拽副本
+        selectedItems.forEach((item) => {
+          context.beginPath()
+          context.arc(item.x, item.y, radius, 0, Math.PI * 2, false)
+          context.fillStyle = '#3b82f6'
+          context.fill()
+          context.strokeStyle = '#2563eb'
+          context.lineWidth = strokeWidth
+          context.stroke()
+        })
+      },
+      listening: false, // Ghost Layer 不需要事件监听
+    })
+
+    layer.add(ghostShape)
+    stage.add(layer)
+    layer.moveToTop() // 确保在最上层
+    layer.batchDraw()
+
+    return layer
+  }
+
+  // 开始拖拽
+  function startDrag(worldPos: { x: number; y: number }, isAltPressed: boolean) {
+    // Alt 复制：立即复制选中物品
+    if (isAltPressed) {
       editorStore.duplicateSelected(0, 0)
-      // 注意：复制后 selectedItems 会更新为新副本
     }
 
-    // 记录所有选中圆点的初始位置
-    dragStartPositions.value.clear()
-    selectedItems.value.forEach((item) => {
-      dragStartPositions.value.set(item.internalId, { x: item.x, y: item.y })
-    })
+    isDragging.value = true
+    dragStartPos.value = { x: worldPos.x, y: worldPos.y }
+
+    // 创建 Ghost Layer
+    ghostLayer.value = createGhostLayer()
+
+    // 隐藏主 Layer 上的选中物品
+    setHideSelectedItems(true)
   }
 
-  function handleDragMove(draggedItem: AppItem, e: any) {
-    const node = e.target
-    const newX = node.x()
-    const newY = node.y()
+  // 拖拽移动
+  function moveDrag(worldPos: { x: number; y: number }) {
+    if (!isDragging.value || !ghostLayer.value) return
 
-    // 计算偏移量
-    const startPos = dragStartPositions.value.get(draggedItem.internalId)
-    if (!startPos) return
+    const dx = worldPos.x - dragStartPos.value.x
+    const dy = worldPos.y - dragStartPos.value.y
 
-    const dx = newX - startPos.x
-    const dy = newY - startPos.y
-
-    // 同步移动其他选中圆点
-    const layer = selectedLayerRef.value?.getNode()
-    if (!layer) return
-
-    selectedItems.value.forEach((item) => {
-      if (item.internalId === draggedItem.internalId) return
-
-      const itemStartPos = dragStartPositions.value.get(item.internalId)
-      if (itemStartPos) {
-        const circles = layer.find('.selectedCircle')
-        const circle = circles?.find((c: any) => c.attrs.itemId === item.internalId)
-        if (circle) {
-          circle.x(itemStartPos.x + dx)
-          circle.y(itemStartPos.y + dy)
-        }
-      }
-    })
-
-    layer.batchDraw()
+    // 只移动整个 Ghost Layer
+    ghostLayer.value.position({ x: dx, y: dy })
+    ghostLayer.value.batchDraw()
   }
 
-  function handleDragEnd(draggedItem: AppItem, e: any) {
-    if (!isDragging.value) return
+  // 结束拖拽
+  function endDrag(worldPos: { x: number; y: number }) {
+    if (!isDragging.value || !ghostLayer.value) return
 
-    const node = e.target
-    const newX = node.x()
-    const newY = node.y()
-
-    const startPos = dragStartPositions.value.get(draggedItem.internalId)
-    if (!startPos) return
-
-    const dx = newX - startPos.x
-    const dy = newY - startPos.y
+    const dx = worldPos.x - dragStartPos.value.x
+    const dy = worldPos.y - dragStartPos.value.y
 
     // 更新 store 中所有选中物品的位置
     editorStore.moveSelectedItems(dx, dy)
 
-    // 清空拖拽状态
-    dragStartPositions.value.clear()
+    // 清理 Ghost Layer
+    ghostLayer.value.destroy()
+    ghostLayer.value = null
     isDragging.value = false
-    isAltPressed.value = false
+
+    // 恢复主 Layer 上的选中物品显示
+    setHideSelectedItems(false)
+  }
+
+  // 取消拖拽
+  function cancelDrag() {
+    if (!isDragging.value) return
+
+    // 清理 Ghost Layer
+    if (ghostLayer.value) {
+      ghostLayer.value.destroy()
+      ghostLayer.value = null
+    }
+
+    isDragging.value = false
+
+    // 恢复主 Layer 上的选中物品显示
+    setHideSelectedItems(false)
   }
 
   return {
     isDragging,
-    selectedItems,
-    handleDragStart,
-    handleDragMove,
-    handleDragEnd,
+    startDrag,
+    moveDrag,
+    endDrag,
+    cancelDrag,
   }
 }
