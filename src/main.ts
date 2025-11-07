@@ -1,7 +1,7 @@
 import { createApp } from 'vue'
 import { createPinia } from 'pinia'
 import VueKonva from 'vue-konva'
-import './style.css'
+import './index.css'
 import App from './App.vue'
 
 const app = createApp(App)
