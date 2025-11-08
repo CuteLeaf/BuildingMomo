@@ -17,7 +17,7 @@ export function useCanvasSelection(
   const isSelecting = ref(false)
   const selectionStart = ref<{ x: number; y: number } | null>(null)
   const mouseDownScreenPos = ref<{ x: number; y: number } | null>(null) // 记录屏幕坐标起始位置
-  
+
   // 拖拽状态
   const isDraggingItem = ref(false)
   const draggedItem = ref<AppItem | null>(null)
@@ -83,19 +83,29 @@ export function useCanvasSelection(
   function findItemAtPosition(worldPos: { x: number; y: number }): AppItem | null {
     const clickRadius = Math.max(4, 6 / scale.value) + 2
     let closestItem: AppItem | null = null
+    let closestSelectedItem: AppItem | null = null
     let minDistance = clickRadius
+    let minSelectedDistance = clickRadius
 
     for (const item of editorStore.visibleItems) {
       const distance = Math.sqrt(
         Math.pow(item.x - worldPos.x, 2) + Math.pow(item.y - worldPos.y, 2)
       )
+
       if (distance < minDistance) {
         minDistance = distance
         closestItem = item
       }
+
+      // 如果是选中物品，单独记录
+      if (editorStore.selectedItemIds.has(item.internalId) && distance < minSelectedDistance) {
+        minSelectedDistance = distance
+        closestSelectedItem = item
+      }
     }
 
-    return closestItem
+    // 优先返回选中的物品（解决重叠时的选择问题）
+    return closestSelectedItem || closestItem
   }
 
   // 框选功能
@@ -139,11 +149,12 @@ export function useCanvasSelection(
 
     // 检测是否点击在选中物品上
     const clickedItem = findItemAtPosition(worldPos)
+
     if (clickedItem && editorStore.selectedItemIds.has(clickedItem.internalId)) {
       // 点击在选中物品上，准备拖拽
       isDraggingItem.value = true
       draggedItem.value = clickedItem
-      
+
       // 触发拖拽开始
       if (onDragStart) {
         onDragStart(worldPos, evt.altKey)
@@ -220,7 +231,7 @@ export function useCanvasSelection(
 
     const stage = e.target.getStage()
     const pos = stage.getPointerPosition()
-    
+
     if (pos) {
       const worldPos = {
         x: (pos.x - stage.x()) / stage.scaleX(),
@@ -248,7 +259,7 @@ export function useCanvasSelection(
       if (endPos) {
         moveDistance = Math.sqrt(
           Math.pow(endPos.x - mouseDownScreenPos.value.x, 2) +
-            Math.pow(endPos.y - mouseDownScreenPos.value.y, 2)
+          Math.pow(endPos.y - mouseDownScreenPos.value.y, 2)
         )
       }
 
@@ -288,5 +299,6 @@ export function useCanvasSelection(
     handleMouseDown,
     handleMouseMove,
     handleMouseUp,
+    findItemAtPosition,
   }
 }

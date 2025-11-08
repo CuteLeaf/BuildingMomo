@@ -49,17 +49,23 @@ const { startDrag, moveDrag, endDrag } = useCanvasDrag(
 )
 
 // 选择系统（集成拖拽）
-const { selectionRect, isMiddleMousePressed, handleMouseDown, handleMouseMove, handleMouseUp } =
-  useCanvasSelection(
-    editorStore,
-    stageRef,
-    scale,
-    isSpacePressed,
-    stageConfig,
-    startDrag,
-    moveDrag,
-    endDrag
-  )
+const {
+  selectionRect,
+  isMiddleMousePressed,
+  handleMouseDown,
+  handleMouseMove,
+  handleMouseUp,
+  findItemAtPosition,
+} = useCanvasSelection(
+  editorStore,
+  stageRef,
+  scale,
+  isSpacePressed,
+  stageConfig,
+  startDrag,
+  moveDrag,
+  endDrag
+)
 
 // 右键菜单状态
 const contextMenuOpen = ref(false)
@@ -67,23 +73,6 @@ const contextMenuOpen = ref(false)
 // 菜单位置（屏幕坐标）
 const menuPosition = ref({ x: 0, y: 0 })
 const virtualTriggerRef = ref<HTMLElement | null>(null)
-
-// 碰撞检测函数（复用选择逻辑）
-function findItemAtPosition(worldPos: { x: number; y: number }): AppItem | null {
-  const clickRadius = Math.max(4, 6 / scale.value) + 2
-  let closestItem: AppItem | null = null
-  let minDistance = clickRadius
-
-  for (const item of editorStore.visibleItems) {
-    const distance = Math.sqrt(Math.pow(item.x - worldPos.x, 2) + Math.pow(item.y - worldPos.y, 2))
-    if (distance < minDistance) {
-      minDistance = distance
-      closestItem = item
-    }
-  }
-
-  return closestItem
-}
 
 // 处理右键菜单
 function handleCanvasContextMenu(e: any) {
