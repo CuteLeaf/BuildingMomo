@@ -25,6 +25,9 @@ export const useCommandStore = defineStore('command', () => {
   const resetViewFn = ref<(() => void) | null>(null)
   const fitToViewFn = ref<(() => void) | null>(null)
 
+  // 移动对话框状态
+  const showMoveDialog = ref(false)
+
   // 剪贴板和文件操作
   const clipboard = useClipboard(editorStore)
   const fileOps = useFileOperations(editorStore, () => {
@@ -123,6 +126,17 @@ export const useCommandStore = defineStore('command', () => {
       execute: () => {
         console.log('[Command] 粘贴')
         clipboard.paste()
+      },
+    },
+    {
+      id: 'edit.move',
+      label: '移动和旋转',
+      shortcut: 'Ctrl+M',
+      category: 'edit',
+      enabled: () => editorStore.selectedItemIds.size > 0,
+      execute: () => {
+        console.log('[Command] 移动和旋转')
+        showMoveDialog.value = true
       },
     },
     {
@@ -261,5 +275,6 @@ export const useCommandStore = defineStore('command', () => {
     executeCommand,
     isCommandEnabled,
     setZoomFunctions,
+    showMoveDialog,
   }
 })

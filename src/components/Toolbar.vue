@@ -45,9 +45,7 @@ function isEnabled(commandId: string): boolean {
             <!-- 在"导出"、"保存到游戏"、"监控游戏目录"之前添加分隔线 -->
             <MenubarSeparator
               v-if="
-                cmd.id === 'file.import' ||
-                cmd.id === 'file.export' ||
-                cmd.id === 'file.saveToGame'
+                cmd.id === 'file.import' || cmd.id === 'file.export' || cmd.id === 'file.saveToGame'
               "
             />
             <MenubarItem :disabled="!isEnabled(cmd.id)" @click="handleCommand(cmd.id)">
@@ -65,6 +63,8 @@ function isEnabled(commandId: string): boolean {
           <template v-for="cmd in editCommands" :key="cmd.id">
             <!-- 在"删除"之前和"全选"之前添加分隔线 -->
             <MenubarSeparator v-if="cmd.id === 'edit.delete' || cmd.id === 'edit.selectAll'" />
+            <!-- 在"移动"之前添加分隔线 -->
+            <MenubarSeparator v-if="cmd.id === 'edit.move'" />
             <MenubarItem :disabled="!isEnabled(cmd.id)" @click="handleCommand(cmd.id)">
               {{ cmd.label }}
               <MenubarShortcut v-if="cmd.shortcut">{{ cmd.shortcut }}</MenubarShortcut>

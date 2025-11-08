@@ -1,6 +1,13 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import type { AppItem, GameItem, GameDataFile, HeightFilter, HomeScheme } from '../types/editor'
+import type {
+  AppItem,
+  GameItem,
+  GameDataFile,
+  HeightFilter,
+  HomeScheme,
+  TransformParams,
+} from '../types/editor'
 
 // 生成简单的UUID
 function generateUUID(): string {
@@ -9,6 +16,59 @@ function generateUUID(): string {
     const v = c === 'x' ? r : (r & 0x3) | 0x8
     return v.toString(16)
   })
+}
+
+// 3D旋转：将点绕中心旋转（群组旋转）
+function rotatePoint3D(
+  point: { x: number; y: number; z: number },
+  center: { x: number; y: number; z: number },
+  rotation: { x?: number; y?: number; z?: number }
+): { x: number; y: number; z: number } {
+  // 转换为相对中心的坐标
+  let px = point.x - center.x
+  let py = point.y - center.y
+  let pz = point.z - center.z
+
+  // 依次应用旋转（顺序：X -> Y -> Z，对应 Roll -> Pitch -> Yaw）
+  // 1. 绕X轴旋转（Roll）
+  if (rotation.x) {
+    const angleRad = (rotation.x * Math.PI) / 180
+    const cos = Math.cos(angleRad)
+    const sin = Math.sin(angleRad)
+    const newPy = py * cos - pz * sin
+    const newPz = py * sin + pz * cos
+    py = newPy
+    pz = newPz
+  }
+
+  // 2. 绕Y轴旋转（Pitch）
+  if (rotation.y) {
+    const angleRad = (rotation.y * Math.PI) / 180
+    const cos = Math.cos(angleRad)
+    const sin = Math.sin(angleRad)
+    const newPx = px * cos + pz * sin
+    const newPz = -px * sin + pz * cos
+    px = newPx
+    pz = newPz
+  }
+
+  // 3. 绕Z轴旋转（Yaw）
+  if (rotation.z) {
+    const angleRad = (rotation.z * Math.PI) / 180
+    const cos = Math.cos(angleRad)
+    const sin = Math.sin(angleRad)
+    const newPx = px * cos - py * sin
+    const newPy = px * sin + py * cos
+    px = newPx
+    py = newPy
+  }
+
+  // 转回世界坐标
+  return {
+    x: px + center.x,
+    y: py + center.y,
+    z: pz + center.z,
+  }
 }
 
 export const useEditorStore = defineStore('editor', () => {
@@ -460,6 +520,105 @@ export const useEditorStore = defineStore('editor', () => {
     return newIds
   }
 
+  // 精确变换选中物品（位置和旋转）
+  function updateSelectedItemsTransform(params: TransformParams) {
+    if (!activeScheme.value) return
+
+    const { mode, position, rotation } = params
+    const selected = selectedItems.value
+
+    if (selected.length === 0) return
+
+    // 计算选区中心（用于旋转和绝对位置）
+    const center = getSelectedItemsCenter()
+    if (!center) return
+
+    // 计算位置偏移量
+    let positionOffset = { x: 0, y: 0, z: 0 }
+
+    if (mode === 'absolute' && position) {
+      // 绝对模式：移动到指定坐标
+      positionOffset = {
+        x: (position.x ?? center.x) - center.x,
+        y: (position.y ?? center.y) - center.y,
+        z: (position.z ?? center.z) - center.z,
+      }
+    } else if (mode === 'relative' && position) {
+      // 相对模式：偏移指定距离
+      positionOffset = {
+        x: position.x ?? 0,
+        y: position.y ?? 0,
+        z: position.z ?? 0,
+      }
+    }
+
+    // 更新物品
+    activeScheme.value.items = activeScheme.value.items.map((item) => {
+      if (!activeScheme.value!.selectedItemIds.has(item.internalId)) {
+        return item
+      }
+
+      let newX = item.x
+      let newY = item.y
+      let newZ = item.z
+      const currentRotation = item.originalData.Rotation
+      let newRoll = currentRotation.Roll
+      let newPitch = currentRotation.Pitch
+      let newYaw = currentRotation.Yaw
+
+      // 应用旋转（群组旋转：位置绕中心旋转 + 朝向同步旋转）
+      if (rotation && (rotation.x || rotation.y || rotation.z)) {
+        // 1. 位置绕中心旋转（公转）
+        const rotatedPos = rotatePoint3D({ x: item.x, y: item.y, z: item.z }, center, rotation)
+        newX = rotatedPos.x
+        newY = rotatedPos.y
+        newZ = rotatedPos.z
+
+        // 2. 朝向同步旋转（自转）
+        newRoll += rotation.x ?? 0
+        newPitch += rotation.y ?? 0
+        newYaw += rotation.z ?? 0
+      }
+
+      // 应用位置偏移
+      newX += positionOffset.x
+      newY += positionOffset.y
+      newZ += positionOffset.z
+
+      return {
+        ...item,
+        x: newX,
+        y: newY,
+        z: newZ,
+        originalData: {
+          ...item.originalData,
+          Location: {
+            X: newX,
+            Y: newY,
+            Z: newZ,
+          },
+          Rotation: {
+            Pitch: newPitch,
+            Yaw: newYaw,
+            Roll: newRoll,
+          },
+        },
+      }
+    })
+  }
+
+  // 获取选中物品的中心坐标（用于UI显示）
+  function getSelectedItemsCenter(): { x: number; y: number; z: number } | null {
+    const selected = selectedItems.value
+    if (selected.length === 0) return null
+
+    return {
+      x: selected.reduce((sum, item) => sum + item.x, 0) / selected.length,
+      y: selected.reduce((sum, item) => sum + item.y, 0) / selected.length,
+      z: selected.reduce((sum, item) => sum + item.z, 0) / selected.length,
+    }
+  }
+
   return {
     // 多方案状态
     schemes,
@@ -498,6 +657,8 @@ export const useEditorStore = defineStore('editor', () => {
     moveSelectedItems,
     duplicateSelected,
     deleteSelected,
+    updateSelectedItemsTransform,
+    getSelectedItemsCenter,
 
     // 跨方案剪贴板
     copyToClipboard,

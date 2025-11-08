@@ -54,7 +54,7 @@ export interface HomeScheme {
   id: string // 方案唯一ID
   name: string // 方案名称（从文件名提取）
   filePath?: string // 原始文件路径（可选）
-  
+
   // 游戏路径相关
   sourceType?: 'manual' | 'game' // 来源类型：手动导入 vs 从游戏路径导入
   gameFilePath?: string // 完整的游戏文件路径（仅用于显示）
@@ -77,4 +77,19 @@ export interface FileWatchState {
   lastModifiedTime: number // 文件的最后修改时间
   fileHandle: FileSystemFileHandle | null // 当前监控的文件句柄
   fileName: string // 文件名
+}
+
+// 精确变换参数
+export interface TransformParams {
+  mode: 'relative' | 'absolute'
+  position?: {
+    x?: number
+    y?: number
+    z?: number
+  }
+  rotation?: {
+    x?: number // 绕X轴旋转（对应游戏的Roll）
+    y?: number // 绕Y轴旋转（对应游戏的Pitch）
+    z?: number // 绕Z轴旋转（对应游戏的Yaw）
+  }
 }

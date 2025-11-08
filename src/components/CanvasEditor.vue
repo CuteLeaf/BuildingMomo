@@ -15,6 +15,7 @@ import {
   DropdownMenuShortcut,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import MoveDialog from './MoveDialog.vue'
 
 const editorStore = useEditorStore()
 const commandStore = useCommandStore()
@@ -137,6 +138,9 @@ onMounted(() => {
 
 <template>
   <div class="relative h-full flex-1 overflow-hidden bg-gray-100">
+    <!-- 移动对话框 -->
+    <MoveDialog v-model:open="commandStore.showMoveDialog" />
+
     <!-- Dropdown Menu (代替 Context Menu) -->
     <DropdownMenu v-model:open="contextMenuOpen" :modal="false">
       <!-- 虚拟触发器：不可见但存在于 DOM 中，动态定位到鼠标位置 -->
@@ -181,6 +185,14 @@ onMounted(() => {
         >
           <span>粘贴</span>
           <DropdownMenuShortcut>Ctrl+V</DropdownMenuShortcut>
+        </DropdownMenuItem>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem
+          :disabled="!commandStore.isCommandEnabled('edit.move')"
+          @select="commandStore.executeCommand('edit.move')"
+        >
+          <span>移动和旋转</span>
+          <DropdownMenuShortcut>Ctrl+M</DropdownMenuShortcut>
         </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem
