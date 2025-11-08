@@ -324,6 +324,7 @@ export function useFileOperations(
         console.log(
           `[FileWatch] File updated: ${file.name}, lastModified: ${new Date(file.lastModified).toLocaleString()}`
         )
+        console.log(file.lastModified , watchState.value.lastModifiedTime)
 
         // 更新最后修改时间
         watchState.value.lastModifiedTime = file.lastModified
