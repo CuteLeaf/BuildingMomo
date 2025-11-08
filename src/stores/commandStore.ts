@@ -44,7 +44,7 @@ export const useCommandStore = defineStore('command', () => {
     {
       id: 'file.startWatchMode',
       label: '监控游戏目录',
-      shortcut: 'Ctrl+Shift+M',
+      shortcut: 'Ctrl+O',
       category: 'file',
       enabled: () => fileOps.isFileSystemAccessSupported && !fileOps.watchState.value.isActive,
       execute: async () => {
@@ -65,7 +65,7 @@ export const useCommandStore = defineStore('command', () => {
     {
       id: 'file.import',
       label: '导入 JSON',
-      shortcut: 'Ctrl+O',
+      shortcut: 'Ctrl+Shift+O',
       category: 'file',
       enabled: () => true,
       execute: async () => {
@@ -76,7 +76,7 @@ export const useCommandStore = defineStore('command', () => {
     {
       id: 'file.export',
       label: '导出 JSON',
-      shortcut: 'Ctrl+S',
+      shortcut: 'Ctrl+Shift+S',
       category: 'file',
       enabled: () => editorStore.items.length > 0,
       execute: () => {
@@ -87,7 +87,7 @@ export const useCommandStore = defineStore('command', () => {
     {
       id: 'file.saveToGame',
       label: '保存到游戏',
-      shortcut: 'Ctrl+Shift+S',
+      shortcut: 'Ctrl+S',
       category: 'file',
       enabled: () =>
         editorStore.activeScheme?.sourceType === 'game' && editorStore.items.length > 0,
@@ -98,6 +98,28 @@ export const useCommandStore = defineStore('command', () => {
     },
 
     // ===== 编辑菜单 =====
+    {
+      id: 'edit.undo',
+      label: '撤销',
+      shortcut: 'Ctrl+Z',
+      category: 'edit',
+      enabled: () => editorStore.canUndo(),
+      execute: () => {
+        console.log('[Command] 撤销')
+        editorStore.undo()
+      },
+    },
+    {
+      id: 'edit.redo',
+      label: '重做',
+      shortcut: 'Ctrl+Y',
+      category: 'edit',
+      enabled: () => editorStore.canRedo(),
+      execute: () => {
+        console.log('[Command] 重做')
+        editorStore.redo()
+      },
+    },
     {
       id: 'edit.cut',
       label: '剪切',

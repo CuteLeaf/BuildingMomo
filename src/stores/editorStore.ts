@@ -8,6 +8,8 @@ import type {
   HomeScheme,
   TransformParams,
   WorkingCoordinateSystem,
+  HistorySnapshot,
+  HistoryStack,
 } from '../types/editor'
 
 // 生成简单的UUID
@@ -151,6 +153,142 @@ export const useEditorStore = defineStore('editor', () => {
   const selectedItems = computed(() => {
     return items.value.filter((item) => selectedItemIds.value.has(item.internalId))
   })
+
+  // ========== 历史记录管理 ==========
+
+  // 初始化历史栈
+  function initHistoryStack(): HistoryStack {
+    return {
+      undoStack: [],
+      redoStack: [],
+      maxSize: 50,
+    }
+  }
+
+  // 深拷贝物品数组（使用 JSON 序列化，安全但性能稍低）
+  function cloneItems(items: AppItem[]): AppItem[] {
+    // 使用 JSON.parse(JSON.stringify()) 进行深拷贝
+    // 这种方法可以安全地处理所有可序列化的数据
+    return JSON.parse(JSON.stringify(items))
+  }
+
+  // 深拷贝选择集合
+  function cloneSelection(selection: Set<string>): Set<string> {
+    return new Set(selection)
+  }
+
+  // 保存历史记录
+  function saveHistory(type: 'edit' | 'selection' = 'edit') {
+    if (!activeScheme.value) return
+
+    // 确保历史栈已初始化
+    if (!activeScheme.value.history) {
+      activeScheme.value.history = initHistoryStack()
+    }
+
+    const history = activeScheme.value.history
+
+    // 方案A：选择操作合并策略
+    // 如果是选择操作且栈顶也是选择操作，则替换而不是新增
+    if (type === 'selection' && history.undoStack.length > 0) {
+      const lastSnapshot = history.undoStack[history.undoStack.length - 1]
+      if (lastSnapshot && lastSnapshot.type === 'selection') {
+        // 替换栈顶的选择操作
+        history.undoStack[history.undoStack.length - 1] = {
+          items: cloneItems(activeScheme.value.items),
+          selectedItemIds: cloneSelection(activeScheme.value.selectedItemIds),
+          timestamp: Date.now(),
+          type: 'selection',
+        }
+        return
+      }
+    }
+
+    // 创建快照
+    const snapshot: HistorySnapshot = {
+      items: cloneItems(activeScheme.value.items),
+      selectedItemIds: cloneSelection(activeScheme.value.selectedItemIds),
+      timestamp: Date.now(),
+      type,
+    }
+
+    // 推入撤销栈
+    history.undoStack.push(snapshot)
+
+    // 限制栈大小
+    if (history.undoStack.length > history.maxSize) {
+      history.undoStack.shift()
+    }
+
+    // 清空重做栈（新操作会使重做历史失效）
+    history.redoStack = []
+  }
+
+  // 撤销操作
+  function undo() {
+    if (!activeScheme.value?.history) return
+    const history = activeScheme.value.history
+
+    if (history.undoStack.length === 0) {
+      console.log('[History] 没有可撤销的操作')
+      return
+    }
+
+    // 保存当前状态到重做栈
+    const currentSnapshot: HistorySnapshot = {
+      items: cloneItems(activeScheme.value.items),
+      selectedItemIds: cloneSelection(activeScheme.value.selectedItemIds),
+      timestamp: Date.now(),
+      type: 'edit', // 重做栈不区分类型
+    }
+    history.redoStack.push(currentSnapshot)
+
+    // 从撤销栈弹出并恢复状态
+    const snapshot = history.undoStack.pop()!
+    activeScheme.value.items = cloneItems(snapshot.items)
+    activeScheme.value.selectedItemIds = cloneSelection(snapshot.selectedItemIds)
+
+    console.log(`[History] 撤销操作 (类型: ${snapshot.type})`)
+  }
+
+  // 重做操作
+  function redo() {
+    if (!activeScheme.value?.history) return
+    const history = activeScheme.value.history
+
+    if (history.redoStack.length === 0) {
+      console.log('[History] 没有可重做的操作')
+      return
+    }
+
+    // 保存当前状态到撤销栈
+    const currentSnapshot: HistorySnapshot = {
+      items: cloneItems(activeScheme.value.items),
+      selectedItemIds: cloneSelection(activeScheme.value.selectedItemIds),
+      timestamp: Date.now(),
+      type: 'edit',
+    }
+    history.undoStack.push(currentSnapshot)
+
+    // 从重做栈弹出并恢复状态
+    const snapshot = history.redoStack.pop()!
+    activeScheme.value.items = cloneItems(snapshot.items)
+    activeScheme.value.selectedItemIds = cloneSelection(snapshot.selectedItemIds)
+
+    console.log('[History] 重做操作')
+  }
+
+  // 检查是否可以撤销
+  function canUndo(): boolean {
+    return (activeScheme.value?.history?.undoStack.length ?? 0) > 0
+  }
+
+  // 检查是否可以重做
+  function canRedo(): boolean {
+    return (activeScheme.value?.history?.redoStack.length ?? 0) > 0
+  }
+
+  // ========== 方案管理 ==========
 
   // 方案管理：创建新方案
   function createScheme(name: string = '未命名方案'): string {
@@ -326,6 +464,9 @@ export const useEditorStore = defineStore('editor', () => {
   function toggleSelection(itemId: string, additive: boolean) {
     if (!activeScheme.value) return
 
+    // 保存历史（选择操作，会合并）
+    saveHistory('selection')
+
     if (additive) {
       if (activeScheme.value.selectedItemIds.has(itemId)) {
         activeScheme.value.selectedItemIds.delete(itemId)
@@ -341,6 +482,9 @@ export const useEditorStore = defineStore('editor', () => {
   function updateSelection(itemIds: string[], additive: boolean) {
     if (!activeScheme.value) return
 
+    // 保存历史（选择操作，会合并）
+    saveHistory('selection')
+
     if (!additive) {
       activeScheme.value.selectedItemIds.clear()
     }
@@ -349,10 +493,14 @@ export const useEditorStore = defineStore('editor', () => {
 
   function clearSelection() {
     if (!activeScheme.value) return
+
+    // 保存历史（选择操作，会合并）
+    saveHistory('selection')
+
     activeScheme.value.selectedItemIds.clear()
   }
 
-  // 移动选中物品
+  // 移动选中物品（注意：不在这里保存历史，由拖拽结束时统一保存）
   function moveSelectedItems(dx: number, dy: number) {
     if (!activeScheme.value) return
 
@@ -379,6 +527,9 @@ export const useEditorStore = defineStore('editor', () => {
   // 复制选中物品（带偏移）
   function duplicateSelected(offsetX: number = 50, offsetY: number = 50): string[] {
     if (!activeScheme.value) return []
+
+    // 保存历史（编辑操作）
+    saveHistory('edit')
 
     const newIds: string[] = []
     const duplicates: AppItem[] = []
@@ -425,6 +576,9 @@ export const useEditorStore = defineStore('editor', () => {
   function deleteSelected() {
     if (!activeScheme.value) return
 
+    // 保存历史（编辑操作）
+    saveHistory('edit')
+
     activeScheme.value.items = activeScheme.value.items.filter(
       (item) => !activeScheme.value!.selectedItemIds.has(item.internalId)
     )
@@ -435,6 +589,9 @@ export const useEditorStore = defineStore('editor', () => {
   function selectAll() {
     if (!activeScheme.value) return
 
+    // 保存历史（选择操作，会合并）
+    saveHistory('selection')
+
     activeScheme.value.selectedItemIds.clear()
     visibleItems.value.forEach((item) => {
       activeScheme.value!.selectedItemIds.add(item.internalId)
@@ -444,6 +601,9 @@ export const useEditorStore = defineStore('editor', () => {
   // 反选
   function invertSelection() {
     if (!activeScheme.value) return
+
+    // 保存历史（选择操作，会合并）
+    saveHistory('selection')
 
     const newSelection = new Set<string>()
     visibleItems.value.forEach((item) => {
@@ -473,8 +633,17 @@ export const useEditorStore = defineStore('editor', () => {
 
   // 跨方案剪贴板：剪切到剪贴板
   function cutToClipboard() {
+    // 保存历史（编辑操作）
+    saveHistory('edit')
+
     copyToClipboard()
-    deleteSelected()
+    // deleteSelected 内部已经保存历史，但因为我们已经保存了，需要避免重复
+    // 直接删除，不再调用 deleteSelected
+    if (!activeScheme.value) return
+    activeScheme.value.items = activeScheme.value.items.filter(
+      (item) => !activeScheme.value!.selectedItemIds.has(item.internalId)
+    )
+    activeScheme.value.selectedItemIds.clear()
   }
 
   // 跨方案剪贴板：从剪贴板粘贴
@@ -487,6 +656,9 @@ export const useEditorStore = defineStore('editor', () => {
   // 粘贴物品（内部方法）
   function pasteItems(clipboardItems: AppItem[], offsetX: number, offsetY: number): string[] {
     if (!activeScheme.value) return []
+
+    // 保存历史（编辑操作）
+    saveHistory('edit')
 
     const newIds: string[] = []
     const newItems: AppItem[] = []
@@ -530,6 +702,9 @@ export const useEditorStore = defineStore('editor', () => {
   // 精确变换选中物品（位置和旋转）
   function updateSelectedItemsTransform(params: TransformParams) {
     if (!activeScheme.value) return
+
+    // 保存历史（编辑操作）
+    saveHistory('edit')
 
     const { mode, position, rotation } = params
     const selected = selectedItems.value
@@ -633,11 +808,11 @@ export const useEditorStore = defineStore('editor', () => {
   }
 
   // 工作坐标系坐标转换：工作坐标系 -> 全局坐标系
-  function workingToGlobal(point: {
+  function workingToGlobal(point: { x: number; y: number; z: number }): {
     x: number
     y: number
     z: number
-  }): { x: number; y: number; z: number } {
+  } {
     if (!workingCoordinateSystem.value.enabled) {
       return point
     }
@@ -654,11 +829,11 @@ export const useEditorStore = defineStore('editor', () => {
   }
 
   // 工作坐标系坐标转换：全局坐标系 -> 工作坐标系
-  function globalToWorking(point: {
+  function globalToWorking(point: { x: number; y: number; z: number }): {
     x: number
     y: number
     z: number
-  }): { x: number; y: number; z: number } {
+  } {
     if (!workingCoordinateSystem.value.enabled) {
       return point
     }
@@ -726,5 +901,12 @@ export const useEditorStore = defineStore('editor', () => {
     setWorkingCoordinateSystem,
     workingToGlobal,
     globalToWorking,
+
+    // 历史记录
+    saveHistory,
+    undo,
+    redo,
+    canUndo,
+    canRedo,
   }
 })

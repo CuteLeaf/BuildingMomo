@@ -61,10 +61,15 @@ function isEnabled(commandId: string): boolean {
         <MenubarTrigger class="text-sm font-medium">编辑</MenubarTrigger>
         <MenubarContent>
           <template v-for="cmd in editCommands" :key="cmd.id">
-            <!-- 在"删除"之前和"全选"之前添加分隔线 -->
-            <MenubarSeparator v-if="cmd.id === 'edit.delete' || cmd.id === 'edit.selectAll'" />
-            <!-- 在"移动"之前添加分隔线 -->
-            <MenubarSeparator v-if="cmd.id === 'edit.move'" />
+            <!-- 在"剪切 "、"移动"、"删除"、"全选"之前添加分隔线 -->
+            <MenubarSeparator
+              v-if="
+                cmd.id === 'edit.cut' ||
+                cmd.id === 'edit.move' ||
+                cmd.id === 'edit.delete' ||
+                cmd.id === 'edit.selectAll'
+              "
+            />
             <MenubarItem :disabled="!isEnabled(cmd.id)" @click="handleCommand(cmd.id)">
               {{ cmd.label }}
               <MenubarShortcut v-if="cmd.shortcut">{{ cmd.shortcut }}</MenubarShortcut>

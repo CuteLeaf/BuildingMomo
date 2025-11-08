@@ -66,6 +66,9 @@ export interface HomeScheme {
   heightFilter: HeightFilter
   selectedItemIds: Set<string>
   initialViewConfig?: { scale: number; x: number; y: number }
+
+  // 历史记录栈（每个方案独立）
+  history?: HistoryStack
 }
 
 // 文件监控状态
@@ -98,4 +101,19 @@ export interface TransformParams {
 export interface WorkingCoordinateSystem {
   enabled: boolean // 是否启用工作坐标系
   rotationAngle: number // 旋转角度（以度为单位，0° = 全局坐标系）
+}
+
+// 历史记录快照
+export interface HistorySnapshot {
+  items: AppItem[] // 物品数据快照
+  selectedItemIds: Set<string> // 选择状态快照
+  timestamp: number // 时间戳
+  type: 'edit' | 'selection' // 操作类型
+}
+
+// 历史记录栈
+export interface HistoryStack {
+  undoStack: HistorySnapshot[]
+  redoStack: HistorySnapshot[]
+  maxSize: number // 最大历史记录数量
 }

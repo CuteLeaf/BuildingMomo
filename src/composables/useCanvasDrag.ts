@@ -19,7 +19,7 @@ export function useCanvasDrag(
     if (!stage) return null
 
     const layer = new Konva.Layer()
-    
+
     // 获取选中物品
     const selectedItems = editorStore.visibleItems.filter((item) =>
       editorStore.selectedItemIds.has(item.internalId)
@@ -54,7 +54,13 @@ export function useCanvasDrag(
 
   // 开始拖拽
   function startDrag(worldPos: { x: number; y: number }, isAltPressed: boolean) {
+    // 保存历史（在拖拽开始时保存，而不是移动过程中）
+    editorStore.saveHistory('edit')
+
     // Alt 复制：立即复制选中物品
+    // duplicateSelected 内部也会保存历史，所以 Alt+拖拽会产生两次历史记录
+    // 第一次：拖拽前的状态，第二次：复制后拖拽前的状态
+    // 这样用户可以：Ctrl+Z 撤销拖拽 → 再 Ctrl+Z 撤销复制
     if (isAltPressed) {
       editorStore.duplicateSelected(0, 0)
     }

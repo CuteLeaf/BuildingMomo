@@ -11,7 +11,7 @@
 
   <p>
     <img alt="Platform" src="https://img.shields.io/badge/platform-Web-blue?style=flat-square" />
-    <img alt="Status" src="https://img.shields.io/badge/status-开发中_60%25-yellow?style=flat-square" />
+    <img alt="Status" src="https://img.shields.io/badge/status-开发中_80%25-yellow?style=flat-square" />
     <img alt="License" src="https://img.shields.io/badge/license-MIT-orange?style=flat-square" />
   </p>
 
@@ -61,11 +61,11 @@ npm run build
 
 ## 🚧 开发状态
 
-**项目开发中 (约 65% 完成)**
+**项目开发中 (约 80% 完成)**
 
-✅ **已完成**：导入/导出方案、可视化渲染、高度过滤、画布缩放/平移、精确移动与旋转、工作坐标系
+✅ **已完成**：导入/导出方案、可视化渲染、高度过滤、画布缩放/平移、精确移动与旋转、工作坐标系、撤销重做
 
-🔨 **进行中**：撤销重做
+🔨 **进行中**：组合编辑、UI优化
 
 ## 🛠️ 技术栈
 
