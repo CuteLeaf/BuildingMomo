@@ -1,13 +1,26 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useEditorStore } from './stores/editorStore'
+import { useNotificationStore } from './stores/notificationStore'
 import Toolbar from './components/Toolbar.vue'
 import Sidebar from './components/Sidebar.vue'
 import CanvasEditor from './components/CanvasEditor.vue'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { X } from 'lucide-vue-next'
+import { Toaster } from '@/components/ui/sonner'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 
 const editorStore = useEditorStore()
+const notificationStore = useNotificationStore()
 
 // 双向绑定激活方案ID
 const activeSchemeId = computed({
@@ -20,6 +33,16 @@ function closeScheme(schemeId: string, event: Event) {
   event.stopPropagation() // 阻止触发Tab切换
   editorStore.closeScheme(schemeId)
 }
+
+// AlertDialog 控制
+const dialogOpen = computed({
+  get: () => notificationStore.currentAlert !== null,
+  set: (value: boolean) => {
+    if (!value) {
+      notificationStore.cancelCurrentAlert()
+    }
+  },
+})
 </script>
 
 <template>
@@ -97,6 +120,32 @@ function closeScheme(schemeId: string, event: Event) {
         </Tabs>
       </div>
     </div>
+
+    <!-- 全局 Toast 通知 -->
+    <Toaster position="top-center" :duration="3000" richColors />
+
+    <!-- 全局 AlertDialog -->
+    <AlertDialog :open="dialogOpen" @update:open="dialogOpen = $event">
+      <AlertDialogContent v-if="notificationStore.currentAlert">
+        <AlertDialogHeader>
+          <AlertDialogTitle>{{ notificationStore.currentAlert.title }}</AlertDialogTitle>
+          <AlertDialogDescription class="whitespace-pre-line">
+            {{ notificationStore.currentAlert.description }}
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel
+            v-if="notificationStore.currentAlert.cancelText"
+            @click="notificationStore.cancelCurrentAlert"
+          >
+            {{ notificationStore.currentAlert.cancelText }}
+          </AlertDialogCancel>
+          <AlertDialogAction @click="notificationStore.confirmCurrentAlert">
+            {{ notificationStore.currentAlert.confirmText }}
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   </div>
 </template>
 

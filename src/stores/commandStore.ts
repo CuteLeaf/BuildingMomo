@@ -25,24 +25,12 @@ export const useCommandStore = defineStore('command', () => {
   const resetViewFn = ref<(() => void) | null>(null)
   const fitToViewFn = ref<(() => void) | null>(null)
 
-  // 文件更新通知回调
-  const showFileUpdateNotification = ref<
-    ((fileInfo: { fileName: string; lastModified: number }) => void) | null
-  >(null)
-
   // 剪贴板和文件操作
   const clipboard = useClipboard(editorStore)
-  const fileOps = useFileOperations(
-    editorStore,
-    () => {
-      // 导入成功后自动适配视图
-      fitToViewFn.value?.()
-    },
-    (fileInfo) => {
-      // 文件更新时触发通知
-      showFileUpdateNotification.value?.(fileInfo)
-    }
-  )
+  const fileOps = useFileOperations(editorStore, () => {
+    // 导入成功后自动适配视图
+    fitToViewFn.value?.()
+  })
 
   // 定义所有命令
   const commands = computed<Command[]>(() => [
@@ -264,13 +252,6 @@ export const useCommandStore = defineStore('command', () => {
     fitToViewFn.value = fitToView
   }
 
-  // 设置文件更新通知回调
-  function setFileUpdateNotification(
-    callback: (fileInfo: { fileName: string; lastModified: number }) => void
-  ) {
-    showFileUpdateNotification.value = callback
-  }
-
   return {
     commands,
     commandMap,
@@ -280,6 +261,5 @@ export const useCommandStore = defineStore('command', () => {
     executeCommand,
     isCommandEnabled,
     setZoomFunctions,
-    setFileUpdateNotification,
   }
 })

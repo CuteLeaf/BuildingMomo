@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, onMounted } from 'vue'
+import { computed } from 'vue'
 import {
   Menubar,
   MenubarContent,
@@ -9,16 +9,6 @@ import {
   MenubarShortcut,
   MenubarTrigger,
 } from '@/components/ui/menubar'
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog'
 import { useCommandStore } from '../stores/commandStore'
 
 // 使用命令系统 Store
@@ -32,11 +22,6 @@ const viewCommands = computed(() => commandStore.getCommandsByCategory('view'))
 // 监控状态
 const watchState = computed(() => commandStore.fileOps.watchState)
 
-// AlertDialog 状态
-const dialogOpen = ref(false)
-const dialogTitle = ref('')
-const dialogDescription = ref('')
-
 // 执行命令
 function handleCommand(commandId: string) {
   commandStore.executeCommand(commandId)
@@ -46,29 +31,6 @@ function handleCommand(commandId: string) {
 function isEnabled(commandId: string): boolean {
   return commandStore.isCommandEnabled(commandId)
 }
-
-// 处理文件更新通知
-function showFileUpdateNotification(fileInfo: { fileName: string; lastModified: number }) {
-  dialogTitle.value = '检测到文件更新'
-  dialogDescription.value = `文件 ${fileInfo.fileName} 已更新，最后修改时间：${new Date(fileInfo.lastModified).toLocaleString()}。\n\n是否立即导入最新数据？`
-  dialogOpen.value = true
-}
-
-// 确认导入
-function handleConfirmImport() {
-  commandStore.fileOps.importFromWatchedFile()
-  dialogOpen.value = false
-}
-
-// 取消导入
-function handleCancelImport() {
-  dialogOpen.value = false
-}
-
-// 组件挂载时注册回调
-onMounted(() => {
-  commandStore.setFileUpdateNotification(showFileUpdateNotification)
-})
 </script>
 
 <template>
@@ -139,20 +101,4 @@ onMounted(() => {
       </div>
     </div>
   </div>
-
-  <!-- 文件更新确认对话框 -->
-  <AlertDialog :open="dialogOpen" @update:open="dialogOpen = $event">
-    <AlertDialogContent>
-      <AlertDialogHeader>
-        <AlertDialogTitle>{{ dialogTitle }}</AlertDialogTitle>
-        <AlertDialogDescription class="whitespace-pre-line">
-          {{ dialogDescription }}
-        </AlertDialogDescription>
-      </AlertDialogHeader>
-      <AlertDialogFooter>
-        <AlertDialogCancel @click="handleCancelImport">稍后</AlertDialogCancel>
-        <AlertDialogAction @click="handleConfirmImport">立即导入</AlertDialogAction>
-      </AlertDialogFooter>
-    </AlertDialogContent>
-  </AlertDialog>
 </template>

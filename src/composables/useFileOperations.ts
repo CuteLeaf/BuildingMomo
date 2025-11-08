@@ -1,6 +1,7 @@
 import { ref, onUnmounted } from 'vue'
 import type { useEditorStore } from '../stores/editorStore'
 import type { GameDataFile, GameItem, FileWatchState } from '../types/editor'
+import { useNotification } from './useNotification'
 
 // 检查浏览器是否支持 File System Access API
 const isFileSystemAccessSupported = 'showDirectoryPicker' in window
@@ -100,9 +101,9 @@ async function findLatestBuildSaveData(
 
 export function useFileOperations(
   editorStore: ReturnType<typeof useEditorStore>,
-  onImportSuccess?: () => void,
-  onFileUpdate?: (fileInfo: { fileName: string; lastModified: number }) => void
+  onImportSuccess?: () => void
 ) {
+  const notification = useNotification()
   const fileInputRef = ref<HTMLInputElement | null>(null)
 
   // 文件监控状态
@@ -148,17 +149,18 @@ export function useFileOperations(
 
           if (result.success) {
             console.log(`[FileOps] Successfully imported scheme: ${file.name}`)
+            notification.success('导入成功')
             // 导入成功后调用回调
             onImportSuccess?.()
           } else {
-            alert(`导入失败: ${result.error}`)
+            notification.error(`导入失败: ${result.error}`)
           }
 
           resolve()
         }
 
         reader.onerror = () => {
-          alert('文件读取失败')
+          notification.error('文件读取失败')
           resolve()
         }
 
@@ -173,7 +175,7 @@ export function useFileOperations(
   // 导出 JSON 文件
   function exportJSON(filename?: string): void {
     if (editorStore.items.length === 0) {
-      alert('没有可导出的数据')
+      notification.warning('没有可导出的数据')
       return
     }
 
@@ -216,22 +218,22 @@ export function useFileOperations(
     const activeScheme = editorStore.activeScheme
 
     if (!activeScheme) {
-      alert('没有激活的方案')
+      notification.warning('没有激活的方案')
       return
     }
 
     if (activeScheme.sourceType !== 'game') {
-      alert('当前方案不是从游戏路径导入的，请使用"导出 JSON"功能')
+      notification.warning('当前方案不是从游戏路径导入的，请使用"导出 JSON"功能')
       return
     }
 
     if (!activeScheme.gameFileHandle) {
-      alert('缺少游戏文件句柄，无法保存')
+      notification.error('缺少游戏文件句柄，无法保存')
       return
     }
 
     if (editorStore.items.length === 0) {
-      alert('没有可保存的数据')
+      notification.warning('没有可保存的数据')
       return
     }
 
@@ -258,7 +260,7 @@ export function useFileOperations(
       const permission = await verifyPermission(handle, true)
 
       if (!permission) {
-        alert('没有文件写入权限')
+        notification.error('没有文件写入权限')
         return
       }
 
@@ -277,10 +279,10 @@ export function useFileOperations(
       }
 
       console.log(`[FileOps] Successfully saved to game: ${activeScheme.gameFilePath}`)
-      alert('保存成功！')
+      notification.success('保存成功！')
     } catch (error: any) {
       console.error('[FileOps] Failed to save to game:', error)
-      alert(`保存失败: ${error.message || '未知错误'}`)
+      notification.error(`保存失败: ${error.message || '未知错误'}`)
     }
   }
 
@@ -326,11 +328,11 @@ export function useFileOperations(
         // 更新最后修改时间
         watchState.value.lastModifiedTime = file.lastModified
 
-        // 触发回调通知
-        onFileUpdate?.({
-          fileName: file.name,
-          lastModified: file.lastModified,
-        })
+        // 使用新的通知系统显示文件更新提示
+        const confirmed = await notification.fileUpdate(file.name, file.lastModified)
+        if (confirmed) {
+          await importFromWatchedFile()
+        }
 
         return true
       }
@@ -370,7 +372,7 @@ export function useFileOperations(
   // 启动监控模式
   async function startWatchMode(): Promise<void> {
     if (!isFileSystemAccessSupported) {
-      alert('您的浏览器不支持文件系统访问功能，请使用最新版本的 Chrome 或 Edge 浏览器')
+      notification.error('您的浏览器不支持文件系统访问功能，请使用最新版本的 Chrome 或 Edge 浏览器')
       return
     }
 
@@ -385,7 +387,7 @@ export function useFileOperations(
       // 2. 查找 BuildData 目录
       const buildDataDir = await findBuildDataDirectory(dirHandle)
       if (!buildDataDir) {
-        alert(
+        notification.error(
           '未找到 BuildData 目录，请确保选择的是游戏目录的任意位置（InfinityNikki\\X6Game\\Saved\\SavedData\\BuildData）'
         )
         return
@@ -425,17 +427,23 @@ export function useFileOperations(
 
       // 6. 如果有现有文件，询问是否立即导入
       if (result) {
-        const shouldImport = confirm(
-          `找到存档文件：${fileName}\n最后修改时间：${new Date(lastModified).toLocaleString()}\n\n是否立即导入？`
-        )
+        const shouldImport = await notification.confirm({
+          title: '找到存档文件',
+          description: `文件：${fileName}\n最后修改时间：${new Date(lastModified).toLocaleString()}\n\n是否立即导入？`,
+          confirmText: '立即导入',
+          cancelText: '稍后',
+        })
 
         if (shouldImport) {
           await importFromWatchedFile()
         }
       } else {
-        alert(
-          '监控已启动！\n\n未找到现有存档文件，请在游戏中进行建造并保存。\n当文件有更新时，浏览器会自动提示您导入。'
-        )
+        notification.alert({
+          title: '监控已启动',
+          description:
+            '未找到现有存档文件，请在游戏中进行建造并保存。\n当文件有更新时，浏览器会自动提示您导入。',
+          confirmText: '知道了',
+        })
       }
     } catch (error: any) {
       if (error.name === 'AbortError') {
@@ -443,7 +451,7 @@ export function useFileOperations(
         return
       }
       console.error('[FileWatch] Failed to start watch mode:', error)
-      alert(`启动监控失败: ${error.message || '未知错误'}`)
+      notification.error(`启动监控失败: ${error.message || '未知错误'}`)
     }
   }
 
@@ -465,7 +473,7 @@ export function useFileOperations(
   // 从监控的文件导入
   async function importFromWatchedFile(): Promise<void> {
     if (!watchState.value.isActive || !watchState.value.dirHandle) {
-      alert('监控模式未启动')
+      notification.warning('监控模式未启动')
       return
     }
 
@@ -473,7 +481,7 @@ export function useFileOperations(
       // 重新查找最新文件（可能用户在游戏中保存了新文件）
       const result = await findLatestBuildSaveData(watchState.value.dirHandle)
       if (!result) {
-        alert('未找到 BUILD_SAVEDATA_*.json 文件')
+        notification.warning('未找到 BUILD_SAVEDATA_*.json 文件')
         return
       }
 
@@ -501,13 +509,14 @@ export function useFileOperations(
         watchState.value.fileName = file.name
         watchState.value.lastModifiedTime = file.lastModified
 
+        notification.success('导入成功')
         onImportSuccess?.()
       } else {
-        alert(`导入失败: ${importResult.error}`)
+        notification.error(`导入失败: ${importResult.error}`)
       }
     } catch (error: any) {
       console.error('[FileWatch] Failed to import from watched file:', error)
-      alert(`导入失败: ${error.message || '未知错误'}`)
+      notification.error(`导入失败: ${error.message || '未知错误'}`)
     }
   }
 
