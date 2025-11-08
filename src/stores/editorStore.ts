@@ -109,7 +109,13 @@ export const useEditorStore = defineStore('editor', () => {
   // 方案管理：导入JSON为新方案
   function importJSONAsScheme(
     fileContent: string,
-    fileName: string
+    fileName: string,
+    gamePathInfo?: {
+      sourceType: 'game'
+      gameFilePath: string
+      gameFileHandle: FileSystemFileHandle
+      gameDirHandle: FileSystemDirectoryHandle
+    }
   ): { success: boolean; schemeId?: string; error?: string } {
     try {
       const data: GameDataFile = JSON.parse(fileContent)
@@ -160,6 +166,13 @@ export const useEditorStore = defineStore('editor', () => {
         items: newItems,
         heightFilter: filter,
         selectedItemIds: new Set(),
+        // 如果是从游戏路径导入，添加额外信息
+        ...(gamePathInfo && {
+          sourceType: gamePathInfo.sourceType,
+          gameFilePath: gamePathInfo.gameFilePath,
+          gameFileHandle: gamePathInfo.gameFileHandle,
+          gameDirHandle: gamePathInfo.gameDirHandle,
+        }),
       }
 
       schemes.value.push(newScheme)

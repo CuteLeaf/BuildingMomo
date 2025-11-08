@@ -25,12 +25,24 @@ export const useCommandStore = defineStore('command', () => {
   const resetViewFn = ref<(() => void) | null>(null)
   const fitToViewFn = ref<(() => void) | null>(null)
 
+  // 文件更新通知回调
+  const showFileUpdateNotification = ref<
+    ((fileInfo: { fileName: string; lastModified: number }) => void) | null
+  >(null)
+
   // 剪贴板和文件操作
   const clipboard = useClipboard(editorStore)
-  const fileOps = useFileOperations(editorStore, () => {
-    // 导入成功后自动适配视图
-    fitToViewFn.value?.()
-  })
+  const fileOps = useFileOperations(
+    editorStore,
+    () => {
+      // 导入成功后自动适配视图
+      fitToViewFn.value?.()
+    },
+    (fileInfo) => {
+      // 文件更新时触发通知
+      showFileUpdateNotification.value?.(fileInfo)
+    }
+  )
 
   // 定义所有命令
   const commands = computed<Command[]>(() => [
@@ -55,6 +67,39 @@ export const useCommandStore = defineStore('command', () => {
       execute: () => {
         console.log('[Command] 导出 JSON')
         fileOps.exportJSON()
+      },
+    },
+    {
+      id: 'file.saveToGame',
+      label: '保存到游戏',
+      shortcut: 'Ctrl+Shift+S',
+      category: 'file',
+      enabled: () =>
+        editorStore.activeScheme?.sourceType === 'game' && editorStore.items.length > 0,
+      execute: async () => {
+        console.log('[Command] 保存到游戏')
+        await fileOps.saveToGame()
+      },
+    },
+    {
+      id: 'file.startWatchMode',
+      label: '监控游戏目录',
+      shortcut: 'Ctrl+Shift+M',
+      category: 'file',
+      enabled: () => fileOps.isFileSystemAccessSupported && !fileOps.watchState.value.isActive,
+      execute: async () => {
+        console.log('[Command] 启动监控模式')
+        await fileOps.startWatchMode()
+      },
+    },
+    {
+      id: 'file.stopWatchMode',
+      label: '停止监控',
+      category: 'file',
+      enabled: () => fileOps.watchState.value.isActive,
+      execute: () => {
+        console.log('[Command] 停止监控模式')
+        fileOps.stopWatchMode()
       },
     },
 
@@ -219,6 +264,13 @@ export const useCommandStore = defineStore('command', () => {
     fitToViewFn.value = fitToView
   }
 
+  // 设置文件更新通知回调
+  function setFileUpdateNotification(
+    callback: (fileInfo: { fileName: string; lastModified: number }) => void
+  ) {
+    showFileUpdateNotification.value = callback
+  }
+
   return {
     commands,
     commandMap,
@@ -228,5 +280,6 @@ export const useCommandStore = defineStore('command', () => {
     executeCommand,
     isCommandEnabled,
     setZoomFunctions,
+    setFileUpdateNotification,
   }
 })

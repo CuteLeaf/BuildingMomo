@@ -1,12 +1,127 @@
-import { ref } from 'vue'
+import { ref, onUnmounted } from 'vue'
 import type { useEditorStore } from '../stores/editorStore'
-import type { GameDataFile, GameItem } from '../types/editor'
+import type { GameDataFile, GameItem, FileWatchState } from '../types/editor'
+
+// 检查浏览器是否支持 File System Access API
+const isFileSystemAccessSupported = 'showDirectoryPicker' in window
+
+// 辅助函数：从文件名提取 UID
+function extractUidFromFilename(filename: string): string | null {
+  const match = filename.match(/BUILD_SAVEDATA_(\d+)\.json/)
+  return match?.[1] ?? null
+}
+
+// 辅助函数：查找 BuildData 目录
+async function findBuildDataDirectory(
+  dirHandle: FileSystemDirectoryHandle
+): Promise<FileSystemDirectoryHandle | null> {
+  // 1. 当前目录就是 BuildData
+  if (dirHandle.name === 'BuildData') {
+    return dirHandle
+  }
+
+  // 2. 尝试直接找 BuildData 子目录
+  try {
+    const buildData = await dirHandle.getDirectoryHandle('BuildData')
+    return buildData
+  } catch {
+    // BuildData 不是直接子目录，继续其他方式查找
+  }
+
+  // 3. 定义完整路径链
+  const fullPath = ['InfinityNikki', 'X6Game', 'Saved', 'SavedData', 'BuildData']
+  const startIndex = fullPath.indexOf(dirHandle.name)
+
+  if (startIndex !== -1) {
+    // 当前目录在路径链上，从下一个节点开始查找
+    const remainingPath = fullPath.slice(startIndex + 1)
+    let currentHandle = dirHandle
+
+    for (const folderName of remainingPath) {
+      try {
+        currentHandle = await currentHandle.getDirectoryHandle(folderName)
+        if (currentHandle.name === 'BuildData') {
+          return currentHandle
+        }
+      } catch {
+        break // 路径不存在，跳出
+      }
+    }
+  } else {
+    // 当前目录不在路径链上，尝试完整路径
+    let currentHandle = dirHandle
+
+    for (const folderName of fullPath) {
+      try {
+        currentHandle = await currentHandle.getDirectoryHandle(folderName)
+        if (currentHandle.name === 'BuildData') {
+          return currentHandle
+        }
+      } catch {
+        break // 路径不存在，跳出
+      }
+    }
+  }
+
+  return null
+}
+
+// 辅助函数：在 BuildData 目录中查找最新的 BUILD_SAVEDATA 文件
+async function findLatestBuildSaveData(
+  buildDataDir: FileSystemDirectoryHandle
+): Promise<{ file: File; handle: FileSystemFileHandle } | null> {
+  const buildFiles: Array<{ file: File; handle: FileSystemFileHandle }> = []
+
+  try {
+    for await (const entry of (buildDataDir as any).values()) {
+      if (
+        entry.kind === 'file' &&
+        entry.name.startsWith('BUILD_SAVEDATA_') &&
+        entry.name.endsWith('.json')
+      ) {
+        const fileHandle = entry as FileSystemFileHandle
+        const file = await fileHandle.getFile()
+        buildFiles.push({ file, handle: fileHandle })
+      }
+    }
+  } catch (e) {
+    console.error('Failed to scan BuildData directory:', e)
+    return null
+  }
+
+  if (buildFiles.length === 0) {
+    return null
+  }
+
+  // 按修改时间排序，取最新的
+  buildFiles.sort((a, b) => b.file.lastModified - a.file.lastModified)
+  return buildFiles[0] ?? null
+}
 
 export function useFileOperations(
   editorStore: ReturnType<typeof useEditorStore>,
-  onImportSuccess?: () => void
+  onImportSuccess?: () => void,
+  onFileUpdate?: (fileInfo: { fileName: string; lastModified: number }) => void
 ) {
   const fileInputRef = ref<HTMLInputElement | null>(null)
+
+  // 文件监控状态
+  const watchState = ref<FileWatchState>({
+    isActive: false,
+    dirHandle: null,
+    dirPath: '',
+    lastCheckedTime: 0,
+    lastModifiedTime: 0,
+    fileHandle: null,
+    fileName: '',
+  })
+
+  // 轮询定时器
+  let pollTimer: number | null = null
+
+  // 轮询间隔配置
+  const POLL_INTERVAL_ACTIVE = 3000 // 页面活跃时：3秒
+  const POLL_INTERVAL_HIDDEN = 10000 // 页面隐藏时：10秒（降低频率）
 
   // 导入 JSON 文件
   async function importJSON(): Promise<void> {
@@ -96,9 +211,338 @@ export function useFileOperations(
     console.log(`[FileOps] Exported ${gameItems.length} items to ${link.download}`)
   }
 
+  // 保存到游戏
+  async function saveToGame(): Promise<void> {
+    const activeScheme = editorStore.activeScheme
+
+    if (!activeScheme) {
+      alert('没有激活的方案')
+      return
+    }
+
+    if (activeScheme.sourceType !== 'game') {
+      alert('当前方案不是从游戏路径导入的，请使用"导出 JSON"功能')
+      return
+    }
+
+    if (!activeScheme.gameFileHandle) {
+      alert('缺少游戏文件句柄，无法保存')
+      return
+    }
+
+    if (editorStore.items.length === 0) {
+      alert('没有可保存的数据')
+      return
+    }
+
+    try {
+      // 1. 构造导出数据
+      const gameItems: GameItem[] = editorStore.items.map((item) => ({
+        ...item.originalData,
+        Location: {
+          X: item.x,
+          Y: item.y,
+          Z: item.z,
+        },
+      }))
+
+      const exportData: GameDataFile = {
+        NeedRestore: true,
+        PlaceInfo: gameItems,
+      }
+
+      const jsonString = JSON.stringify(exportData, null, 2)
+
+      // 2. 请求写入权限（如果需要）
+      const handle = activeScheme.gameFileHandle
+      const permission = await verifyPermission(handle, true)
+
+      if (!permission) {
+        alert('没有文件写入权限')
+        return
+      }
+
+      // 3. 写入文件
+      const writable = await handle.createWritable()
+      await writable.write(jsonString)
+      await writable.close()
+
+      // 4. 更新监控状态，避免触发文件更新通知
+      if (watchState.value.isActive && watchState.value.fileHandle === handle) {
+        const updatedFile = await handle.getFile()
+        watchState.value.lastModifiedTime = updatedFile.lastModified
+        console.log(
+          `[FileOps] Updated lastModifiedTime after save: ${new Date(updatedFile.lastModified).toLocaleString()}`
+        )
+      }
+
+      console.log(`[FileOps] Successfully saved to game: ${activeScheme.gameFilePath}`)
+      alert('保存成功！')
+    } catch (error: any) {
+      console.error('[FileOps] Failed to save to game:', error)
+      alert(`保存失败: ${error.message || '未知错误'}`)
+    }
+  }
+
+  // 辅助函数：验证文件权限
+  async function verifyPermission(
+    fileHandle: FileSystemFileHandle,
+    readWrite: boolean
+  ): Promise<boolean> {
+    const options: any = {}
+    if (readWrite) {
+      options.mode = 'readwrite'
+    }
+
+    // 检查是否已有权限
+    if ((await (fileHandle as any).queryPermission(options)) === 'granted') {
+      return true
+    }
+
+    // 请求权限
+    if ((await (fileHandle as any).requestPermission(options)) === 'granted') {
+      return true
+    }
+
+    return false
+  }
+
+  // 检查文件更新
+  async function checkFileUpdate(): Promise<boolean> {
+    if (!watchState.value.isActive || !watchState.value.fileHandle) {
+      return false
+    }
+
+    try {
+      const file = await watchState.value.fileHandle.getFile()
+      watchState.value.lastCheckedTime = Date.now()
+
+      // 检查文件是否有更新
+      if (file.lastModified > watchState.value.lastModifiedTime) {
+        console.log(
+          `[FileWatch] File updated: ${file.name}, lastModified: ${new Date(file.lastModified).toLocaleString()}`
+        )
+
+        // 更新最后修改时间
+        watchState.value.lastModifiedTime = file.lastModified
+
+        // 触发回调通知
+        onFileUpdate?.({
+          fileName: file.name,
+          lastModified: file.lastModified,
+        })
+
+        return true
+      }
+
+      return false
+    } catch (error) {
+      console.error('[FileWatch] Failed to check file update:', error)
+      return false
+    }
+  }
+
+  // 启动文件监控
+  function startPolling() {
+    if (pollTimer !== null) {
+      return // 已经在轮询中
+    }
+
+    const poll = async () => {
+      await checkFileUpdate()
+
+      // 根据页面可见性调整轮询间隔
+      const interval = document.hidden ? POLL_INTERVAL_HIDDEN : POLL_INTERVAL_ACTIVE
+      pollTimer = window.setTimeout(poll, interval)
+    }
+
+    poll()
+  }
+
+  // 停止文件监控
+  function stopPolling() {
+    if (pollTimer !== null) {
+      clearTimeout(pollTimer)
+      pollTimer = null
+    }
+  }
+
+  // 启动监控模式
+  async function startWatchMode(): Promise<void> {
+    if (!isFileSystemAccessSupported) {
+      alert('您的浏览器不支持文件系统访问功能，请使用最新版本的 Chrome 或 Edge 浏览器')
+      return
+    }
+
+    try {
+      // 1. 让用户选择目录
+      const dirHandle = await (window as any).showDirectoryPicker({
+        mode: 'readwrite',
+      })
+
+      console.log('[FileWatch] Selected directory for monitoring:', dirHandle.name)
+
+      // 2. 查找 BuildData 目录
+      const buildDataDir = await findBuildDataDirectory(dirHandle)
+      if (!buildDataDir) {
+        alert(
+          '未找到 BuildData 目录，请确保选择的是游戏目录的任意位置（InfinityNikki\\X6Game\\Saved\\SavedData\\BuildData）'
+        )
+        return
+      }
+
+      console.log('[FileWatch] Found BuildData directory:', buildDataDir.name)
+
+      // 3. 查找最新的 BUILD_SAVEDATA 文件（可能为空）
+      const result = await findLatestBuildSaveData(buildDataDir)
+
+      let fileHandle: FileSystemFileHandle | null = null
+      let fileName = ''
+      let lastModified = 0
+
+      if (result) {
+        fileHandle = result.handle
+        fileName = result.file.name
+        lastModified = result.file.lastModified
+        console.log(`[FileWatch] Found existing file: ${fileName}`)
+      } else {
+        console.log('[FileWatch] No existing file found, will monitor for new files')
+      }
+
+      // 4. 设置监控状态
+      watchState.value = {
+        isActive: true,
+        dirHandle: buildDataDir,
+        dirPath: buildDataDir.name,
+        lastCheckedTime: Date.now(),
+        lastModifiedTime: lastModified,
+        fileHandle: fileHandle,
+        fileName: fileName,
+      }
+
+      // 5. 启动轮询
+      startPolling()
+
+      // 6. 如果有现有文件，询问是否立即导入
+      if (result) {
+        const shouldImport = confirm(
+          `找到存档文件：${fileName}\n最后修改时间：${new Date(lastModified).toLocaleString()}\n\n是否立即导入？`
+        )
+
+        if (shouldImport) {
+          await importFromWatchedFile()
+        }
+      } else {
+        alert(
+          '监控已启动！\n\n未找到现有存档文件，请在游戏中进行建造并保存。\n当文件有更新时，浏览器会自动提示您导入。'
+        )
+      }
+    } catch (error: any) {
+      if (error.name === 'AbortError') {
+        console.log('[FileWatch] User cancelled directory picker')
+        return
+      }
+      console.error('[FileWatch] Failed to start watch mode:', error)
+      alert(`启动监控失败: ${error.message || '未知错误'}`)
+    }
+  }
+
+  // 停止监控模式
+  function stopWatchMode() {
+    stopPolling()
+    watchState.value = {
+      isActive: false,
+      dirHandle: null,
+      dirPath: '',
+      lastCheckedTime: 0,
+      lastModifiedTime: 0,
+      fileHandle: null,
+      fileName: '',
+    }
+    console.log('[FileWatch] Watch mode stopped')
+  }
+
+  // 从监控的文件导入
+  async function importFromWatchedFile(): Promise<void> {
+    if (!watchState.value.isActive || !watchState.value.dirHandle) {
+      alert('监控模式未启动')
+      return
+    }
+
+    try {
+      // 重新查找最新文件（可能用户在游戏中保存了新文件）
+      const result = await findLatestBuildSaveData(watchState.value.dirHandle)
+      if (!result) {
+        alert('未找到 BUILD_SAVEDATA_*.json 文件')
+        return
+      }
+
+      const { file, handle } = result
+      const uid = extractUidFromFilename(file.name) || 'unknown'
+
+      console.log(`[FileWatch] Importing from watched file: ${file.name} (UID: ${uid})`)
+
+      // 读取文件内容
+      const content = await file.text()
+
+      // 使用 editorStore 的导入方法，并传递游戏路径信息
+      const importResult = editorStore.importJSONAsScheme(content, file.name, {
+        sourceType: 'game',
+        gameFilePath: file.name,
+        gameFileHandle: handle,
+        gameDirHandle: watchState.value.dirHandle,
+      })
+
+      if (importResult.success) {
+        console.log(`[FileWatch] Successfully imported from watched file: ${file.name}`)
+
+        // 更新监控状态
+        watchState.value.fileHandle = handle
+        watchState.value.fileName = file.name
+        watchState.value.lastModifiedTime = file.lastModified
+
+        onImportSuccess?.()
+      } else {
+        alert(`导入失败: ${importResult.error}`)
+      }
+    } catch (error: any) {
+      console.error('[FileWatch] Failed to import from watched file:', error)
+      alert(`导入失败: ${error.message || '未知错误'}`)
+    }
+  }
+
+  // Page Visibility API 处理
+  function handleVisibilityChange() {
+    if (document.visibilityState === 'visible' && watchState.value.isActive) {
+      console.log('[FileWatch] Page visible, checking for updates...')
+      checkFileUpdate()
+    }
+  }
+
+  // 监听页面可见性变化
+  if (typeof document !== 'undefined') {
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+  }
+
+  // 组件卸载时清理
+  onUnmounted(() => {
+    stopPolling()
+    if (typeof document !== 'undefined') {
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+    }
+  })
+
   return {
     fileInputRef,
     importJSON,
     exportJSON,
+    saveToGame,
+    isFileSystemAccessSupported,
+    // 监控相关
+    watchState,
+    startWatchMode,
+    stopWatchMode,
+    importFromWatchedFile,
+    checkFileUpdate,
   }
 }

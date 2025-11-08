@@ -54,10 +54,27 @@ export interface HomeScheme {
   id: string // 方案唯一ID
   name: string // 方案名称（从文件名提取）
   filePath?: string // 原始文件路径（可选）
+  
+  // 游戏路径相关
+  sourceType?: 'manual' | 'game' // 来源类型：手动导入 vs 从游戏路径导入
+  gameFilePath?: string // 完整的游戏文件路径（仅用于显示）
+  gameFileHandle?: FileSystemFileHandle // 游戏文件句柄（用于直接写入）
+  gameDirHandle?: FileSystemDirectoryHandle // 游戏目录句柄（BuildData 目录）
 
   // 每个方案独立的状态
   items: AppItem[]
   heightFilter: HeightFilter
   selectedItemIds: Set<string>
   initialViewConfig?: { scale: number; x: number; y: number }
+}
+
+// 文件监控状态
+export interface FileWatchState {
+  isActive: boolean // 是否正在监控
+  dirHandle: FileSystemDirectoryHandle | null // 监控的目录句柄
+  dirPath: string // 目录路径（用于显示）
+  lastCheckedTime: number // 上次检查的时间戳
+  lastModifiedTime: number // 文件的最后修改时间
+  fileHandle: FileSystemFileHandle | null // 当前监控的文件句柄
+  fileName: string // 文件名
 }
