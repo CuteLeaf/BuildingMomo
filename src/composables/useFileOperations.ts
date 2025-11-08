@@ -270,13 +270,7 @@ export function useFileOperations(
       await writable.close()
 
       // 4. 更新监控状态，避免触发文件更新通知
-      if (watchState.value.isActive && watchState.value.fileHandle === handle) {
-        const updatedFile = await handle.getFile()
-        watchState.value.lastModifiedTime = updatedFile.lastModified
-        console.log(
-          `[FileOps] Updated lastModifiedTime after save: ${new Date(updatedFile.lastModified).toLocaleString()}`
-        )
-      }
+      watchState.value.lastModifiedTime = Date.now()
 
       console.log(`[FileOps] Successfully saved to game: ${activeScheme.gameFilePath}`)
       notification.success('保存成功！')
@@ -324,7 +318,6 @@ export function useFileOperations(
         console.log(
           `[FileWatch] File updated: ${file.name}, lastModified: ${new Date(file.lastModified).toLocaleString()}`
         )
-        console.log(file.lastModified , watchState.value.lastModifiedTime)
 
         // 更新最后修改时间
         watchState.value.lastModifiedTime = file.lastModified
