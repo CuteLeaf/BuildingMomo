@@ -100,8 +100,7 @@ async function findLatestBuildSaveData(
 }
 
 export function useFileOperations(
-  editorStore: ReturnType<typeof useEditorStore>,
-  onImportSuccess?: () => void
+  editorStore: ReturnType<typeof useEditorStore>
 ) {
   const notification = useNotification()
   const fileInputRef = ref<HTMLInputElement | null>(null)
@@ -150,8 +149,6 @@ export function useFileOperations(
           if (result.success) {
             console.log(`[FileOps] Successfully imported scheme: ${file.name}`)
             notification.success('导入成功')
-            // 导入成功后调用回调
-            onImportSuccess?.()
           } else {
             notification.error(`导入失败: ${result.error}`)
           }
@@ -532,7 +529,6 @@ export function useFileOperations(
         watchState.value.lastModifiedTime = file.lastModified
 
         notification.success('导入成功')
-        onImportSuccess?.()
       } else {
         notification.error(`导入失败: ${importResult.error}`)
       }

@@ -112,7 +112,7 @@ function closeScheme(schemeId: string, event: Event) {
           <template v-for="cmd in viewCommands" :key="cmd.id">
             <!-- 在"重置视图"之前添加分隔线 -->
             <MenubarSeparator
-              v-if="cmd.id === 'view.resetView' || cmd.id === 'view.coordinateSystem'"
+              v-if="cmd.id === 'view.fitToView' || cmd.id === 'view.coordinateSystem'"
             />
             <MenubarItem :disabled="!isEnabled(cmd.id)" @click="handleCommand(cmd.id)">
               {{ cmd.label }}

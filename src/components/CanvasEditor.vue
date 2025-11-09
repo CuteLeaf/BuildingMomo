@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, watch } from 'vue'
 import { useElementSize } from '@vueuse/core'
 import { useEditorStore } from '../stores/editorStore'
 import { useCommandStore } from '../stores/commandStore'
@@ -49,7 +49,16 @@ const stageRef = ref<any>(null)
 
 // 组合各个功能模块
 const zoom = useCanvasZoom(editorStore, stageRef, containerWidth, containerHeight)
-const { scale, stageConfig, handleWheel, resetView, fitToView, zoomIn, zoomOut } = zoom
+const {
+  scale,
+  stageConfig,
+  handleWheel,
+  fitToView,
+  restoreView,
+  saveCurrentView,
+  zoomIn,
+  zoomOut,
+} = zoom
 
 const { mainLayerRef, interactionLayerRef, setHideSelectedItems } = useCanvasRendering(
   editorStore,
@@ -139,11 +148,17 @@ function handleCanvasContextMenu(e: any) {
 // 初始化
 onMounted(() => {
   // 将缩放函数注册到命令系统
-  commandStore.setZoomFunctions(zoomIn, zoomOut, resetView, fitToView)
+  commandStore.setZoomFunctions(zoomIn, zoomOut, fitToView)
 
   // 如果已有数据，初始化视图
   if (editorStore.items.length > 0) {
-    fitToView()
+    // 尝试恢复保存的视图配置
+    const savedConfig = editorStore.getSavedViewConfig()
+    if (savedConfig) {
+      restoreView(savedConfig)
+    } else {
+      fitToView()
+    }
   }
 
   // 加载背景图
@@ -169,6 +184,30 @@ onMounted(() => {
     )
   }
 })
+
+// 监听方案切换，保存和恢复视图状态
+watch(
+  () => editorStore.activeSchemeId,
+  (newId, oldId) => {
+    // 切换前：保存旧方案的视图状态
+    if (oldId && stageRef.value) {
+      saveCurrentView()
+      console.log(`[ViewState] 保存方案 ${oldId} 的视图状态`)
+    }
+
+    // 切换后：恢复新方案的视图状态
+    if (newId && editorStore.items.length > 0) {
+      const savedConfig = editorStore.getSavedViewConfig()
+      if (savedConfig) {
+        console.log(`[ViewState] 恢复方案 ${newId} 的视图状态`, savedConfig)
+        restoreView(savedConfig)
+      } else {
+        console.log(`[ViewState] 方案 ${newId} 无保存视图，使用自适应`)
+        fitToView()
+      }
+    }
+  }
+)
 </script>
 
 <template>
@@ -400,7 +439,7 @@ onMounted(() => {
           缩放: {{ (scale * 100).toFixed(0) }}%
         </div>
         <button
-          @click="resetView"
+          @click="fitToView"
           class="flex items-center gap-1 rounded-md bg-white/90 px-3 py-2 text-xs text-gray-700 shadow-sm transition-colors hover:bg-white"
           title="重置视图"
         >

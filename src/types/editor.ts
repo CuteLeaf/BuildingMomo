@@ -65,7 +65,7 @@ export interface HomeScheme {
   items: AppItem[]
   heightFilter: HeightFilter
   selectedItemIds: Set<string>
-  initialViewConfig?: { scale: number; x: number; y: number }
+  currentViewConfig?: { scale: number; x: number; y: number } // 用户当前视图配置
 
   // 历史记录栈（每个方案独立）
   history?: HistoryStack

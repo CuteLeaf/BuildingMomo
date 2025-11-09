@@ -105,7 +105,6 @@ export const useEditorStore = defineStore('editor', () => {
       }
   )
   const selectedItemIds = computed(() => activeScheme.value?.selectedItemIds ?? new Set<string>())
-  const initialViewConfig = computed(() => activeScheme.value?.initialViewConfig ?? null)
 
   // 计算属性：边界框
   const bounds = computed(() => {
@@ -465,10 +464,16 @@ export const useEditorStore = defineStore('editor', () => {
     activeScheme.value.heightFilter.currentMax = newMax
   }
 
-  // 更新初始视图配置
-  function updateInitialViewConfig(config: { scale: number; x: number; y: number }) {
+  // 保存当前视图配置
+  function saveCurrentViewConfig(config: { scale: number; x: number; y: number }) {
     if (!activeScheme.value) return
-    activeScheme.value.initialViewConfig = config
+    activeScheme.value.currentViewConfig = config
+  }
+
+  // 获取保存的视图配置
+  function getSavedViewConfig(): { scale: number; x: number; y: number } | null {
+    if (!activeScheme.value) return null
+    return activeScheme.value.currentViewConfig ?? null
   }
 
   // 清空数据
@@ -1106,7 +1111,6 @@ export const useEditorStore = defineStore('editor', () => {
     stats,
     selectedItemIds,
     selectedItems,
-    initialViewConfig,
 
     // 方案管理
     createScheme,
@@ -1115,7 +1119,8 @@ export const useEditorStore = defineStore('editor', () => {
     setActiveScheme,
     renameScheme,
     updateHeightFilter,
-    updateInitialViewConfig,
+    saveCurrentViewConfig,
+    getSavedViewConfig,
     clearData,
 
     // 选择操作

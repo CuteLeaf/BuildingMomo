@@ -8,15 +8,12 @@ export function useCanvasZoom(
   containerHeight: Ref<number>
 ) {
   // Stage 配置 - 使用容器实际尺寸
-  const stageWidth = ref(containerWidth.value)
-  const stageHeight = ref(containerHeight.value)
-
   const stageConfig = ref({
-    width: stageWidth.value,
-    height: stageHeight.value,
+    width: containerWidth.value,
+    height: containerHeight.value,
     draggable: false, // 默认不可拖拽，按空格键时启用
-    x: stageWidth.value / 2,
-    y: stageHeight.value / 2,
+    x: containerWidth.value / 2,
+    y: containerHeight.value / 2,
   })
 
   // 缩放比例
@@ -26,11 +23,9 @@ export function useCanvasZoom(
   let wheelRafId: number | null = null
   let pendingWheelEvent: any = null
 
-  // 监听容器尺寸变化
+  // 监听容器尺寸变化，更新 stageConfig
   watch([containerWidth, containerHeight], ([newWidth, newHeight]) => {
     if (newWidth > 0 && newHeight > 0) {
-      stageWidth.value = newWidth
-      stageHeight.value = newHeight
       stageConfig.value.width = newWidth
       stageConfig.value.height = newHeight
     }
@@ -97,27 +92,27 @@ export function useCanvasZoom(
   // 计算最佳视图（自适应缩放和居中）
   function fitToView() {
     const bounds = editorStore.bounds
+    console.log('🔴 bounds', bounds)
     if (!bounds) return
 
     const padding = 100 // 边距
-    const scaleX = (stageWidth.value - padding * 2) / bounds.width
-    const scaleY = (stageHeight.value - padding * 2) / bounds.height
+    const scaleX = (containerWidth.value - padding * 2) / bounds.width
+    const scaleY = (containerHeight.value - padding * 2) / bounds.height
+    // containerWidth和containerHeight
+    console.log('🔴 containerWidth', containerWidth.value, 'containerHeight', containerHeight.value)
     const fitScale = Math.max(0.01, Math.min(scaleX, scaleY, 1)) // 最小百分之一，最大不放大
 
     // 调整最小缩放限制，避免太小导致标点看不清
     const adjustedFitScale = Math.max(fitScale, 0.05) // 最小5%缩放
 
     // 计算偏移使内容居中
-    const offsetX = stageWidth.value / 2 - bounds.centerX * adjustedFitScale
-    const offsetY = stageHeight.value / 2 - bounds.centerY * adjustedFitScale
+    const offsetX = containerWidth.value / 2 - bounds.centerX * adjustedFitScale
+    const offsetY = containerHeight.value / 2 - bounds.centerY * adjustedFitScale
 
     // 应用到 stage
     scale.value = adjustedFitScale
     stageConfig.value.x = offsetX
     stageConfig.value.y = offsetY
-
-    // 保存为初始配置
-    editorStore.updateInitialViewConfig({ scale: adjustedFitScale, x: offsetX, y: offsetY })
 
     // 同步到 Stage 实例
     nextTick(() => {
@@ -129,23 +124,30 @@ export function useCanvasZoom(
     })
   }
 
-  // 重置视图
-  function resetView() {
-    const config = editorStore.initialViewConfig
-    if (!config) {
-      // 如果没有初始配置，重新计算
-      fitToView()
-      return
-    }
-
+  // 恢复保存的视图配置
+  function restoreView(config: { scale: number; x: number; y: number }) {
     scale.value = config.scale
     stageConfig.value.x = config.x
     stageConfig.value.y = config.y
 
+    nextTick(() => {
+      const stage = stageRef.value?.getStage()
+      if (stage) {
+        stage.scale({ x: config.scale, y: config.scale })
+        stage.position({ x: config.x, y: config.y })
+      }
+    })
+  }
+
+  // 保存当前视图配置到 store
+  function saveCurrentView() {
     const stage = stageRef.value?.getStage()
     if (stage) {
-      stage.scale({ x: config.scale, y: config.scale })
-      stage.position({ x: config.x, y: config.y })
+      editorStore.saveCurrentViewConfig({
+        scale: stage.scaleX(),
+        x: stage.x(),
+        y: stage.y(),
+      })
     }
   }
 
@@ -160,8 +162,8 @@ export function useCanvasZoom(
 
     // 以画布中心为缩放中心
     const centerPoint = {
-      x: stageWidth.value / 2,
-      y: stageHeight.value / 2,
+      x: containerWidth.value / 2,
+      y: containerHeight.value / 2,
     }
 
     const mousePointTo = {
@@ -192,8 +194,8 @@ export function useCanvasZoom(
 
     // 以画布中心为缩放中心
     const centerPoint = {
-      x: stageWidth.value / 2,
-      y: stageHeight.value / 2,
+      x: containerWidth.value / 2,
+      y: containerHeight.value / 2,
     }
 
     const mousePointTo = {
@@ -213,15 +215,13 @@ export function useCanvasZoom(
     stageConfig.value.y = newPos.y
   }
 
-
   return {
     scale,
     stageConfig,
-    stageWidth,
-    stageHeight,
     handleWheel,
     fitToView,
-    resetView,
+    restoreView,
+    saveCurrentView,
     zoomIn,
     zoomOut,
   }
