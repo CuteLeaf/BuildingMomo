@@ -17,9 +17,20 @@ import {
 } from '@/components/ui/dropdown-menu'
 import MoveDialog from './MoveDialog.vue'
 import CoordinateDialog from './CoordinateDialog.vue'
+import backgroundUrl from '@/assets/home.webp'
 
 const editorStore = useEditorStore()
 const commandStore = useCommandStore()
+
+// 背景图配置，人工校准（不一定准确）
+const backgroundImageConfig = ref({
+  image: null as HTMLImageElement | null,
+  x: -20000,
+  y: -18000,
+  scaleX: 11.2,
+  scaleY: 11.2,
+  listening: false,
+})
 
 // Stage 引用
 const stageRef = ref<any>(null)
@@ -118,6 +129,13 @@ onMounted(() => {
   // 如果已有数据，初始化视图
   if (editorStore.items.length > 0) {
     fitToView()
+  }
+
+  // 加载背景图
+  const img = new Image()
+  img.src = backgroundUrl
+  img.onload = () => {
+    backgroundImageConfig.value.image = img
   }
 })
 
@@ -245,6 +263,11 @@ onMounted(() => {
       @mouseup="handleMouseUp"
       @contextmenu="handleCanvasContextMenu"
     >
+      <!-- Layer 0: 背景层 -->
+      <v-layer>
+        <v-image v-if="backgroundImageConfig.image" :config="backgroundImageConfig" />
+      </v-layer>
+
       <!-- Layer 1: 批量绘制所有物品 -->
       <v-layer ref="mainLayerRef">
         <!-- 通过 updateMainLayer() 动态添加 -->
