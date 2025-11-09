@@ -58,7 +58,7 @@ function updateMaxFilter(event: Event) {
 </script>
 
 <template>
-  <div class="flex w-64 flex-col gap-6 border-r border-gray-200 bg-gray-50 p-4">
+  <div class="flex w-64 flex-col gap-6 p-2">
     <!-- 统计信息 -->
     <div class="rounded-lg bg-white p-4 shadow-sm">
       <h2 class="mb-3 text-sm font-semibold text-gray-700">统计信息</h2>

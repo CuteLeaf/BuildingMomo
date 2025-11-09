@@ -1,10 +1,15 @@
-import { ref, type Ref, onMounted, onUnmounted, nextTick } from 'vue'
+import { ref, type Ref, nextTick, watch } from 'vue'
 import type { useEditorStore } from '../stores/editorStore'
 
-export function useCanvasZoom(editorStore: ReturnType<typeof useEditorStore>, stageRef: Ref<any>) {
-  // Stage 配置
-  const stageWidth = ref(window.innerWidth - 256) // 减去侧边栏宽度
-  const stageHeight = ref(window.innerHeight - 56) // 减去工具栏高度
+export function useCanvasZoom(
+  editorStore: ReturnType<typeof useEditorStore>,
+  stageRef: Ref<any>,
+  containerWidth: Ref<number>,
+  containerHeight: Ref<number>
+) {
+  // Stage 配置 - 使用容器实际尺寸
+  const stageWidth = ref(containerWidth.value)
+  const stageHeight = ref(containerHeight.value)
 
   const stageConfig = ref({
     width: stageWidth.value,
@@ -21,13 +26,15 @@ export function useCanvasZoom(editorStore: ReturnType<typeof useEditorStore>, st
   let wheelRafId: number | null = null
   let pendingWheelEvent: any = null
 
-  // 处理窗口大小变化
-  function handleResize() {
-    stageWidth.value = window.innerWidth - 256
-    stageHeight.value = window.innerHeight - 56
-    stageConfig.value.width = stageWidth.value
-    stageConfig.value.height = stageHeight.value
-  }
+  // 监听容器尺寸变化
+  watch([containerWidth, containerHeight], ([newWidth, newHeight]) => {
+    if (newWidth > 0 && newHeight > 0) {
+      stageWidth.value = newWidth
+      stageHeight.value = newHeight
+      stageConfig.value.width = newWidth
+      stageConfig.value.height = newHeight
+    }
+  })
 
   // 处理缩放（使用 RAF 节流）
   function handleWheel(e: any) {
@@ -206,14 +213,6 @@ export function useCanvasZoom(editorStore: ReturnType<typeof useEditorStore>, st
     stageConfig.value.y = newPos.y
   }
 
-  // 生命周期钩子
-  onMounted(() => {
-    window.addEventListener('resize', handleResize)
-  })
-
-  onUnmounted(() => {
-    window.removeEventListener('resize', handleResize)
-  })
 
   return {
     scale,
