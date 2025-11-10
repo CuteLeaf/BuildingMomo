@@ -1,8 +1,10 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useEditorStore } from '../stores/editorStore'
+import { useFurnitureStore } from '../stores/furnitureStore'
 
 const editorStore = useEditorStore()
+const furnitureStore = useFurnitureStore()
 
 // 计算属性：格式化Z轴范围显示
 const formattedZRange = computed(() => {
@@ -45,6 +47,65 @@ const selectedGroupInfo = computed(() => {
   }
 })
 
+// 计算属性：选中物品详情
+const selectedItemDetails = computed(() => {
+  const selected = editorStore.selectedItems
+  if (selected.length === 0) return null
+
+  // 单个物品
+  if (selected.length === 1) {
+    const item = selected[0]
+    if (!item) return null
+
+    const furniture = furnitureStore.getFurniture(item.gameId)
+
+    return {
+      type: 'single' as const,
+      name: furniture?.name_cn || `物品 ${item.gameId}`,
+      icon: furniture ? furnitureStore.getIconUrl(item.gameId) : null,
+      itemId: item.gameId,
+      x: item.x,
+      y: item.y,
+      z: item.z,
+    }
+  }
+
+  // 多个物品 - 聚合统计
+  const itemStats = new Map<
+    number,
+    {
+      itemId: number
+      name: string
+      icon: string | null
+      count: number
+    }
+  >()
+
+  selected.forEach((item) => {
+    const existing = itemStats.get(item.gameId)
+    if (existing) {
+      existing.count++
+    } else {
+      const furniture = furnitureStore.getFurniture(item.gameId)
+      itemStats.set(item.gameId, {
+        itemId: item.gameId,
+        name: furniture?.name_cn || `物品 ${item.gameId}`,
+        icon: furniture ? furnitureStore.getIconUrl(item.gameId) : null,
+        count: 1,
+      })
+    }
+  })
+
+  // 按数量降序排序
+  const items = Array.from(itemStats.values()).sort((a, b) => b.count - a.count)
+
+  return {
+    type: 'multiple' as const,
+    totalCount: selected.length,
+    items,
+  }
+})
+
 // 更新高度过滤器
 function updateMinFilter(event: Event) {
   const value = parseFloat((event.target as HTMLInputElement).value)
@@ -54,6 +115,10 @@ function updateMinFilter(event: Event) {
 function updateMaxFilter(event: Event) {
   const value = parseFloat((event.target as HTMLInputElement).value)
   editorStore.updateHeightFilter(editorStore.heightFilter.currentMin, value)
+}
+
+function handleIconError(e: Event) {
+  ;(e.target as HTMLImageElement).style.display = 'none'
 }
 </script>
 
@@ -163,6 +228,86 @@ function updateMaxFilter(event: Event) {
           >
             取消组合
           </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 新增：选中物品详情 -->
+    <div v-if="selectedItemDetails" class="rounded-lg bg-white p-4 shadow-sm">
+      <h2 class="mb-3 text-sm font-semibold text-gray-700">物品详情</h2>
+
+      <!-- 单个物品 -->
+      <div v-if="selectedItemDetails.type === 'single'" class="space-y-3">
+        <div class="flex items-center gap-3">
+          <img
+            v-if="selectedItemDetails.icon"
+            :src="selectedItemDetails.icon"
+            class="h-12 w-12 rounded border border-gray-200"
+            :alt="selectedItemDetails.name"
+            @error="handleIconError"
+          />
+          <div
+            v-else
+            class="flex h-12 w-12 items-center justify-center rounded border border-gray-200 bg-gray-50 text-xs text-gray-400"
+          >
+            无图标
+          </div>
+          <div class="min-w-0 flex-1">
+            <div class="truncate font-medium text-gray-800">
+              {{ selectedItemDetails.name }}
+            </div>
+          </div>
+        </div>
+
+        <div class="space-y-1 border-t pt-2 text-xs text-gray-600">
+          <div class="flex justify-between">
+            <span>坐标 X:</span>
+            <span class="font-mono">{{ selectedItemDetails.x.toFixed(2) }}</span>
+          </div>
+          <div class="flex justify-between">
+            <span>坐标 Y:</span>
+            <span class="font-mono">{{ selectedItemDetails.y.toFixed(2) }}</span>
+          </div>
+          <div class="flex justify-between">
+            <span>高度 Z:</span>
+            <span class="font-mono">{{ selectedItemDetails.z.toFixed(2) }}</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 多个物品 - 聚合统计 -->
+      <div v-else-if="selectedItemDetails.type === 'multiple'" class="space-y-3">
+        <div class="border-b pb-2 text-sm text-gray-600">
+          已选中
+          <span class="font-semibold text-blue-600">{{ selectedItemDetails.totalCount }}</span>
+          个物品
+        </div>
+
+        <!-- 物品类型统计列表 -->
+        <div class="max-h-48 space-y-2 overflow-y-auto">
+          <div
+            v-for="item in selectedItemDetails.items"
+            :key="item.itemId"
+            class="flex items-center gap-2 rounded-md bg-gray-50 p-2"
+          >
+            <img
+              v-if="item.icon"
+              :src="item.icon"
+              class="h-8 w-8 rounded border border-gray-200"
+              :alt="item.name"
+              @error="handleIconError"
+            />
+            <div
+              v-else
+              class="flex h-8 w-8 shrink-0 items-center justify-center rounded border border-gray-200 bg-white text-xs text-gray-400"
+            >
+              ?
+            </div>
+            <div class="min-w-0 flex-1">
+              <div class="truncate text-sm font-medium text-gray-800">{{ item.name }}</div>
+            </div>
+            <div class="shrink-0 text-sm font-semibold text-blue-600">×{{ item.count }}</div>
+          </div>
         </div>
       </div>
     </div>

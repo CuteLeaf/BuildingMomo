@@ -9,9 +9,11 @@ import {
   MenubarShortcut,
   MenubarTrigger,
 } from '@/components/ui/menubar'
+import { Button } from '@/components/ui/button'
 import { useCommandStore } from '../stores/commandStore'
 import { useEditorStore } from '../stores/editorStore'
-import { X } from 'lucide-vue-next'
+import { X, Settings } from 'lucide-vue-next'
+import SettingsDialog from './SettingsDialog.vue'
 
 // 使用命令系统 Store
 const commandStore = useCommandStore()
@@ -27,6 +29,9 @@ const watchState = computed(() => commandStore.fileOps.watchState)
 
 // 标签容器引用
 const tabsContainer = ref<HTMLElement | null>(null)
+
+// 设置对话框状态
+const settingsDialogOpen = ref(false)
 
 // 执行命令
 function handleCommand(commandId: string) {
@@ -123,42 +128,39 @@ function closeScheme(schemeId: string, event: Event) {
       </MenubarMenu>
     </Menubar>
 
-    <!-- 分隔线 -->
-    <div v-if="editorStore.schemes.length > 0" class="h-6 w-px flex-none bg-gray-200" />
-
-    <!-- 右侧：标签栏 + 监控状态 -->
-    <div class="flex min-w-0 flex-1 items-center gap-2">
-      <!-- 方案标签栏（可滚动） -->
-      <div
-        v-if="editorStore.schemes.length > 0"
-        ref="tabsContainer"
-        class="scrollbar-hide flex min-w-0 flex-1 gap-1 overflow-x-auto overflow-y-hidden"
+    <!-- 中间：方案标签栏（可滚动） -->
+    <div
+      v-if="editorStore.schemes.length > 0"
+      ref="tabsContainer"
+      class="scrollbar-hide flex min-w-0 flex-1 gap-1 overflow-x-auto overflow-y-hidden"
+    >
+      <button
+        v-for="scheme in editorStore.schemes"
+        :key="scheme.id"
+        :data-tab-active="editorStore.activeSchemeId === scheme.id"
+        @click="switchScheme(scheme.id)"
+        class="group relative my-2 flex flex-none items-center gap-2 rounded-sm border px-3 py-1 text-sm font-medium shadow-sm transition-all focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:outline-none"
+        :class="
+          editorStore.activeSchemeId === scheme.id
+            ? 'border-border bg-background text-foreground'
+            : 'border-border/60 bg-secondary text-muted-foreground hover:border-border hover:bg-secondary/80'
+        "
       >
+        <span class="max-w-[150px] truncate">
+          {{ scheme.name }}
+        </span>
         <button
-          v-for="scheme in editorStore.schemes"
-          :key="scheme.id"
-          :data-tab-active="editorStore.activeSchemeId === scheme.id"
-          @click="switchScheme(scheme.id)"
-          class="group relative my-2 flex flex-none items-center gap-2 rounded-sm border px-3 py-1 text-sm font-medium shadow-sm transition-all focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:outline-none"
-          :class="
-            editorStore.activeSchemeId === scheme.id
-              ? 'border-border bg-background text-foreground'
-              : 'border-border/60 bg-secondary text-muted-foreground hover:border-border hover:bg-secondary/80'
-          "
+          @click="closeScheme(scheme.id, $event)"
+          class="flex h-4 w-4 flex-shrink-0 items-center justify-center rounded-sm opacity-0 transition-opacity group-hover:opacity-100 hover:bg-gray-300 dark:hover:bg-gray-600"
+          :title="`关闭 ${scheme.name}`"
         >
-          <span class="max-w-[150px] truncate">
-            {{ scheme.name }}
-          </span>
-          <button
-            @click="closeScheme(scheme.id, $event)"
-            class="flex h-4 w-4 flex-shrink-0 items-center justify-center rounded-sm opacity-0 transition-opacity group-hover:opacity-100 hover:bg-gray-300 dark:hover:bg-gray-600"
-            :title="`关闭 ${scheme.name}`"
-          >
-            <X class="h-3 w-3" />
-          </button>
+          <X class="h-3 w-3" />
         </button>
-      </div>
+      </button>
+    </div>
 
+    <!-- 右侧：监控状态 + 设置按钮（始终固定在最右边） -->
+    <div class="ml-auto flex flex-none items-center gap-2">
       <!-- 监控状态指示器 -->
       <div v-if="watchState.isActive" class="flex flex-none items-center gap-2">
         <div class="flex items-center gap-2 rounded-md bg-green-50 px-3 py-1.5">
@@ -167,7 +169,15 @@ function closeScheme(schemeId: string, event: Event) {
           <span class="text-xs text-green-600">{{ watchState.dirPath }}</span>
         </div>
       </div>
+
+      <!-- 设置按钮 -->
+      <Button variant="ghost" size="sm" @click="settingsDialogOpen = true" class="flex-none">
+        <Settings class="h-4 w-4" />
+      </Button>
     </div>
+
+    <!-- 设置对话框 -->
+    <SettingsDialog v-model:open="settingsDialogOpen" />
   </div>
 </template>
 

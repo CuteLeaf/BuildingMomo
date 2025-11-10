@@ -1,13 +1,17 @@
 <script setup lang="ts">
-import { ref, onMounted, watch } from 'vue'
+import { ref, onMounted, watch, computed, toRef } from 'vue'
 import { useElementSize } from '@vueuse/core'
 import { useEditorStore } from '../stores/editorStore'
 import { useCommandStore } from '../stores/commandStore'
+import { useFurnitureStore } from '../stores/furnitureStore'
+import { useSettingsStore } from '../stores/settingsStore'
 import { useCanvasZoom } from '../composables/useCanvasZoom'
 import { useCanvasSelection } from '../composables/useCanvasSelection'
 import { useCanvasDrag } from '../composables/useCanvasDrag'
 import { useCanvasRendering } from '../composables/useCanvasRendering'
 import { useKeyboardShortcuts } from '../composables/useKeyboardShortcuts'
+import { useCanvasTooltip } from '../composables/useCanvasTooltip'
+import { useCanvasCoordinates } from '../composables/useCanvasCoordinates'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -22,6 +26,8 @@ import backgroundUrl from '@/assets/home.webp'
 
 const editorStore = useEditorStore()
 const commandStore = useCommandStore()
+const furnitureStore = useFurnitureStore()
+const settingsStore = useSettingsStore()
 
 // 监听父容器尺寸
 const parentContainer = ref<HTMLElement>()
@@ -88,6 +94,7 @@ const {
   currentSelectionMode,
   shouldShowModeHint,
   isMiddleMousePressed,
+  isSelecting,
   handleMouseDown,
   handleMouseMove,
   handleMouseUp,
@@ -102,6 +109,29 @@ const {
   moveDrag,
   endDrag
 )
+
+// 坐标转换系统
+const { screenToWorld } = useCanvasCoordinates(stageRef)
+
+// Tooltip 系统
+const isDraggingItems = computed(() => editorStore.selectedItemIds.size > 0 && isSelecting.value)
+const {
+  tooltipVisible,
+  tooltipData,
+  handleStageMouseMove: handleTooltipMove,
+  hideTooltip,
+} = useCanvasTooltip(
+  furnitureStore,
+  findItemAtPosition,
+  toRef(settingsStore.settings, 'showFurnitureTooltip'),
+  stageRef
+)
+
+// 合并鼠标移动事件
+function handleMouseMoveWithTooltip(e: any) {
+  handleMouseMove(e)
+  handleTooltipMove(e, isDraggingItems.value, isSelecting.value)
+}
 
 // 右键菜单状态
 const contextMenuOpen = ref(false)
@@ -126,10 +156,8 @@ function handleCanvasContextMenu(e: any) {
 
   if (!pointerPos) return
 
-  const worldPos = {
-    x: (pointerPos.x - stage.x()) / stage.scaleX(),
-    y: (pointerPos.y - stage.y()) / stage.scaleY(),
-  }
+  // 转世界坐标
+  const worldPos = screenToWorld(pointerPos)
 
   // 碰撞检测
   const clickedItem = findItemAtPosition(worldPos)
@@ -318,8 +346,9 @@ watch(
         :config="stageConfig"
         @wheel="handleWheel"
         @mousedown="handleMouseDown"
-        @mousemove="handleMouseMove"
+        @mousemove="handleMouseMoveWithTooltip"
         @mouseup="handleMouseUp"
+        @mouseleave="hideTooltip"
         @contextmenu="handleCanvasContextMenu"
       >
         <!-- Layer 0: 背景层 -->
@@ -382,6 +411,32 @@ watch(
           />
         </v-layer>
       </v-stage>
+
+      <!-- Canvas Tooltip -->
+      <div
+        v-if="tooltipVisible && tooltipData"
+        class="pointer-events-none absolute z-50 rounded-md border border-gray-200 bg-white/80 p-1 shadow-xl backdrop-blur-sm"
+        :style="{
+          left: `${tooltipData.position.x + 12}px`,
+          top: `${tooltipData.position.y - 10}px`,
+          transform: 'translateY(-100%)',
+        }"
+      >
+        <div class="flex items-center gap-2 text-sm">
+          <!-- 家具图标 -->
+          <img
+            v-if="tooltipData.icon"
+            :src="tooltipData.icon"
+            class="h-12 w-12 rounded border border-gray-300"
+            :alt="tooltipData.name"
+            @error="(e) => ((e.target as HTMLImageElement).style.display = 'none')"
+          />
+          <!-- 家具名称 -->
+          <div class="px-1 text-gray-900">
+            <div class="font-medium">{{ tooltipData.name }}</div>
+          </div>
+        </div>
+      </div>
 
       <!-- 缩放信息和控制按钮 -->
       <div

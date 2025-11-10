@@ -138,9 +138,22 @@ function importJSON() {
         </a>
       </div>
 
-      <!-- 底部提示 -->
+      <!-- 底部提示与致谢信息 -->
       <div class="mt-8 text-xs text-gray-400">
-        <p>文件将在浏览器中本地处理，不会上传到任何服务器</p>
+        <p>
+          文件将在本地处理，不会上传到任何服务器
+          <span class="mx-2 text-gray-300">·</span>
+          物品数据与图标服务由
+          <a
+            href="https://NUAN5.PRO"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="text-gray-500 transition-colors hover:text-blue-600"
+          >
+            NUAN5.PRO
+          </a>
+          强力驱动
+        </p>
       </div>
     </div>
   </div>

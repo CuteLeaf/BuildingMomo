@@ -1,12 +1,15 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, onMounted } from 'vue'
 import { useEditorStore } from './stores/editorStore'
 import { useNotificationStore } from './stores/notificationStore'
+import { useFurnitureStore } from './stores/furnitureStore'
+import { useSettingsStore } from './stores/settingsStore'
 import Toolbar from './components/Toolbar.vue'
 import Sidebar from './components/Sidebar.vue'
 import CanvasEditor from './components/CanvasEditor.vue'
 import WelcomeScreen from './components/WelcomeScreen.vue'
 import { Toaster } from '@/components/ui/sonner'
+import { toast } from 'vue-sonner'
 import 'vue-sonner/style.css'
 import {
   AlertDialog,
@@ -21,6 +24,8 @@ import {
 
 const editorStore = useEditorStore()
 const notificationStore = useNotificationStore()
+const furnitureStore = useFurnitureStore()
+const settingsStore = useSettingsStore()
 
 // AlertDialog 控制
 const dialogOpen = computed({
@@ -30,6 +35,21 @@ const dialogOpen = computed({
       notificationStore.cancelCurrentAlert()
     }
   },
+})
+
+// 初始化
+onMounted(async () => {
+  // 初始化设置
+  settingsStore.initialize()
+
+  // 初始化家具数据
+  try {
+    await furnitureStore.initialize()
+    console.log('[App] Furniture data initialized')
+  } catch (error) {
+    console.error('[App] Failed to initialize furniture data:', error)
+    toast.error('家具数据加载失败，部分功能可能不可用')
+  }
 })
 </script>
 
