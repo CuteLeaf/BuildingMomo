@@ -99,9 +99,7 @@ async function findLatestBuildSaveData(
   return buildFiles[0] ?? null
 }
 
-export function useFileOperations(
-  editorStore: ReturnType<typeof useEditorStore>
-) {
+export function useFileOperations(editorStore: ReturnType<typeof useEditorStore>) {
   const notification = useNotification()
   const fileInputRef = ref<HTMLInputElement | null>(null)
 
@@ -143,8 +141,13 @@ export function useFileOperations(
         const reader = new FileReader()
         reader.onload = (e) => {
           const content = e.target?.result as string
-          // 使用新的多方案导入API
-          const result = editorStore.importJSONAsScheme(content, file.name)
+          // 使用新的多方案导入API，传递文件修改时间
+          const result = editorStore.importJSONAsScheme(
+            content,
+            file.name,
+            undefined,
+            file.lastModified
+          )
 
           if (result.success) {
             console.log(`[FileOps] Successfully imported scheme: ${file.name}`)
@@ -512,13 +515,18 @@ export function useFileOperations(
       // 读取文件内容
       const content = await file.text()
 
-      // 使用 editorStore 的导入方法，并传递游戏路径信息
-      const importResult = editorStore.importJSONAsScheme(content, file.name, {
-        sourceType: 'game',
-        gameFilePath: file.name,
-        gameFileHandle: handle,
-        gameDirHandle: watchState.value.dirHandle,
-      })
+      // 使用 editorStore 的导入方法，并传递游戏路径信息和文件修改时间
+      const importResult = editorStore.importJSONAsScheme(
+        content,
+        file.name,
+        {
+          sourceType: 'game',
+          gameFilePath: file.name,
+          gameFileHandle: handle,
+          gameDirHandle: watchState.value.dirHandle,
+        },
+        file.lastModified
+      )
 
       if (importResult.success) {
         console.log(`[FileWatch] Successfully imported from watched file: ${file.name}`)

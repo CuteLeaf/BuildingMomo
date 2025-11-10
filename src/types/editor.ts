@@ -35,12 +35,18 @@ export interface AppItem {
   originalData: GameItem
 }
 
-// 高度过滤器配置
+// 高度过滤器配置（动态计算）
 export interface HeightFilter {
-  min: number
-  max: number
-  currentMin: number
-  currentMax: number
+  min: number // 物品的实际最小z坐标（动态计算）
+  max: number // 物品的实际最大z坐标（动态计算）
+  currentMin: number // 用户当前设置的最小过滤值
+  currentMax: number // 用户当前设置的最大过滤值
+}
+
+// 过滤状态（用户设置）
+export interface FilterState {
+  currentMin: number | null // null 表示跟随全局最小值
+  currentMax: number | null // null 表示跟随全局最大值
 }
 
 // JSON文件根结构
@@ -54,6 +60,7 @@ export interface HomeScheme {
   id: string // 方案唯一ID
   name: string // 方案名称（从文件名提取）
   filePath?: string // 原始文件路径（可选）
+  lastModified?: number // 文件最后修改时间（毫秒时间戳）
 
   // 游戏路径相关
   sourceType?: 'manual' | 'game' // 来源类型：手动导入 vs 从游戏路径导入
@@ -63,7 +70,7 @@ export interface HomeScheme {
 
   // 每个方案独立的状态
   items: AppItem[]
-  heightFilter: HeightFilter
+  filterState: FilterState // 用户设置的过滤状态
   selectedItemIds: Set<string>
   currentViewConfig?: { scale: number; x: number; y: number } // 用户当前视图配置
 

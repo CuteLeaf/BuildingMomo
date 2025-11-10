@@ -20,8 +20,6 @@ import {
   DropdownMenuShortcut,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import MoveDialog from './MoveDialog.vue'
-import CoordinateDialog from './CoordinateDialog.vue'
 import backgroundUrl from '@/assets/home.webp'
 
 const editorStore = useEditorStore()
@@ -244,12 +242,6 @@ watch(
 <template>
   <div ref="parentContainer" class="absolute inset-0">
     <div class="absolute inset-0 overflow-hidden bg-gray-100">
-      <!-- 移动对话框 -->
-      <MoveDialog v-model:open="commandStore.showMoveDialog" />
-
-      <!-- 工作坐标系设置对话框 -->
-      <CoordinateDialog v-model:open="commandStore.showCoordinateDialog" />
-
       <!-- Dropdown Menu (代替 Context Menu) -->
       <DropdownMenu v-model:open="contextMenuOpen" :modal="false">
         <!-- 虚拟触发器：不可见但存在于 DOM 中，动态定位到鼠标位置 -->
@@ -483,14 +475,6 @@ watch(
             ></path>
           </svg>
           画布拖拽模式
-        </div>
-
-        <!-- 选中数量提示 -->
-        <div
-          v-if="editorStore.selectedItemIds.size > 0"
-          class="rounded-md bg-blue-600 px-3 py-2 text-xs font-medium text-white shadow-sm"
-        >
-          已选中 {{ editorStore.selectedItemIds.size }} 个物品
         </div>
 
         <div class="rounded-md bg-white/90 px-3 py-2 text-xs text-gray-600 shadow-sm">

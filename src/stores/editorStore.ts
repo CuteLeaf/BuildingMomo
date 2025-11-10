@@ -4,7 +4,6 @@ import type {
   AppItem,
   GameItem,
   GameDataFile,
-  HeightFilter,
   HomeScheme,
   TransformParams,
   WorkingCoordinateSystem,
@@ -95,15 +94,38 @@ export const useEditorStore = defineStore('editor', () => {
 
   // 向后兼容的计算属性（指向当前激活方案）
   const items = computed(() => activeScheme.value?.items ?? [])
-  const heightFilter = computed(
-    () =>
-      activeScheme.value?.heightFilter ?? {
+
+  // heightFilter: 动态计算z轴范围，智能处理用户过滤边界
+  const heightFilter = computed(() => {
+    const scheme = activeScheme.value
+    if (!scheme || scheme.items.length === 0) {
+      return {
         min: 0,
         max: 0,
         currentMin: 0,
         currentMax: 0,
       }
-  )
+    }
+
+    // 实时计算当前z轴范围
+    const zValues = scheme.items.map((item) => item.z)
+    const min = Math.min(...zValues)
+    const max = Math.max(...zValues)
+
+    // 智能边界处理：用户设置的值若仍在范围内则保留，否则重置
+    const currentMin =
+      scheme.filterState.currentMin !== null
+        ? Math.max(min, Math.min(max, scheme.filterState.currentMin))
+        : min
+
+    const currentMax =
+      scheme.filterState.currentMax !== null
+        ? Math.max(min, Math.min(max, scheme.filterState.currentMax))
+        : max
+
+    return { min, max, currentMin, currentMax }
+  })
+
   const selectedItemIds = computed(() => activeScheme.value?.selectedItemIds ?? new Set<string>())
 
   // 计算属性：边界框
@@ -313,11 +335,9 @@ export const useEditorStore = defineStore('editor', () => {
       id: generateUUID(),
       name,
       items: [],
-      heightFilter: {
-        min: 0,
-        max: 0,
-        currentMin: 0,
-        currentMax: 0,
+      filterState: {
+        currentMin: null, // null 表示跟随全局最小值
+        currentMax: null, // null 表示跟随全局最大值
       },
       selectedItemIds: new Set(),
     }
@@ -337,7 +357,8 @@ export const useEditorStore = defineStore('editor', () => {
       gameFilePath: string
       gameFileHandle: FileSystemFileHandle
       gameDirHandle: FileSystemDirectoryHandle
-    }
+    },
+    fileLastModified?: number
   ): { success: boolean; schemeId?: string; error?: string } {
     try {
       const data: GameDataFile = JSON.parse(fileContent)
@@ -370,26 +391,6 @@ export const useEditorStore = defineStore('editor', () => {
         originalData: gameItem,
       }))
 
-      // 自动计算Z轴范围
-      let filter: HeightFilter = {
-        min: 0,
-        max: 0,
-        currentMin: 0,
-        currentMax: 0,
-      }
-
-      if (newItems.length > 0) {
-        const zValues = newItems.map((item) => item.z)
-        const minZ = Math.min(...zValues)
-        const maxZ = Math.max(...zValues)
-        filter = {
-          min: minZ,
-          max: maxZ,
-          currentMin: minZ,
-          currentMax: maxZ,
-        }
-      }
-
       // 从文件名提取方案名称（去除.json后缀）
       const schemeName = fileName.replace(/\.json$/i, '')
 
@@ -399,8 +400,12 @@ export const useEditorStore = defineStore('editor', () => {
         name: schemeName,
         filePath: fileName,
         items: newItems,
-        heightFilter: filter,
+        filterState: {
+          currentMin: null, // 默认显示所有高度
+          currentMax: null,
+        },
         selectedItemIds: new Set(),
+        lastModified: fileLastModified,
         // 如果是从游戏路径导入，添加额外信息
         ...(gamePathInfo && {
           sourceType: gamePathInfo.sourceType,
@@ -460,8 +465,8 @@ export const useEditorStore = defineStore('editor', () => {
   // 更新高度过滤器
   function updateHeightFilter(newMin: number, newMax: number) {
     if (!activeScheme.value) return
-    activeScheme.value.heightFilter.currentMin = newMin
-    activeScheme.value.heightFilter.currentMax = newMax
+    activeScheme.value.filterState.currentMin = newMin
+    activeScheme.value.filterState.currentMax = newMax
   }
 
   // 保存当前视图配置

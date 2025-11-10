@@ -6,8 +6,11 @@ import { useFurnitureStore } from './stores/furnitureStore'
 import { useSettingsStore } from './stores/settingsStore'
 import Toolbar from './components/Toolbar.vue'
 import Sidebar from './components/Sidebar.vue'
+import StatusBar from './components/StatusBar.vue'
 import CanvasEditor from './components/CanvasEditor.vue'
 import WelcomeScreen from './components/WelcomeScreen.vue'
+import MoveDialog from './components/MoveDialog.vue'
+import CoordinateDialog from './components/CoordinateDialog.vue'
 import { Toaster } from '@/components/ui/sonner'
 import { toast } from 'vue-sonner'
 import 'vue-sonner/style.css'
@@ -21,11 +24,16 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
+import { TooltipProvider } from '@/components/ui/tooltip'
 
 const editorStore = useEditorStore()
 const notificationStore = useNotificationStore()
 const furnitureStore = useFurnitureStore()
 const settingsStore = useSettingsStore()
+
+// 导入 commandStore 用于对话框控制
+import { useCommandStore } from './stores/commandStore'
+const commandStore = useCommandStore()
 
 // AlertDialog 控制
 const dialogOpen = computed({
@@ -54,7 +62,7 @@ onMounted(async () => {
 </script>
 
 <template>
-  <div>
+  <TooltipProvider>
     <div class="flex h-screen flex-col overflow-hidden bg-gray-50">
       <!-- 顶部工具栏 -->
       <Toolbar />
@@ -82,35 +90,43 @@ onMounted(async () => {
           <div v-if="editorStore.schemes.length !== 0" class="h-full p-2"><Sidebar /></div>
         </div>
       </div>
-      <div class="min-h-6"></div>
+
+      <!-- 底部状态栏 -->
+      <StatusBar />
     </div>
+  </TooltipProvider>
 
-    <!-- 全局 Toast 通知 -->
-    <Toaster position="top-center" :duration="3000" richColors />
+  <!-- 全局 Toast 通知 -->
+  <Toaster position="top-center" :duration="3000" richColors />
 
-    <!-- 全局 AlertDialog -->
-    <AlertDialog :open="dialogOpen">
-      <AlertDialogContent v-if="notificationStore.currentAlert">
-        <AlertDialogHeader>
-          <AlertDialogTitle>{{ notificationStore.currentAlert.title }}</AlertDialogTitle>
-          <AlertDialogDescription class="whitespace-pre-line">
-            {{ notificationStore.currentAlert.description }}
-          </AlertDialogDescription>
-        </AlertDialogHeader>
-        <AlertDialogFooter>
-          <AlertDialogCancel
-            v-if="notificationStore.currentAlert.cancelText"
-            @click="notificationStore.cancelCurrentAlert"
-          >
-            {{ notificationStore.currentAlert.cancelText }}
-          </AlertDialogCancel>
-          <AlertDialogAction @click="notificationStore.confirmCurrentAlert">
-            {{ notificationStore.currentAlert.confirmText }}
-          </AlertDialogAction>
-        </AlertDialogFooter>
-      </AlertDialogContent>
-    </AlertDialog>
-  </div>
+  <!-- 移动对话框 -->
+  <MoveDialog v-model:open="commandStore.showMoveDialog" />
+
+  <!-- 工作坐标系设置对话框 -->
+  <CoordinateDialog v-model:open="commandStore.showCoordinateDialog" />
+
+  <!-- 全局 AlertDialog -->
+  <AlertDialog :open="dialogOpen">
+    <AlertDialogContent v-if="notificationStore.currentAlert">
+      <AlertDialogHeader>
+        <AlertDialogTitle>{{ notificationStore.currentAlert.title }}</AlertDialogTitle>
+        <AlertDialogDescription class="whitespace-pre-line">
+          {{ notificationStore.currentAlert.description }}
+        </AlertDialogDescription>
+      </AlertDialogHeader>
+      <AlertDialogFooter>
+        <AlertDialogCancel
+          v-if="notificationStore.currentAlert.cancelText"
+          @click="notificationStore.cancelCurrentAlert"
+        >
+          {{ notificationStore.currentAlert.cancelText }}
+        </AlertDialogCancel>
+        <AlertDialogAction @click="notificationStore.confirmCurrentAlert">
+          {{ notificationStore.currentAlert.confirmText }}
+        </AlertDialogAction>
+      </AlertDialogFooter>
+    </AlertDialogContent>
+  </AlertDialog>
 </template>
 
 <style scoped>
