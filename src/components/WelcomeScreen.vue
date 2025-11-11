@@ -2,7 +2,7 @@
 import { computed } from 'vue'
 import { useCommandStore } from '../stores/commandStore'
 import { useTabStore } from '../stores/tabStore'
-import { FolderSearch, FileJson, Github, ExternalLink, TriangleAlert } from 'lucide-vue-next'
+import { FolderSearch, FileJson, Github, ExternalLink, TriangleAlert, Monitor } from 'lucide-vue-next'
 import { Item, ItemContent, ItemDescription, ItemMedia, ItemTitle } from '@/components/ui/item'
 
 const commandStore = useCommandStore()
@@ -43,12 +43,33 @@ function showSafetyNotice() {
       </div>
 
       <!-- 功能简介 -->
-      <div class="mb-8 text-sm text-gray-500">
-        快速移动/复制/删除大型建筑群 · 在不同家园方案间自由合并建筑群 · 可视化编辑坐标
+      <div class="mb-8 px-4 text-sm text-gray-500">
+        <p class="flex flex-wrap items-center justify-center gap-x-2 gap-y-1">
+          <span>快速移动/复制/删除大型建筑群</span>
+          <span class="text-gray-300">·</span>
+          <span>在不同家园方案间自由合并建筑群</span>
+          <span class="text-gray-300">·</span>
+          <span>可视化编辑坐标</span>
+        </p>
+      </div>
+
+      <!-- 移动端提示 -->
+      <div class="md:hidden mb-10 mx-4">
+        <div class="rounded-lg border-2 border-orange-200 bg-orange-50/60 p-6 text-center">
+          <div class="flex items-center justify-center gap-2 mb-2">
+            <Monitor :size="16" class="text-orange-600" :stroke-width="1.5" />
+            <p class="text-base font-medium text-gray-900">
+              仅支持电脑端
+            </p>
+          </div>
+          <p class="text-sm text-gray-600">
+            本工具用于编辑本地游戏文件
+          </p>
+        </div>
       </div>
 
       <!-- 两个大按钮 -->
-      <div class="mb-10 flex justify-center gap-6">
+      <div class="hidden md:flex mb-10 justify-center gap-6">
         <!-- 选择游戏目录按钮 -->
         <Item
           as="button"
@@ -124,7 +145,7 @@ function showSafetyNotice() {
       </div>
 
       <!-- 仓库信息 -->
-      <div class="flex items-center justify-center gap-6 text-sm text-gray-500">
+      <div class="flex flex-wrap items-center justify-center gap-2 md:gap-6 text-sm text-gray-500">
         <a
           href="https://github.com/ChanIok/BuildingMomo"
           target="_blank"
@@ -133,7 +154,7 @@ function showSafetyNotice() {
         >
           <Github :size="16" />
           <span>GitHub 仓库</span>
-          <ExternalLink :size="14" />
+          <ExternalLink :size="14" class="hidden md:inline" />
         </a>
         <span class="text-gray-300">·</span>
         <a
@@ -144,37 +165,41 @@ function showSafetyNotice() {
         >
           <img src="https://chaniok.github.io/SpinningMomo/logo.png" class="h-4 w-4" />
           <span>旋转吧大喵</span>
-          <ExternalLink :size="14" />
+          <ExternalLink :size="14" class="hidden md:inline" />
         </a>
       </div>
 
       <!-- 底部提示与致谢信息 -->
-      <div class="mt-8 text-xs text-gray-400">
-        <p class="mb-2 flex items-center justify-center">
-          <TriangleAlert :size="14" class="mr-1 text-orange-500" />
-          <button
-            @click="showSafetyNotice"
-            class="cursor-pointer text-orange-500 underline underline-offset-2 hover:text-orange-600"
-          >
-            使用前请阅读安全须知
-          </button>
-          <span class="mx-2 text-gray-300">·</span>
-          仅供学习交流，风险自负
+      <div class="mt-8 px-4 text-xs text-gray-400">
+        <p class="mb-2 flex flex-wrap items-center justify-center gap-x-2 gap-y-1">
+          <span class="flex items-center">
+            <TriangleAlert :size="14" class="mr-1 text-orange-500" />
+            <button
+              @click="showSafetyNotice"
+              class="cursor-pointer text-orange-500 underline underline-offset-2 hover:text-orange-600"
+            >
+              使用前请阅读安全须知
+            </button>
+          </span>
+          <span class="text-gray-300">·</span>
+          <span>仅供学习交流，风险自负</span>
         </p>
 
-        <p>
-          文件将在本地处理，不会上传到任何服务器
-          <span class="mx-2 text-gray-300">·</span>
-          物品数据与图标服务由
-          <a
-            href="https://NUAN5.PRO"
-            target="_blank"
-            rel="noopener noreferrer"
-            class="text-green-500 transition-colors hover:text-green-600"
-          >
-            NUAN5.PRO
-          </a>
-          强力驱动
+        <p class="flex flex-wrap items-center justify-center gap-x-2 gap-y-1">
+          <span>文件将在本地处理，不会上传到任何服务器</span>
+          <span class="text-gray-300">·</span>
+          <span>
+            物品数据与图标服务由
+            <a
+              href="https://NUAN5.PRO"
+              target="_blank"
+              rel="noopener noreferrer"
+              class="text-green-500 transition-colors hover:text-green-600"
+            >
+              NUAN5.PRO
+            </a>
+            强力驱动
+          </span>
         </p>
       </div>
     </div>

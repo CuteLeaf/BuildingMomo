@@ -208,17 +208,22 @@ onMounted(() => {
         >
           <!-- 文档标签图标 -->
           <BookOpen v-if="tab.type === 'doc'" class="h-3 w-3" />
-          
+
           <span class="max-w-[150px] truncate">
             {{ tab.title }}
           </span>
-          <button
+          <Button
             @click="closeTab(tab.id, $event)"
-            class="flex h-4 w-4 flex-shrink-0 items-center justify-center rounded-sm opacity-0 transition-opacity group-hover:opacity-100 hover:bg-gray-300 dark:hover:bg-gray-600"
+            variant="ghost"
+            size="icon"
+            :class="[
+              'h-4 w-4 flex-shrink-0 transition-opacity',
+              tabStore.activeTabId === tab.id ? 'opacity-100' : 'opacity-0 group-hover:opacity-100',
+            ]"
             :title="`关闭 ${tab.title}`"
           >
             <X class="h-3 w-3" />
-          </button>
+          </Button>
         </button>
       </div>
       <ScrollBar orientation="horizontal" class="h-1.5" />

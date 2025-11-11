@@ -97,7 +97,7 @@ function switchDoc(value: string | number) {
   <div class="flex h-full flex-col bg-background md:hidden">
     <Tabs :model-value="currentDoc" @update:model-value="switchDoc" class="flex h-full flex-col">
       <!-- 标签头 -->
-      <div class="border-b px-4 pt-4">
+      <div class="p-4">
         <TabsList class="grid w-full grid-cols-3">
           <TabsTrigger value="quickstart">快速上手</TabsTrigger>
           <TabsTrigger value="guide">使用指南</TabsTrigger>
@@ -106,7 +106,7 @@ function switchDoc(value: string | number) {
       </div>
 
       <!-- 内容区 -->
-      <ScrollArea class="flex-1">
+      <ScrollArea class="min-h-0 flex-1">
         <TabsContent value="quickstart">
           <QuickStart />
         </TabsContent>
