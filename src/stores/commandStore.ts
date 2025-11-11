@@ -3,18 +3,19 @@ import { ref, computed } from 'vue'
 import { useEditorStore } from './editorStore'
 import { useClipboard } from '../composables/useClipboard'
 import { useFileOperations } from '../composables/useFileOperations'
+import { useTabStore } from './tabStore'
 
 // 命令接口
 export interface Command {
   id: string
   label: string
   shortcut?: string
-  category: 'file' | 'edit' | 'view'
+  category: 'file' | 'edit' | 'view' | 'help'
   enabled: () => boolean
   execute: () => void | Promise<void>
 }
 
-export type CommandCategory = 'file' | 'edit' | 'view'
+export type CommandCategory = 'file' | 'edit' | 'view' | 'help'
 
 export const useCommandStore = defineStore('command', () => {
   const editorStore = useEditorStore()
@@ -284,6 +285,20 @@ export const useCommandStore = defineStore('command', () => {
       execute: () => {
         console.log('[Command] 打开工作坐标系设置')
         showCoordinateDialog.value = true
+      },
+    },
+
+    // ===== 帮助菜单 =====
+    {
+      id: 'help.openDocs',
+      label: '打开帮助文档',
+      shortcut: 'F1',
+      category: 'help',
+      enabled: () => true,
+      execute: () => {
+        console.log('[Command] 打开帮助文档')
+        const tabStore = useTabStore()
+        tabStore.openDocTab()
       },
     },
   ])

@@ -14,12 +14,14 @@ import { Button } from '@/components/ui/button'
 import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area'
 import { useCommandStore } from '../stores/commandStore'
 import { useEditorStore } from '../stores/editorStore'
-import { X, Settings } from 'lucide-vue-next'
+import { useTabStore } from '../stores/tabStore'
+import { X, Settings, BookOpen } from 'lucide-vue-next'
 import SettingsDialog from './SettingsDialog.vue'
 
 // 使用命令系统 Store
 const commandStore = useCommandStore()
 const editorStore = useEditorStore()
+const tabStore = useTabStore()
 
 // 按分类获取命令
 const fileCommands = computed(() => commandStore.getCommandsByCategory('file'))
@@ -46,9 +48,15 @@ function isEnabled(commandId: string): boolean {
   return commandStore.isCommandEnabled(commandId)
 }
 
-// 切换方案
-function switchScheme(schemeId: string) {
-  editorStore.setActiveScheme(schemeId)
+// 切换标签
+function switchTab(tabId: string) {
+  tabStore.setActiveTab(tabId)
+
+  // 如果是方案标签，同步更新 editorStore
+  const tab = tabStore.tabs.find((t) => t.id === tabId)
+  if (tab?.type === 'scheme' && tab.schemeId) {
+    editorStore.setActiveScheme(tab.schemeId)
+  }
 
   // 滚动到激活的标签
   nextTick(() => {
@@ -61,10 +69,18 @@ function switchScheme(schemeId: string) {
   })
 }
 
-// 关闭方案
-function closeScheme(schemeId: string, event: Event) {
+// 关闭标签
+function closeTab(tabId: string, event: Event) {
   event.stopPropagation()
-  editorStore.closeScheme(schemeId)
+  const tab = tabStore.tabs.find((t) => t.id === tabId)
+
+  // 如果是方案标签，关闭方案（会触发 tabStore.closeTab）
+  if (tab?.type === 'scheme' && tab.schemeId) {
+    editorStore.closeScheme(tab.schemeId)
+  } else {
+    // 文档标签直接关闭
+    tabStore.closeTab(tabId)
+  }
 }
 
 // 自定义滚轮事件：将垂直滚动转换为横向滚动
@@ -162,30 +178,44 @@ onMounted(() => {
           </template>
         </MenubarContent>
       </MenubarMenu>
+
+      <!-- 帮助菜单 -->
+      <MenubarMenu>
+        <MenubarTrigger class="text-sm font-medium">帮助</MenubarTrigger>
+        <MenubarContent :sideOffset="10">
+          <MenubarItem @click="tabStore.openDocTab()">
+            打开帮助文档
+            <MenubarShortcut>F1</MenubarShortcut>
+          </MenubarItem>
+        </MenubarContent>
+      </MenubarMenu>
     </Menubar>
 
-    <!-- 中间：方案标签栏（可滚动） -->
-    <ScrollArea v-if="editorStore.schemes.length > 0" ref="scrollAreaRef" class="min-w-0 flex-1">
+    <!-- 中间：标签栏（可滚动） -->
+    <ScrollArea v-if="tabStore.tabs.length > 0" ref="scrollAreaRef" class="min-w-0 flex-1">
       <div ref="tabsContainer" class="flex w-max gap-1">
         <button
-          v-for="scheme in editorStore.schemes"
-          :key="scheme.id"
-          :data-tab-active="editorStore.activeSchemeId === scheme.id"
-          @click="switchScheme(scheme.id)"
+          v-for="tab in tabStore.tabs"
+          :key="tab.id"
+          :data-tab-active="tabStore.activeTabId === tab.id"
+          @click="switchTab(tab.id)"
           class="group relative my-2 flex flex-none items-center gap-2 rounded-sm border px-3 py-1 text-sm font-medium shadow-sm transition-all focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:outline-none"
           :class="
-            editorStore.activeSchemeId === scheme.id
+            tabStore.activeTabId === tab.id
               ? 'border-border bg-background text-foreground'
               : 'border-border/60 bg-secondary text-muted-foreground hover:border-border hover:bg-secondary/80'
           "
         >
+          <!-- 文档标签图标 -->
+          <BookOpen v-if="tab.type === 'doc'" class="h-3 w-3" />
+          
           <span class="max-w-[150px] truncate">
-            {{ scheme.name }}
+            {{ tab.title }}
           </span>
           <button
-            @click="closeScheme(scheme.id, $event)"
+            @click="closeTab(tab.id, $event)"
             class="flex h-4 w-4 flex-shrink-0 items-center justify-center rounded-sm opacity-0 transition-opacity group-hover:opacity-100 hover:bg-gray-300 dark:hover:bg-gray-600"
-            :title="`关闭 ${scheme.name}`"
+            :title="`关闭 ${tab.title}`"
           >
             <X class="h-3 w-3" />
           </button>

@@ -4,6 +4,7 @@ import { useEditorStore } from './stores/editorStore'
 import { useNotificationStore } from './stores/notificationStore'
 import { useFurnitureStore } from './stores/furnitureStore'
 import { useSettingsStore } from './stores/settingsStore'
+import { useTabStore } from './stores/tabStore'
 import Toolbar from './components/Toolbar.vue'
 import Sidebar from './components/Sidebar.vue'
 import StatusBar from './components/StatusBar.vue'
@@ -11,6 +12,7 @@ import CanvasEditor from './components/CanvasEditor.vue'
 import WelcomeScreen from './components/WelcomeScreen.vue'
 import MoveDialog from './components/MoveDialog.vue'
 import CoordinateDialog from './components/CoordinateDialog.vue'
+import DocsViewer from './components/DocsViewer.vue'
 import { Toaster } from '@/components/ui/sonner'
 import { toast } from 'vue-sonner'
 import 'vue-sonner/style.css'
@@ -30,6 +32,7 @@ const editorStore = useEditorStore()
 const notificationStore = useNotificationStore()
 const furnitureStore = useFurnitureStore()
 const settingsStore = useSettingsStore()
+const tabStore = useTabStore()
 
 // 导入 commandStore 用于对话框控制
 import { useCommandStore } from './stores/commandStore'
@@ -74,20 +77,31 @@ onMounted(async () => {
         >
           <!-- 画布区域 -->
           <div class="relative flex min-w-0 flex-1 flex-col">
-            <!-- 欢迎界面：没有方案时 -->
-            <WelcomeScreen v-if="editorStore.schemes.length === 0" />
+            <!-- 欢迎界面：没有标签时 -->
+            <WelcomeScreen v-if="tabStore.tabs.length === 0" />
 
-            <!-- 画布编辑器：使用 KeepAlive 缓存状态 -->
-            <KeepAlive v-else :max="5">
-              <CanvasEditor
-                v-if="editorStore.activeScheme"
-                :key="editorStore.activeSchemeId || ''"
-              />
-            </KeepAlive>
+            <!-- 有标签时：根据类型渲染 -->
+            <template v-else>
+              <!-- 方案编辑器 -->
+              <KeepAlive :max="10">
+                <CanvasEditor
+                  v-if="tabStore.activeTab?.type === 'scheme' && editorStore.activeScheme"
+                  :key="editorStore.activeSchemeId || ''"
+                />
+              </KeepAlive>
+
+              <!-- 文档查看器 -->
+              <KeepAlive>
+                <DocsViewer
+                  v-if="tabStore.activeTab?.type === 'doc'"
+                  key="docs-viewer"
+                />
+              </KeepAlive>
+            </template>
           </div>
 
-          <!-- 右侧边栏 -->
-          <div v-if="editorStore.schemes.length !== 0" class="h-full p-2"><Sidebar /></div>
+          <!-- 右侧边栏：仅方案类型显示 -->
+          <div v-if="tabStore.activeTab?.type === 'scheme'" class="h-full p-2"><Sidebar /></div>
         </div>
       </div>
 

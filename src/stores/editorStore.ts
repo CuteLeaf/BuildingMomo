@@ -10,6 +10,7 @@ import type {
   HistorySnapshot,
   HistoryStack,
 } from '../types/editor'
+import { useTabStore } from './tabStore'
 
 // 生成简单的UUID
 function generateUUID(): string {
@@ -373,11 +374,15 @@ export const useEditorStore = defineStore('editor', () => {
     schemes.value.push(newScheme)
     activeSchemeId.value = newScheme.id
 
+    // 同步到 TabStore
+    const tabStore = useTabStore()
+    tabStore.openSchemeTab(newScheme.id, newScheme.name)
+
     return newScheme.id
   }
 
   // 方案管理：导入JSON为新方案
-  function importJSONAsScheme(
+  async function importJSONAsScheme(
     fileContent: string,
     fileName: string,
     gamePathInfo?: {
@@ -387,7 +392,7 @@ export const useEditorStore = defineStore('editor', () => {
       gameDirHandle: FileSystemDirectoryHandle
     },
     fileLastModified?: number
-  ): { success: boolean; schemeId?: string; error?: string } {
+  ): Promise<{ success: boolean; schemeId?: string; error?: string }> {
     try {
       const data: GameDataFile = JSON.parse(fileContent)
 
@@ -446,6 +451,10 @@ export const useEditorStore = defineStore('editor', () => {
       schemes.value.push(newScheme)
       activeSchemeId.value = newScheme.id
 
+      // 同步到 TabStore
+      const tabStore = useTabStore()
+      tabStore.openSchemeTab(newScheme.id, newScheme.name)
+
       return { success: true, schemeId: newScheme.id }
     } catch (error) {
       console.error('Failed to import JSON:', error)
@@ -455,6 +464,13 @@ export const useEditorStore = defineStore('editor', () => {
 
   // 方案管理：关闭方案
   function closeScheme(schemeId: string) {
+    // 先从 TabStore 关闭标签
+    const tabStore = useTabStore()
+    const tab = tabStore.tabs.find((t) => t.schemeId === schemeId)
+    if (tab) {
+      tabStore.closeTab(tab.id)
+    }
+
     const index = schemes.value.findIndex((s) => s.id === schemeId)
     if (index === -1) return
 
@@ -487,6 +503,10 @@ export const useEditorStore = defineStore('editor', () => {
     const scheme = schemes.value.find((s) => s.id === schemeId)
     if (scheme) {
       scheme.name = newName
+
+      // 同步到 TabStore
+      const tabStore = useTabStore()
+      tabStore.updateSchemeTabName(schemeId, newName)
     }
   }
 

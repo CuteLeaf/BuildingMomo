@@ -1,10 +1,12 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useCommandStore } from '../stores/commandStore'
-import { FolderSearch, FileJson, Github, ExternalLink } from 'lucide-vue-next'
+import { useTabStore } from '../stores/tabStore'
+import { FolderSearch, FileJson, Github, ExternalLink, TriangleAlert } from 'lucide-vue-next'
 import { Item, ItemContent, ItemDescription, ItemMedia, ItemTitle } from '@/components/ui/item'
 
 const commandStore = useCommandStore()
+const tabStore = useTabStore()
 
 // 检查 File System Access API 是否支持
 const isWatchModeSupported = computed(() => commandStore.fileOps.isFileSystemAccessSupported)
@@ -16,6 +18,13 @@ function startWatchMode() {
 
 function importJSON() {
   commandStore.executeCommand('file.import')
+}
+
+function showSafetyNotice() {
+  // 设置 localStorage，让文档页面默认打开 FAQ 标签
+  localStorage.setItem('docs-active-tab', 'faq')
+  // 打开文档标签
+  tabStore.openDocTab()
 }
 </script>
 
@@ -122,24 +131,37 @@ function importJSON() {
           rel="noopener noreferrer"
           class="flex items-center gap-2 rounded-lg px-4 py-2 transition-colors hover:text-blue-600"
         >
-          <Github :size="18" />
+          <Github :size="16" />
           <span>GitHub 仓库</span>
           <ExternalLink :size="14" />
         </a>
         <span class="text-gray-300">·</span>
         <a
-          href="https://github.com/ChanIok/SpinningMomo"
+          href="https://chaniok.github.io/SpinningMomo/"
           target="_blank"
           rel="noopener noreferrer"
           class="flex items-center gap-2 rounded-lg px-4 py-2 transition-colors hover:text-blue-600"
         >
-          <span>SpinningMomo 项目</span>
+          <img src="https://chaniok.github.io/SpinningMomo/logo.png" class="h-4 w-4" />
+          <span>旋转吧大喵</span>
           <ExternalLink :size="14" />
         </a>
       </div>
 
       <!-- 底部提示与致谢信息 -->
       <div class="mt-8 text-xs text-gray-400">
+        <p class="mb-2 flex items-center justify-center">
+          <TriangleAlert :size="14" class="mr-1 text-orange-500" />
+          <button
+            @click="showSafetyNotice"
+            class="cursor-pointer text-orange-500 underline underline-offset-2 hover:text-orange-600"
+          >
+            使用前请阅读安全须知
+          </button>
+          <span class="mx-2 text-gray-300">·</span>
+          仅供学习交流，风险自负
+        </p>
+
         <p>
           文件将在本地处理，不会上传到任何服务器
           <span class="mx-2 text-gray-300">·</span>
@@ -148,7 +170,7 @@ function importJSON() {
             href="https://NUAN5.PRO"
             target="_blank"
             rel="noopener noreferrer"
-            class="text-gray-500 transition-colors hover:text-blue-600"
+            class="text-green-500 transition-colors hover:text-green-600"
           >
             NUAN5.PRO
           </a>

@@ -139,10 +139,10 @@ export function useFileOperations(editorStore: ReturnType<typeof useEditorStore>
         }
 
         const reader = new FileReader()
-        reader.onload = (e) => {
+        reader.onload = async (e) => {
           const content = e.target?.result as string
           // 使用新的多方案导入API，传递文件修改时间
-          const result = editorStore.importJSONAsScheme(
+          const result = await editorStore.importJSONAsScheme(
             content,
             file.name,
             undefined,
@@ -516,7 +516,7 @@ export function useFileOperations(editorStore: ReturnType<typeof useEditorStore>
       const content = await file.text()
 
       // 使用 editorStore 的导入方法，并传递游戏路径信息和文件修改时间
-      const importResult = editorStore.importJSONAsScheme(
+      const importResult = await editorStore.importJSONAsScheme(
         content,
         file.name,
         {
