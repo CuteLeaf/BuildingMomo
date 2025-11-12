@@ -50,6 +50,7 @@
     <h3>复制和删除</h3>
     <ul>
       <li><strong>复制</strong>：<code>Ctrl + C</code> 复制，<code>Ctrl + V</code> 粘贴</li>
+      <li><strong>拖拽复制</strong>：选中物品后，按住 <code>Alt</code> 键拖动鼠标左键，可快速复制并定位到新位置</li>
       <li><strong>剪切</strong>：<code>Ctrl + X</code></li>
       <li><strong>删除</strong>：选中物品后按 <code>Delete</code> 键</li>
       <li><strong>跨方案复制</strong>：可以在不同方案标签之间复制粘贴物品</li>
@@ -57,7 +58,7 @@
 
     <h3>画布操作</h3>
     <ul>
-      <li><strong>平移</strong>：按住鼠标右键拖动，或使用鼠标中键拖动</li>
+      <li><strong>平移</strong>：按住 <code>空格键</code> 然后鼠标左键拖动，或使用鼠标中键拖动</li>
       <li><strong>缩放</strong>：鼠标滚轮，或 <code>Ctrl + =</code> / <code>Ctrl + -</code></li>
       <li><strong>重置视图</strong>：点击菜单栏 <strong>视图 &gt; 重置视图</strong></li>
     </ul>
