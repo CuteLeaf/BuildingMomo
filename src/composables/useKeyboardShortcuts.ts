@@ -1,20 +1,14 @@
-import { computed, watch, type Ref } from 'vue'
+import { computed } from 'vue'
 import { onKeyStroke } from '@vueuse/core'
 import type { Command } from '../stores/commandStore'
-import { useInputState } from './useInputState'
 
 export interface UseKeyboardShortcutsOptions {
   commands: Command[]
   executeCommand: (commandId: string) => void
-  stageRef: Ref<any>
-  stageConfig: Ref<any>
 }
 
 export function useKeyboardShortcuts(options: UseKeyboardShortcutsOptions) {
-  const { commands, executeCommand, stageRef, stageConfig } = options
-
-  // 使用统一的输入状态管理
-  const { isSpacePressed } = useInputState()
+  const { commands, executeCommand } = options
 
   // 构建快捷键映射表（响应式）
   const shortcutMap = computed(() => {
@@ -55,25 +49,6 @@ export function useKeyboardShortcuts(options: UseKeyboardShortcutsOptions) {
     return parts.join('+')
   }
 
-  // 更新画布拖动模式
-  function updateDragMode(isDragMode: boolean) {
-    stageConfig.value.draggable = isDragMode
-
-    const stage = stageRef.value?.getStage()
-    if (stage) {
-      const container = stage.container()
-      container.style.cursor = isDragMode ? 'grab' : 'default'
-    }
-  }
-
-  // 监听空格键状态变化，自动更新拖拽模式
-  watch(
-    () => isSpacePressed?.value || false,
-    (pressed) => {
-      updateDragMode(pressed)
-    }
-  )
-
   // 使用 VueUse 的 onKeyStroke 处理键盘事件
   onKeyStroke(
     (event) => {
@@ -83,7 +58,7 @@ export function useKeyboardShortcuts(options: UseKeyboardShortcutsOptions) {
         return
       }
 
-      // 空格键已通过 watch isSpacePressed 处理，这里跳过
+      // 空格键不在这里处理，由各 CanvasEditor 自行监听
       if (event.code === 'Space') {
         event.preventDefault()
         return
@@ -106,7 +81,6 @@ export function useKeyboardShortcuts(options: UseKeyboardShortcutsOptions) {
   console.log(`[Shortcuts] Registered ${shortcutMap.value.size} keyboard shortcuts`)
 
   return {
-    isSpacePressed,
     shortcutMap,
   }
 }

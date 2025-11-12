@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, watch, computed, toRef } from 'vue'
+import { ref, onMounted, onActivated, onDeactivated, watch, computed, toRef } from 'vue'
 import { useElementSize } from '@vueuse/core'
 import { useEditorStore } from '../stores/editorStore'
 import { useCommandStore } from '../stores/commandStore'
@@ -9,9 +9,9 @@ import { useCanvasZoom } from '../composables/useCanvasZoom'
 import { useCanvasSelection } from '../composables/useCanvasSelection'
 import { useCanvasDrag } from '../composables/useCanvasDrag'
 import { useCanvasRendering } from '../composables/useCanvasRendering'
-import { useKeyboardShortcuts } from '../composables/useKeyboardShortcuts'
 import { useCanvasTooltip } from '../composables/useCanvasTooltip'
 import { useCanvasCoordinates } from '../composables/useCanvasCoordinates'
+import { useInputState } from '../composables/useInputState'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -69,13 +69,8 @@ const { mainLayerRef, interactionLayerRef, setHideSelectedItems } = useCanvasRen
   scale
 )
 
-// 快捷键系统
-const { isSpacePressed } = useKeyboardShortcuts({
-  commands: commandStore.commands,
-  executeCommand: commandStore.executeCommand,
-  stageRef,
-  stageConfig,
-})
+// 使用统一的输入状态管理（用于空格键拖拽模式）
+const { isSpacePressed } = useInputState()
 
 // 拖拽系统
 const { startDrag, moveDrag, endDrag } = useCanvasDrag(
@@ -128,6 +123,25 @@ const {
 // 判断是否在画布上显示图标（>100% 时显示图标）
 const shouldShowIconInCanvas = computed(() => scale.value > 1.0)
 
+// 更新画布拖动模式（从 useKeyboardShortcuts 移过来）
+function updateDragMode(isDragMode: boolean) {
+  stageConfig.value.draggable = isDragMode
+
+  const stage = stageRef.value?.getStage()
+  if (stage) {
+    const container = stage.container()
+    container.style.cursor = isDragMode ? 'grab' : 'default'
+  }
+}
+
+// 监听空格键状态变化，自动更新拖拽模式
+watch(
+  () => isSpacePressed?.value,
+  (pressed) => {
+    updateDragMode(pressed || false)
+  }
+)
+
 // 合并鼠标移动事件
 function handleMouseMoveWithTooltip(e: any) {
   handleMouseMove(e)
@@ -176,9 +190,6 @@ function handleCanvasContextMenu(e: any) {
 
 // 初始化
 onMounted(() => {
-  // 将缩放函数注册到命令系统
-  commandStore.setZoomFunctions(zoomIn, zoomOut, fitToView)
-
   // 如果已有数据，初始化视图
   if (editorStore.items.length > 0) {
     // 尝试恢复保存的视图配置
@@ -212,6 +223,18 @@ onMounted(() => {
       true
     )
   }
+})
+
+// 当编辑器被激活时，注册缩放函数
+onActivated(() => {
+  commandStore.setZoomFunctions(zoomIn, zoomOut, fitToView)
+  console.log('[CanvasEditor] Activated, zoom functions registered')
+})
+
+// 当编辑器停用时，清除缩放函数
+onDeactivated(() => {
+  commandStore.setZoomFunctions(null, null, null)
+  console.log('[CanvasEditor] Deactivated, zoom functions cleared')
 })
 
 // 监听方案切换，保存和恢复视图状态

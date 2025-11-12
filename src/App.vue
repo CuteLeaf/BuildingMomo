@@ -27,6 +27,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { TooltipProvider } from '@/components/ui/tooltip'
+import { useKeyboardShortcuts } from './composables/useKeyboardShortcuts'
 
 const editorStore = useEditorStore()
 const notificationStore = useNotificationStore()
@@ -37,6 +38,12 @@ const tabStore = useTabStore()
 // 导入 commandStore 用于对话框控制
 import { useCommandStore } from './stores/commandStore'
 const commandStore = useCommandStore()
+
+// 全局快捷键系统（单例）
+useKeyboardShortcuts({
+  commands: commandStore.commands,
+  executeCommand: commandStore.executeCommand,
+})
 
 // AlertDialog 控制
 const dialogOpen = computed({
@@ -92,10 +99,7 @@ onMounted(async () => {
 
               <!-- 文档查看器 -->
               <KeepAlive>
-                <DocsViewer
-                  v-if="tabStore.activeTab?.type === 'doc'"
-                  key="docs-viewer"
-                />
+                <DocsViewer v-if="tabStore.activeTab?.type === 'doc'" key="docs-viewer" />
               </KeepAlive>
             </template>
           </div>

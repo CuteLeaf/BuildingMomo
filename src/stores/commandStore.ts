@@ -338,7 +338,11 @@ export const useCommandStore = defineStore('command', () => {
   }
 
   // 设置缩放函数（由 CanvasEditor 调用）
-  function setZoomFunctions(zoomIn: () => void, zoomOut: () => void, fitToView: () => void) {
+  function setZoomFunctions(
+    zoomIn: (() => void) | null,
+    zoomOut: (() => void) | null,
+    fitToView: (() => void) | null
+  ) {
     zoomInFn.value = zoomIn
     zoomOutFn.value = zoomOut
     fitToViewFn.value = fitToView
