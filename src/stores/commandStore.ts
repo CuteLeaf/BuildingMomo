@@ -76,9 +76,9 @@ export const useCommandStore = defineStore('command', () => {
       shortcut: 'Ctrl+Shift+S',
       category: 'file',
       enabled: () => editorStore.items.length > 0,
-      execute: () => {
+      execute: async () => {
         console.log('[Command] 导出建造数据')
-        fileOps.exportJSON()
+        await fileOps.exportJSON()
       },
     },
     {

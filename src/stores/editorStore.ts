@@ -11,6 +11,7 @@ import type {
   HistoryStack,
 } from '../types/editor'
 import { useTabStore } from './tabStore'
+import { useSettingsStore } from './settingsStore'
 
 // 生成简单的UUID
 function generateUUID(): string {
@@ -221,6 +222,75 @@ export const useEditorStore = defineStore('editor', () => {
   const selectedItems = computed(() => {
     return items.value.filter((item) => selectedItemIds.value.has(item.internalId))
   })
+
+  // ========== 重复物品检测 ==========
+
+  // 计算属性：重复的物品组（按位置、旋转、缩放分组）
+  const duplicateGroups = computed<AppItem[][]>(() => {
+    const settingsStore = useSettingsStore()
+
+    // 如果未启用检测或没有活动方案，返回空数组
+    if (!settingsStore.settings.enableDuplicateDetection || !activeScheme.value) {
+      return []
+    }
+
+    const startTime = performance.now()
+
+    // Map索引：key = "gameId,x,y,z,pitch,yaw,roll,scaleX,scaleY,scaleZ", value = AppItem[]
+    const itemMap = new Map<string, AppItem[]>()
+
+    activeScheme.value.items.forEach((item) => {
+      const rot = item.originalData.Rotation
+      const scale = item.originalData.Scale
+      const key = `${item.gameId},${item.x},${item.y},${item.z},${rot.Pitch},${rot.Yaw},${rot.Roll},${scale.X},${scale.Y},${scale.Z}`
+      if (!itemMap.has(key)) {
+        itemMap.set(key, [])
+      }
+      itemMap.get(key)!.push(item)
+    })
+
+    // 过滤出重复的组（count > 1）
+    const duplicates = Array.from(itemMap.values()).filter((group) => group.length > 1)
+
+    const elapsed = performance.now() - startTime
+    if (import.meta.env.DEV && activeScheme.value.items.length > 100) {
+      console.log(
+        `[Duplicate Detection] ${elapsed.toFixed(2)}ms for ${activeScheme.value.items.length} items, found ${duplicates.length} duplicate groups`
+      )
+    }
+
+    return duplicates
+  })
+
+  // 计算属性：是否存在重复物品
+  const hasDuplicate = computed(() => duplicateGroups.value.length > 0)
+
+  // 计算属性：重复物品总数（只计算多余的，不包括每组保留的第一个）
+  const duplicateItemCount = computed(() => {
+    return duplicateGroups.value.reduce((sum, group) => sum + (group.length - 1), 0)
+  })
+
+  // 选择所有重复的物品（保留每组的第一个）
+  function selectDuplicateItems() {
+    if (!activeScheme.value || duplicateGroups.value.length === 0) return
+
+    // 保存历史（选择操作）
+    saveHistory('selection')
+
+    // 清空当前选择
+    activeScheme.value.selectedItemIds.clear()
+
+    // 选中除第一个之外的重复物品
+    duplicateGroups.value.forEach((group) => {
+      group.slice(1).forEach((item) => {
+        activeScheme.value!.selectedItemIds.add(item.internalId)
+      })
+    })
+
+    console.log(
+      `[Duplicate Detection] Selected ${duplicateItemCount.value} duplicate items (excluding first of each group)`
+    )
+  }
 
   // ========== 历史记录管理 ==========
 
@@ -639,7 +709,7 @@ export const useEditorStore = defineStore('editor', () => {
   }
 
   // 复制选中物品（带偏移）
-  function duplicateSelected(offsetX: number = 50, offsetY: number = 50): string[] {
+  function duplicateSelected(offsetX: number = 0, offsetY: number = 0): string[] {
     if (!activeScheme.value) return []
 
     // 保存历史（编辑操作）
@@ -936,7 +1006,7 @@ export const useEditorStore = defineStore('editor', () => {
   }
 
   // 跨方案剪贴板：从剪贴板粘贴
-  function pasteFromClipboard(offsetX: number = 50, offsetY: number = 50): string[] {
+  function pasteFromClipboard(offsetX: number = 0, offsetY: number = 0): string[] {
     if (!activeScheme.value || clipboard.value.length === 0) return []
 
     return pasteItems(clipboard.value, offsetX, offsetY)
@@ -1168,6 +1238,12 @@ export const useEditorStore = defineStore('editor', () => {
     stats,
     selectedItemIds,
     selectedItems,
+
+    // 重复物品检测
+    duplicateGroups,
+    hasDuplicate,
+    duplicateItemCount,
+    selectDuplicateItems,
 
     // 方案管理
     createScheme,

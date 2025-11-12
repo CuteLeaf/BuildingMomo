@@ -9,6 +9,9 @@ export interface AppSettings {
 
   // 数据设置
   autoUpdateFurniture: boolean
+
+  // 编辑辅助
+  enableDuplicateDetection: boolean
 }
 
 // 默认设置
@@ -16,6 +19,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   showFurnitureTooltip: true,
   showBackground: true,
   autoUpdateFurniture: true,
+  enableDuplicateDetection: true,
 }
 
 const STORAGE_KEY = 'buildingmomo_settings'

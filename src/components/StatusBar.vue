@@ -3,10 +3,13 @@ import { computed } from 'vue'
 import { useDateFormat } from '@vueuse/core'
 import { useEditorStore } from '../stores/editorStore'
 import { useCommandStore } from '../stores/commandStore'
+import { useSettingsStore } from '../stores/settingsStore'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { Copy } from 'lucide-vue-next'
 
 const editorStore = useEditorStore()
 const commandStore = useCommandStore()
+const settingsStore = useSettingsStore()
 
 // 方案信息
 const fileName = computed(() => {
@@ -64,6 +67,23 @@ const coordinateTooltip = computed(() => {
 const handleCoordinateClick = () => {
   commandStore.executeCommand('view.coordinateSystem')
 }
+
+// 重复物品检测
+const duplicateDetectionEnabled = computed(() => settingsStore.settings.enableDuplicateDetection)
+const hasDuplicate = computed(() => editorStore.hasDuplicate)
+const duplicateItemCount = computed(() => editorStore.duplicateItemCount)
+
+const duplicateTooltip = computed(() => {
+  if (!duplicateDetectionEnabled.value) return ''
+  if (!hasDuplicate.value) return ''
+  return `发现 ${duplicateItemCount.value} 个重复物品 - 点击选中`
+})
+
+const handleDuplicateClick = () => {
+  if (hasDuplicate.value) {
+    editorStore.selectDuplicateItems()
+  }
+}
 </script>
 
 <template>
@@ -97,6 +117,22 @@ const handleCoordinateClick = () => {
 
       <!-- 右: 统计信息、组信息、工作坐标系 -->
       <div class="flex shrink-0 items-center gap-4">
+        <!-- 重复物品检测 -->
+        <Tooltip v-if="duplicateDetectionEnabled && hasDuplicate">
+          <TooltipTrigger as-child>
+            <div
+              class="flex shrink-0 cursor-pointer items-center gap-1 rounded px-2 py-0.5 font-medium text-amber-600 transition-colors hover:bg-amber-50"
+              @click="handleDuplicateClick"
+            >
+              <Copy :size="14" />
+              <span class="text-xs">{{ duplicateItemCount }} 个重复物品</span>
+            </div>
+          </TooltipTrigger>
+          <TooltipContent>
+            {{ duplicateTooltip }}
+          </TooltipContent>
+        </Tooltip>
+
         <!-- 统计信息 -->
         <div class="flex shrink-0 items-center gap-3 text-gray-600">
           <span class="text-xs">总计 {{ stats.total }}</span>

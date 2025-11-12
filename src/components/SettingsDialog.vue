@@ -107,6 +107,22 @@ async function handleClearCache() {
             </div>
             <Switch v-model="settingsStore.settings.showBackground" />
           </div>
+
+          <!-- 分割线 -->
+          <div class="border-t pt-4">
+            <h3 class="mb-3 text-sm font-medium">编辑辅助</h3>
+          </div>
+
+          <!-- 重复物品检测开关 -->
+          <div class="flex items-center justify-between">
+            <div class="space-y-0.5">
+              <Label>启用重复物品检测</Label>
+              <p class="text-xs text-muted-foreground">
+                自动检测位置、旋转、缩放完全相同的物品，在状态栏显示提示
+              </p>
+            </div>
+            <Switch v-model="settingsStore.settings.enableDuplicateDetection" />
+          </div>
         </TabsContent>
 
         <!-- 数据管理 Tab -->

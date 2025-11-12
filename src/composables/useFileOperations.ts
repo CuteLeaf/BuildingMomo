@@ -2,6 +2,7 @@ import { ref, onUnmounted } from 'vue'
 import type { useEditorStore } from '../stores/editorStore'
 import type { GameDataFile, GameItem, FileWatchState } from '../types/editor'
 import { useNotification } from './useNotification'
+import { useSettingsStore } from '../stores/settingsStore'
 
 // 检查浏览器是否支持 File System Access API
 const isFileSystemAccessSupported = 'showDirectoryPicker' in window
@@ -121,6 +122,28 @@ export function useFileOperations(editorStore: ReturnType<typeof useEditorStore>
   const POLL_INTERVAL_ACTIVE = 3000 // 页面活跃时：3秒
   const POLL_INTERVAL_HIDDEN = 10000 // 页面隐藏时：10秒（降低频率）
 
+  // 检查重复物品（辅助函数）
+  async function checkDuplicateItems(): Promise<boolean> {
+    const settingsStore = useSettingsStore()
+
+    // 如果启用了重复物品检测且存在重复物品
+    if (settingsStore.settings.enableDuplicateDetection && editorStore.hasDuplicate) {
+      const confirmed = await notification.confirm({
+        title: '检测到重复物品',
+        description: `当前方案中检测到 ${editorStore.duplicateItemCount} 个重复物品。\n\n这些物品的位置、旋转和缩放完全相同，会在游戏中完全重叠，可能不是您期望的摆放效果。\n\n是否继续？`,
+        confirmText: '继续',
+        cancelText: '取消',
+      })
+
+      if (!confirmed) {
+        console.log('[FileOps] 用户取消操作（存在重复物品）')
+        return false
+      }
+    }
+
+    return true
+  }
+
   // 导入 JSON 文件
   async function importJSON(): Promise<void> {
     return new Promise((resolve) => {
@@ -173,9 +196,15 @@ export function useFileOperations(editorStore: ReturnType<typeof useEditorStore>
   }
 
   // 导出 JSON 文件
-  function exportJSON(filename?: string): void {
+  async function exportJSON(filename?: string): Promise<void> {
     if (editorStore.items.length === 0) {
       notification.warning('没有可导出的数据')
+      return
+    }
+
+    // 检查重复物品
+    const canProceed = await checkDuplicateItems()
+    if (!canProceed) {
       return
     }
 
@@ -234,6 +263,12 @@ export function useFileOperations(editorStore: ReturnType<typeof useEditorStore>
 
     if (editorStore.items.length === 0) {
       notification.warning('没有可保存的数据')
+      return
+    }
+
+    // 检查重复物品
+    const canProceed = await checkDuplicateItems()
+    if (!canProceed) {
       return
     }
 
