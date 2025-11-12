@@ -126,12 +126,8 @@ onMounted(() => {
         <MenubarTrigger class="text-sm font-medium">文件</MenubarTrigger>
         <MenubarContent :sideOffset="10">
           <template v-for="cmd in fileCommands" :key="cmd.id">
-            <!-- 在"导出"、"保存到游戏"、"选择游戏目录"之前添加分隔线 -->
-            <MenubarSeparator
-              v-if="
-                cmd.id === 'file.import' || cmd.id === 'file.export' || cmd.id === 'file.saveToGame'
-              "
-            />
+            <!-- 在"保存到游戏"、"选择游戏目录"之前添加分隔线 -->
+            <MenubarSeparator v-if="cmd.id === 'file.import' || cmd.id === 'file.saveToGame'" />
             <MenubarItem :disabled="!isEnabled(cmd.id)" @click="handleCommand(cmd.id)">
               {{ cmd.label }}
               <MenubarShortcut v-if="cmd.shortcut">{{ cmd.shortcut }}</MenubarShortcut>
@@ -145,13 +141,14 @@ onMounted(() => {
         <MenubarTrigger class="text-sm font-medium">编辑</MenubarTrigger>
         <MenubarContent :sideOffset="10">
           <template v-for="cmd in editCommands" :key="cmd.id">
-            <!-- 在"剪切 "、"移动"、"删除"、"全选"之前添加分隔线 -->
+            <!-- 在"剪切 "、"移动"、"删除"、"全选"、"成组"之前添加分隔线 -->
             <MenubarSeparator
               v-if="
                 cmd.id === 'edit.cut' ||
                 cmd.id === 'edit.move' ||
                 cmd.id === 'edit.delete' ||
-                cmd.id === 'edit.selectAll'
+                cmd.id === 'edit.selectAll' ||
+                cmd.id === 'edit.group'
               "
             />
             <MenubarItem :disabled="!isEnabled(cmd.id)" @click="handleCommand(cmd.id)">

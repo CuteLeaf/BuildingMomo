@@ -83,7 +83,7 @@ export const useCommandStore = defineStore('command', () => {
     },
     {
       id: 'file.saveToGame',
-      label: '保存到游戎',
+      label: '保存到游戏',
       shortcut: 'Ctrl+S',
       category: 'file',
       enabled: () =>
@@ -91,7 +91,7 @@ export const useCommandStore = defineStore('command', () => {
         fileOps.watchState.value.fileHandle !== null &&
         editorStore.items.length > 0,
       execute: async () => {
-        console.log('[Command] 保存到游戎')
+        console.log('[Command] 保存到游戏')
         await fileOps.saveToGame()
       },
     },

@@ -50,7 +50,10 @@
     <h3>复制和删除</h3>
     <ul>
       <li><strong>复制</strong>：<code>Ctrl + C</code> 复制，<code>Ctrl + V</code> 粘贴</li>
-      <li><strong>拖拽复制</strong>：选中物品后，按住 <code>Alt</code> 键拖动鼠标左键，可快速复制并定位到新位置</li>
+      <li>
+        <strong>拖拽复制</strong>：选中物品后，按住
+        <code>Alt</code> 键拖动鼠标左键，可快速复制并定位到新位置
+      </li>
       <li><strong>剪切</strong>：<code>Ctrl + X</code></li>
       <li><strong>删除</strong>：选中物品后按 <code>Delete</code> 键</li>
       <li><strong>跨方案复制</strong>：可以在不同方案标签之间复制粘贴物品</li>
@@ -64,30 +67,6 @@
     </ul>
 
     <h2>高级功能</h2>
-
-    <h3>高度过滤器</h3>
-    <p>
-      高度过滤器位于右侧边栏顶部，用于按 Z 轴高度（楼层）筛选显示物品。这在编辑多层建筑时特别有用。
-    </p>
-    <ul>
-      <li><strong>滑块控制</strong>：拖动双向滑块调整可见高度范围</li>
-      <li><strong>动态范围</strong>：滑块范围会根据实际物品的高度范围自动调整</li>
-    </ul>
-
-    <h3>画布缩放和平移</h3>
-    <p>灵活的视图控制让你可以从不同角度观察方案：</p>
-    <ul>
-      <li><strong>缩放级别</strong>：0.1x ~ 10x，适应不同细节程度的编辑需求</li>
-      <li><strong>重置视图</strong>：一键自动调整缩放和位置，让所有物品居中显示</li>
-    </ul>
-
-    <h3>工作坐标系</h3>
-    <p>工作坐标系功能允许你旋转画布坐标轴，特别适合编辑斜向布局的建筑（如 45° 摆放的建筑群）。</p>
-    <ul>
-      <li><strong>启用方式</strong>：菜单栏 <strong>视图 &gt; 工作坐标系设置</strong></li>
-      <li><strong>旋转角度</strong>：支持任意角度旋转（常用 45°、90° 等）</li>
-      <li><strong>移动操作</strong>：启用后，移动物品会沿旋转后的坐标轴方向进行</li>
-    </ul>
 
     <h3>组合编辑</h3>
     <p>对多个物品进行成组，可以作为一个整体进行操作：</p>
@@ -104,12 +83,43 @@
       </li>
     </ul>
 
+    <h3>高度过滤器</h3>
+    <p>
+      高度过滤器位于右侧边栏顶部，用于按 Z 轴高度（楼层）筛选显示物品。这在编辑多层建筑时特别有用。
+    </p>
+    <ul>
+      <li><strong>滑块控制</strong>：拖动双向滑块调整可见高度范围</li>
+      <li><strong>动态范围</strong>：滑块范围会根据实际物品的高度范围自动调整</li>
+    </ul>
+
+    <h3>工作坐标系</h3>
+    <p>工作坐标系功能允许你旋转画布坐标轴，特别适合编辑斜向布局的建筑（如 45° 摆放的建筑群）。</p>
+    <ul>
+      <li><strong>启用方式</strong>：菜单栏 <strong>视图 &gt; 工作坐标系设置</strong></li>
+      <li><strong>旋转角度</strong>：支持任意角度旋转（常用 45°、90° 等）</li>
+      <li><strong>移动操作</strong>：启用后，移动物品会沿旋转后的坐标轴方向进行</li>
+    </ul>
+
     <h3>撤销和重做</h3>
     <ul>
       <li><strong>撤销</strong>：<code>Ctrl + Z</code>，最多保留 50 步历史记录</li>
       <li><strong>重做</strong>：<code>Ctrl + Y</code></li>
       <li><strong>记录的操作</strong>：移动、复制、删除、成组、解散组、精确变换等</li>
     </ul>
+
+    <h3>重复物品检测</h3>
+    <p>
+      自动检测方案中完全重复的物品（位置、旋转、缩放完全相同），并在底部状态栏显示警告。
+      这在原地粘贴后忘记移动时特别有用。
+    </p>
+    <ul>
+      <li><strong>查看提示</strong>：底部状态栏会显示黄色的"X 个重复物品"警告</li>
+      <li><strong>一键选中</strong>：点击状态栏提示，自动选中所有重复项（每组保留第一个）</li>
+      <li><strong>批量删除</strong>：选中后按 <code>Delete</code> 键清理</li>
+    </ul>
+    <p class="text-sm text-muted-foreground">
+      <strong>提示：</strong>复制粘贴默认保持原坐标不变，粘贴后请记得移动物品到新位置。
+    </p>
 
     <h2>导出和保存</h2>
 
