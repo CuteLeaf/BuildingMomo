@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, markRaw } from 'vue'
+import { ref, computed, markRaw, watch } from 'vue'
 import { TresCanvas } from '@tresjs/core'
 import { OrbitControls, TransformControls } from '@tresjs/cientos'
 import { Object3D } from 'three'
@@ -15,16 +15,25 @@ const threeContainerRef = ref<HTMLElement | null>(null)
 const cameraRef = ref<any | null>(null)
 const gizmoPivot = ref<Object3D | null>(markRaw(new Object3D()))
 
+// 需要先创建 isTransformDragging ref，供 renderer 使用
+const isTransformDragging = ref(false)
+
+const { instancedMesh, edgesInstancedMesh, indexToIdMap, updateSelectedInstancesMatrix } =
+  useThreeInstancedRenderer(editorStore, isTransformDragging)
+
 const {
   shouldShowGizmo,
-  isTransformDragging,
+  isTransformDragging: gizmoIsTransformDragging,
   handleGizmoDragging,
   handleGizmoMouseDown,
   handleGizmoMouseUp,
   handleGizmoChange,
-} = useThreeTransformGizmo(editorStore, gizmoPivot)
+} = useThreeTransformGizmo(editorStore, gizmoPivot, updateSelectedInstancesMatrix)
 
-const { instancedMesh, edgesInstancedMesh, indexToIdMap } = useThreeInstancedRenderer(editorStore)
+// 同步 gizmo 的拖拽状态
+watch(gizmoIsTransformDragging, (value) => {
+  isTransformDragging.value = value
+})
 
 const { selectionRect, handlePointerDown, handlePointerMove, handlePointerUp } = useThreeSelection(
   editorStore,
@@ -34,7 +43,7 @@ const { selectionRect, handlePointerDown, handlePointerMove, handlePointerUp } =
     indexToIdMap,
   },
   threeContainerRef,
-  isTransformDragging
+  gizmoIsTransformDragging
 )
 
 // 计算场景中心（用于相机初始对准）

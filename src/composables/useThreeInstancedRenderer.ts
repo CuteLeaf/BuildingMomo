@@ -5,7 +5,6 @@ import {
   DynamicDrawUsage,
   EdgesGeometry,
   Euler,
-  InstancedBufferAttribute,
   InstancedMesh,
   LineBasicMaterial,
   Matrix4,
@@ -25,24 +24,26 @@ const BASE_BOX_SIZE = {
   depth: 100,
 } as const
 
-export function useThreeInstancedRenderer(editorStore: ReturnType<typeof useEditorStore>) {
+export function useThreeInstancedRenderer(
+  editorStore: ReturnType<typeof useEditorStore>,
+  isTransformDragging?: Ref<boolean>
+) {
   const baseGeometry = new BoxGeometry(1, 1, 1)
   const material = new MeshStandardMaterial({
     transparent: true,
     opacity: 0.7,
-    vertexColors: true,
   })
 
   const instancedMesh = ref<InstancedMesh | null>(null)
   const edgesInstancedMesh = ref<InstancedMesh | null>(null)
 
   const indexToIdMap = ref(new Map<number, string>())
+  const idToIndexMap = ref(new Map<string, number>())
 
   // 初始化主体实例
   const mesh = new InstancedMesh(baseGeometry, material, MAX_INSTANCES)
   mesh.instanceMatrix.setUsage(DynamicDrawUsage)
   mesh.count = 0
-  mesh.instanceColor = new InstancedBufferAttribute(new Float32Array(MAX_INSTANCES * 3), 3)
 
   instancedMesh.value = markRaw(mesh)
 
@@ -148,11 +149,60 @@ export function useThreeInstancedRenderer(editorStore: ReturnType<typeof useEdit
     edgeTarget.instanceMatrix.needsUpdate = true
 
     indexToIdMap.value = map
+    // 同时维护反向映射
+    const reverseMap = new Map<string, number>()
+    for (const [index, id] of map.entries()) {
+      reverseMap.set(id, index)
+    }
+    idToIndexMap.value = reverseMap
+  }
+
+  // 局部更新选中物品的矩阵（用于拖拽时的视觉更新）
+  function updateSelectedInstancesMatrix(selectedIds: Set<string>, deltaPosition: Vector3) {
+    const meshTarget = instancedMesh.value
+    const edgeTarget = edgesInstancedMesh.value
+    if (!meshTarget || !edgeTarget) return
+
+    const reverseMap = idToIndexMap.value
+    const tempMatrix = markRaw(new Matrix4())
+    const tempPos = markRaw(new Vector3())
+    const tempQuat = markRaw(new Quaternion())
+    const tempScale = markRaw(new Vector3())
+
+    for (const id of selectedIds) {
+      const index = reverseMap.get(id)
+      if (index === undefined) continue
+
+      // 读取当前矩阵
+      meshTarget.getMatrixAt(index, tempMatrix)
+      
+      // 分解矩阵
+      tempMatrix.decompose(tempPos, tempQuat, tempScale)
+      
+      // 应用位置增量
+      tempPos.add(deltaPosition)
+      
+      // 重新组合矩阵
+      tempMatrix.compose(tempPos, tempQuat, tempScale)
+      
+      // 更新两个实例
+      meshTarget.setMatrixAt(index, tempMatrix)
+      edgeTarget.setMatrixAt(index, tempMatrix)
+    }
+
+    // 只标记矩阵需要更新，不触发颜色更新
+    meshTarget.instanceMatrix.needsUpdate = true
+    edgeTarget.instanceMatrix.needsUpdate = true
   }
 
   watch(
     () => [editorStore.visibleItems, editorStore.selectedItemIds.size],
     () => {
+      // 拖拽时不触发全量更新，由 handleGizmoChange 直接更新实例矩阵
+      if (isTransformDragging?.value) {
+        console.log('[ThreeInstancedRenderer] Skip updateInstances during transform dragging')
+        return
+      }
       updateInstances()
     },
     { deep: true, immediate: true }
@@ -162,5 +212,7 @@ export function useThreeInstancedRenderer(editorStore: ReturnType<typeof useEdit
     instancedMesh,
     edgesInstancedMesh,
     indexToIdMap,
+    idToIndexMap,
+    updateSelectedInstancesMatrix,
   }
 }
