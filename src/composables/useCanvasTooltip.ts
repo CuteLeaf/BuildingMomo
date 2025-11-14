@@ -1,7 +1,7 @@
 import { ref, type Ref } from 'vue'
 import type { useFurnitureStore } from '../stores/furnitureStore'
 import type { AppItem } from '../types/editor'
-import { useCanvasCoordinates, type Position } from './useCanvasCoordinates'
+import { createCanvas2DCoordinates, type Position2D } from '@/lib/coordinates'
 
 export interface TooltipData {
   name: string
@@ -11,7 +11,7 @@ export interface TooltipData {
 
 export function useCanvasTooltip(
   furnitureStore: ReturnType<typeof useFurnitureStore>,
-  findItemAtPosition: (pos: Position) => AppItem | null,
+  findItemAtPosition: (pos: Position2D) => AppItem | null,
   isEnabled: Ref<boolean>,
   stageRef: Ref<any>
 ) {
@@ -20,7 +20,7 @@ export function useCanvasTooltip(
   const tooltipData = ref<TooltipData | null>(null)
 
   // ========== 坐标转换 ==========
-  const { screenToWorld } = useCanvasCoordinates(stageRef)
+  const { screenToWorld } = createCanvas2DCoordinates(stageRef)
 
   // ========== 方法 ==========
 

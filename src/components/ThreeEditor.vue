@@ -1,19 +1,19 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, markRaw } from 'vue'
 import { TresCanvas } from '@tresjs/core'
 import { OrbitControls, TransformControls } from '@tresjs/cientos'
 import { Object3D } from 'three'
 import { useEditorStore } from '@/stores/editorStore'
 import { useThreeSelection } from '@/composables/useThreeSelection'
 import { useThreeTransformGizmo } from '@/composables/useThreeTransformGizmo'
+import { useThreeInstancedRenderer } from '@/composables/useThreeInstancedRenderer'
 
 const editorStore = useEditorStore()
 
 // 3D 选择 & gizmo 相关引用
 const threeContainerRef = ref<HTMLElement | null>(null)
 const cameraRef = ref<any | null>(null)
-const meshRefs = ref<Object3D[]>([])
-const gizmoPivot = ref<Object3D | null>(new Object3D())
+const gizmoPivot = ref<Object3D | null>(markRaw(new Object3D()))
 
 const {
   shouldShowGizmo,
@@ -24,54 +24,18 @@ const {
   handleGizmoChange,
 } = useThreeTransformGizmo(editorStore, gizmoPivot)
 
-const { selectionRect, handlePointerDown, handlePointerMove, handlePointerUp } =
-  useThreeSelection(editorStore, cameraRef, meshRefs, threeContainerRef, isTransformDragging)
+const { instancedMesh, edgesInstancedMesh, indexToIdMap } = useThreeInstancedRenderer(editorStore)
 
-// 默认长方体尺寸（暂无体积数据时使用）
-const DEFAULT_BOX_SIZE = {
-  width: 100, // X轴
-  height: 150, // Z轴（高度）
-  depth: 100, // Y轴
-}
-
-// 根据物品状态获取颜色
-function getItemColor(item: any): number {
-  const isSelected = editorStore.selectedItemIds.has(item.internalId)
-
-  // 选中状态：蓝色
-  if (isSelected) {
-    return 0x3b82f6 // blue-500
-  }
-
-  // 组状态：使用组颜色
-  const groupId = item.originalData.GroupID
-  if (groupId > 0) {
-    return convertColorToHex(editorStore.getGroupColor(groupId))
-  }
-
-  // 默认：灰色
-  return 0x94a3b8 // slate-400
-}
-
-// 将rgba颜色字符串转换为十六进制数字
-function convertColorToHex(colorStr: string | undefined): number {
-  if (!colorStr) return 0x94a3b8
-  // "rgba(255, 0, 0, 0.8)" → 0xff0000
-  const matches = colorStr.match(/\d+/g)
-  if (!matches || matches.length < 3) return 0x94a3b8
-
-  const r = parseInt(matches[0]!)
-  const g = parseInt(matches[1]!)
-  const b = parseInt(matches[2]!)
-
-  return (r << 16) | (g << 8) | b
-}
-
-// 获取物品透明度
-function getItemOpacity(item: any): number {
-  const isSelected = editorStore.selectedItemIds.has(item.internalId)
-  return isSelected ? 0.8 : 0.6
-}
+const { selectionRect, handlePointerDown, handlePointerMove, handlePointerUp } = useThreeSelection(
+  editorStore,
+  cameraRef,
+  {
+    instancedMesh,
+    indexToIdMap,
+  },
+  threeContainerRef,
+  isTransformDragging
+)
 
 // 计算场景中心（用于相机初始对准）
 const sceneCenter = computed<[number, number, number]>(() => {
@@ -217,30 +181,9 @@ const initialCameraPosition = computed<[number, number, number]>(() => {
           @change="handleGizmoChange"
         />
 
-        <!-- 渲染所有可见物品 -->
-        <TresGroup
-          v-for="item in editorStore.visibleItems"
-          :key="item.internalId"
-          :position="[item.x, item.z, item.y]"
-        >
-          <!-- 长方体主体 -->
-          <TresMesh
-            ref="meshRefs"
-            :user-data="{ internalId: item.internalId, gameId: item.gameId }"
-          >
-            <TresBoxGeometry
-              :args="[DEFAULT_BOX_SIZE.width, DEFAULT_BOX_SIZE.height, DEFAULT_BOX_SIZE.depth]"
-            />
-            <TresMeshStandardMaterial
-              :color="getItemColor(item)"
-              :transparent="true"
-              :opacity="getItemOpacity(item)"
-            />
-          </TresMesh>
-
-          <!-- 边框线（使用简化的实现） -->
-          <!-- TODO: 优化边框线渲染 -->
-        </TresGroup>
+        <!-- Instanced 渲染 -->
+        <primitive v-if="instancedMesh" :object="instancedMesh" />
+        <primitive v-if="edgesInstancedMesh" :object="edgesInstancedMesh" />
       </TresCanvas>
 
       <!-- 3D 框选矩形 -->

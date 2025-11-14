@@ -1,13 +1,5 @@
 <script setup lang="ts">
-import {
-  ref,
-  onMounted,
-  onActivated,
-  onDeactivated,
-  watch,
-  computed,
-  toRef,
-} from 'vue'
+import { ref, onMounted, onActivated, onDeactivated, watch, computed, toRef } from 'vue'
 import { useElementSize } from '@vueuse/core'
 import { useEditorStore } from '../stores/editorStore'
 import { useCommandStore } from '../stores/commandStore'
@@ -18,7 +10,7 @@ import { useCanvasSelection } from '../composables/useCanvasSelection'
 import { useCanvasDrag } from '../composables/useCanvasDrag'
 import { useCanvasRendering } from '../composables/useCanvasRendering'
 import { useCanvasTooltip } from '../composables/useCanvasTooltip'
-import { useCanvasCoordinates } from '../composables/useCanvasCoordinates'
+import { createCanvas2DCoordinates } from '@/lib/coordinates'
 import { useInputState } from '../composables/useInputState'
 import {
   DropdownMenu,
@@ -112,7 +104,7 @@ const {
 )
 
 // 坐标转换系统
-const { screenToWorld } = useCanvasCoordinates(stageRef)
+const { screenToWorld } = createCanvas2DCoordinates(stageRef)
 
 // Tooltip 系统
 const isDraggingItems = computed(() => editorStore.selectedItemIds.size > 0 && isSelecting.value)

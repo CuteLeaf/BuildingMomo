@@ -1,6 +1,7 @@
-import { computed, ref, watchEffect, type Ref } from 'vue'
+import { computed, ref, watchEffect, markRaw, type Ref } from 'vue'
 import { Object3D, Vector3 } from 'three'
 import type { useEditorStore } from '@/stores/editorStore'
+import { coordinates3D } from '@/lib/coordinates'
 
 export function useThreeTransformGizmo(
   editorStore: ReturnType<typeof useEditorStore>,
@@ -22,8 +23,8 @@ export function useThreeTransformGizmo(
 
     if (!center || !pivot) return
 
-    // 游戏坐标 (x, y, z) -> Three 世界坐标 (x, z, y)
-    pivot.position.set(center.x, center.z, center.y)
+    // 使用坐标转换工具
+    coordinates3D.setThreeFromGame(pivot.position, center)
   })
 
   function handleGizmoDragging(isDragging: boolean) {
@@ -33,7 +34,7 @@ export function useThreeTransformGizmo(
       // 开始拖拽时记录初始状态
       const pivot = pivotRef.value
       if (!pivot) return
-      dragStartWorld.value = pivot.position.clone()
+      dragStartWorld.value = markRaw(pivot.position.clone())
       lastApplied.value = { x: 0, y: 0, z: 0 }
       hasStartedTransform.value = false
     } else {
@@ -49,7 +50,7 @@ export function useThreeTransformGizmo(
     if (!pivot) return
 
     isTransformDragging.value = true
-    dragStartWorld.value = pivot.position.clone()
+    dragStartWorld.value = markRaw(pivot.position.clone())
     lastApplied.value = { x: 0, y: 0, z: 0 }
     hasStartedTransform.value = false
   }
@@ -70,20 +71,20 @@ export function useThreeTransformGizmo(
 
     const current = pivot.position
 
-    const dxWorld = current.x - start.x
-    const dyWorld = current.y - start.y
-    const dzWorld = current.z - start.z
+    const threeDelta = {
+      x: current.x - start.x,
+      y: current.y - start.y,
+      z: current.z - start.z,
+    }
 
-    // Three 世界坐标 -> 游戏坐标
-    const dxGame = dxWorld
-    const dyGame = dzWorld
-    const dzGame = dyWorld
+    // Three 世界坐标增量 -> 游戏坐标增量
+    const gameDelta = coordinates3D.threeDeltaToGameDelta(threeDelta)
 
     // 增量应用到选中物品
     const last = lastApplied.value
-    const deltaX = dxGame - last.x
-    const deltaY = dyGame - last.y
-    const deltaZ = dzGame - last.z
+    const deltaX = gameDelta.x - last.x
+    const deltaY = gameDelta.y - last.y
+    const deltaZ = gameDelta.z - last.z
 
     if (deltaX === 0 && deltaY === 0 && deltaZ === 0) return
 
@@ -97,12 +98,13 @@ export function useThreeTransformGizmo(
       editorStore.moveSelectedItems3D(deltaX, deltaY, deltaZ)
     }
 
-    lastApplied.value = { x: dxGame, y: dyGame, z: dzGame }
+    lastApplied.value = { x: gameDelta.x, y: gameDelta.y, z: gameDelta.z }
   }
 
   return {
     shouldShowGizmo,
     isTransformDragging,
+    handleGizmoDragging,
     handleGizmoMouseDown,
     handleGizmoMouseUp,
     handleGizmoChange,

@@ -1,5 +1,5 @@
-import { ref, type Ref } from 'vue'
-import { Raycaster, Vector2, Vector3, Box3, type Camera, type Object3D } from 'three'
+import { ref, markRaw, type Ref } from 'vue'
+import { Raycaster, Vector2, Vector3, Box3, Matrix4, type Camera, type InstancedMesh } from 'three'
 import type { useEditorStore } from '@/stores/editorStore'
 
 interface SelectionRect {
@@ -9,19 +9,25 @@ interface SelectionRect {
   height: number
 }
 
+interface SelectionSources {
+  instancedMesh: Ref<InstancedMesh | null>
+  indexToIdMap: Ref<Map<number, string>>
+}
+
 export function useThreeSelection(
   editorStore: ReturnType<typeof useEditorStore>,
   cameraRef: Ref<Camera | null>,
-  meshRefs: Ref<Object3D[]>,
+  selectionSources: SelectionSources,
   containerRef: Ref<HTMLElement | null>,
   transformDraggingRef?: Ref<boolean>
 ) {
-  const raycaster = new Raycaster()
-  const pointerNdc = new Vector2()
+  const raycaster = markRaw(new Raycaster())
+  const pointerNdc = markRaw(new Vector2())
 
   const selectionRect = ref<SelectionRect | null>(null)
   const isSelecting = ref(false)
   const mouseDownPos = ref<{ x: number; y: number } | null>(null)
+  const tempMatrix = markRaw(new Matrix4())
 
   function getRelativePosition(evt: any) {
     const el = containerRef.value
@@ -129,23 +135,31 @@ export function useThreeSelection(
     pointerNdc.y = -(y / rect.height) * 2 + 1
 
     raycaster.setFromCamera(pointerNdc, camera)
-    const intersects = raycaster.intersectObjects(meshRefs.value, false)
+
+    let internalId: string | null = null
+
+    const instancedMesh = selectionSources.instancedMesh.value
+    const idMap = selectionSources.indexToIdMap.value
+    if (!instancedMesh || !idMap) return
+
+    const intersects = raycaster.intersectObject(instancedMesh, false)
     const hit = intersects[0]
 
-    if (hit && hit.object && hit.object.userData?.internalId) {
-      const id = hit.object.userData.internalId as string
+    if (hit && hit.instanceId !== undefined) {
+      internalId = idMap.get(hit.instanceId) ?? null
+    }
+
+    if (internalId) {
       const shift = evt.shiftKey
       const alt = evt.altKey
 
       if (alt) {
-        editorStore.deselectItems([id])
+        editorStore.deselectItems([internalId])
       } else {
-        editorStore.toggleSelection(id, shift)
+        editorStore.toggleSelection(internalId, shift)
       }
-    } else {
-      if (!evt.shiftKey) {
-        editorStore.clearSelection()
-      }
+    } else if (!evt.shiftKey) {
+      editorStore.clearSelection()
     }
   }
 
@@ -157,14 +171,26 @@ export function useThreeSelection(
     const containerRect = container.getBoundingClientRect()
 
     const selectedIds: string[] = []
-    const box = new Box3()
-    const corner = new Vector3()
+    const box = markRaw(new Box3())
+    const corner = markRaw(new Vector3())
 
-    for (const obj of meshRefs.value) {
-      if (!obj) continue
+    const selLeft = rect.x
+    const selTop = rect.y
+    const selRight = rect.x + rect.width
+    const selBottom = rect.y + rect.height
 
-      box.setFromObject(obj)
-      if (box.isEmpty()) continue
+    const instancedMesh = selectionSources.instancedMesh.value
+    const idMap = selectionSources.indexToIdMap.value
+    if (!instancedMesh || !idMap) return
+
+    const instanceCount = Math.min(instancedMesh.count, idMap.size)
+
+    for (let index = 0; index < instanceCount; index++) {
+      instancedMesh.getMatrixAt(index, tempMatrix)
+
+      box.min.set(-0.5, -0.5, -0.5)
+      box.max.set(0.5, 0.5, 0.5)
+      box.applyMatrix4(tempMatrix)
 
       const corners: Vector3[] = [
         new Vector3(box.min.x, box.min.y, box.min.z),
@@ -185,8 +211,8 @@ export function useThreeSelection(
       for (const c of corners) {
         corner.copy(c).project(camera)
 
-        const sx = ((corner.x + 1) * 0.5) * containerRect.width
-        const sy = ((-corner.y + 1) * 0.5) * containerRect.height
+        const sx = (corner.x + 1) * 0.5 * containerRect.width
+        const sy = (-corner.y + 1) * 0.5 * containerRect.height
 
         if (sx < minX) minX = sx
         if (sx > maxX) maxX = sx
@@ -194,24 +220,13 @@ export function useThreeSelection(
         if (sy > maxY) maxY = sy
       }
 
-      const selLeft = rect.x
-      const selTop = rect.y
-      const selRight = rect.x + rect.width
-      const selBottom = rect.y + rect.height
+      const intersects = maxX >= selLeft && minX <= selRight && maxY >= selTop && minY <= selBottom
 
-      const itemLeft = minX
-      const itemTop = minY
-      const itemRight = maxX
-      const itemBottom = maxY
-
-      const intersects =
-        itemRight >= selLeft &&
-        itemLeft <= selRight &&
-        itemBottom >= selTop &&
-        itemTop <= selBottom
-
-      if (intersects && obj.userData?.internalId) {
-        selectedIds.push(obj.userData.internalId as string)
+      if (intersects) {
+        const id = idMap.get(index)
+        if (id) {
+          selectedIds.push(id)
+        }
       }
     }
 
