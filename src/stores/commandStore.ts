@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { useEditorStore } from './editorStore'
+import { useUIStore } from './uiStore'
 import { useClipboard } from '../composables/useClipboard'
 import { useFileOperations } from '../composables/useFileOperations'
 import { useTabStore } from './tabStore'
@@ -19,6 +20,7 @@ export type CommandCategory = 'file' | 'edit' | 'view' | 'help'
 
 export const useCommandStore = defineStore('command', () => {
   const editorStore = useEditorStore()
+  const uiStore = useUIStore()
 
   // 缩放函数引用（需要从外部设置）
   const zoomInFn = ref<(() => void) | null>(null)
@@ -287,7 +289,7 @@ export const useCommandStore = defineStore('command', () => {
       enabled: () => editorStore.items.length > 0,
       execute: () => {
         console.log('[Command] 切换视图模式')
-        editorStore.toggleViewMode()
+        uiStore.toggleViewMode()
       },
     },
     {

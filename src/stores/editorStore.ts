@@ -6,7 +6,6 @@ import type {
   GameDataFile,
   HomeScheme,
   TransformParams,
-  WorkingCoordinateSystem,
   HistorySnapshot,
   HistoryStack,
 } from '../types/editor'
@@ -82,15 +81,6 @@ export const useEditorStore = defineStore('editor', () => {
 
   // 全局剪贴板（支持跨方案复制粘贴）
   const clipboard = ref<AppItem[]>([])
-
-  // 工作坐标系状态
-  const workingCoordinateSystem = ref<WorkingCoordinateSystem>({
-    enabled: false,
-    rotationAngle: 0,
-  })
-
-  // 视图模式状态
-  const viewMode = ref<'2d' | '3d'>('2d')
 
   // 计算属性：当前激活的方案
   const activeScheme = computed(
@@ -674,18 +664,6 @@ export const useEditorStore = defineStore('editor', () => {
     activeScheme.value.selectedItemIds.clear()
   }
 
-  // ========== 视图模式切换 ==========
-
-  function toggleViewMode() {
-    viewMode.value = viewMode.value === '2d' ? '3d' : '2d'
-    console.log('[EditorStore] View mode switched to:', viewMode.value)
-  }
-
-  function setViewMode(mode: '2d' | '3d') {
-    viewMode.value = mode
-    console.log('[EditorStore] View mode set to:', viewMode.value)
-  }
-
   // 移动选中物品（注意：不在这里保存历史，由拖拽结束时统一保存）
   function moveSelectedItems(dx: number, dy: number) {
     if (!activeScheme.value) return
@@ -712,7 +690,9 @@ export const useEditorStore = defineStore('editor', () => {
 
   // 3D 移动选中物品（XYZ），不在此保存历史，由调用方控制
   function moveSelectedItems3D(dx: number, dy: number, dz: number) {
-    if (!activeScheme.value) return
+    if (!activeScheme.value) {
+      return
+    }
 
     activeScheme.value.items = activeScheme.value.items.map((item) => {
       if (!activeScheme.value!.selectedItemIds.has(item.internalId)) {
@@ -1199,60 +1179,14 @@ export const useEditorStore = defineStore('editor', () => {
   // 获取选中物品的中心坐标（用于UI显示）
   function getSelectedItemsCenter(): { x: number; y: number; z: number } | null {
     const selected = selectedItems.value
-    if (selected.length === 0) return null
+    if (selected.length === 0) {
+      return null
+    }
 
     return {
       x: selected.reduce((sum, item) => sum + item.x, 0) / selected.length,
       y: selected.reduce((sum, item) => sum + item.y, 0) / selected.length,
       z: selected.reduce((sum, item) => sum + item.z, 0) / selected.length,
-    }
-  }
-
-  // 设置工作坐标系
-  function setWorkingCoordinateSystem(enabled: boolean, angle: number) {
-    workingCoordinateSystem.value.enabled = enabled
-    workingCoordinateSystem.value.rotationAngle = angle
-  }
-
-  // 工作坐标系坐标转换：工作坐标系 -> 全局坐标系
-  function workingToGlobal(point: { x: number; y: number; z: number }): {
-    x: number
-    y: number
-    z: number
-  } {
-    if (!workingCoordinateSystem.value.enabled) {
-      return point
-    }
-
-    const angleRad = (workingCoordinateSystem.value.rotationAngle * Math.PI) / 180
-    const cos = Math.cos(angleRad)
-    const sin = Math.sin(angleRad)
-
-    return {
-      x: point.x * cos - point.y * sin,
-      y: point.x * sin + point.y * cos,
-      z: point.z,
-    }
-  }
-
-  // 工作坐标系坐标转换：全局坐标系 -> 工作坐标系
-  function globalToWorking(point: { x: number; y: number; z: number }): {
-    x: number
-    y: number
-    z: number
-  } {
-    if (!workingCoordinateSystem.value.enabled) {
-      return point
-    }
-
-    const angleRad = (-workingCoordinateSystem.value.rotationAngle * Math.PI) / 180
-    const cos = Math.cos(angleRad)
-    const sin = Math.sin(angleRad)
-
-    return {
-      x: point.x * cos - point.y * sin,
-      y: point.x * sin + point.y * cos,
-      z: point.z,
     }
   }
 
@@ -1310,17 +1244,6 @@ export const useEditorStore = defineStore('editor', () => {
     cutToClipboard,
     pasteFromClipboard,
     pasteItems,
-
-    // 工作坐标系
-    workingCoordinateSystem,
-    setWorkingCoordinateSystem,
-    workingToGlobal,
-    globalToWorking,
-
-    // 视图模式
-    viewMode,
-    toggleViewMode,
-    setViewMode,
 
     // 历史记录
     saveHistory,

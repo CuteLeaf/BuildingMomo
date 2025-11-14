@@ -15,25 +15,27 @@ const threeContainerRef = ref<HTMLElement | null>(null)
 const cameraRef = ref<any | null>(null)
 const gizmoPivot = ref<Object3D | null>(markRaw(new Object3D()))
 
-// 需要先创建 isTransformDragging ref，供 renderer 使用
+// 创建共享的 isTransformDragging ref
 const isTransformDragging = ref(false)
 
+// 先初始化 renderer 获取 updateSelectedInstancesMatrix 函数
 const { instancedMesh, edgesInstancedMesh, indexToIdMap, updateSelectedInstancesMatrix } =
   useThreeInstancedRenderer(editorStore, isTransformDragging)
 
+// 然后初始化 gizmo，传入 updateSelectedInstancesMatrix
 const {
   shouldShowGizmo,
-  isTransformDragging: gizmoIsTransformDragging,
   handleGizmoDragging,
   handleGizmoMouseDown,
   handleGizmoMouseUp,
   handleGizmoChange,
-} = useThreeTransformGizmo(editorStore, gizmoPivot, updateSelectedInstancesMatrix)
+} = useThreeTransformGizmo(
+  editorStore,
+  gizmoPivot,
+  updateSelectedInstancesMatrix,
+  isTransformDragging
+)
 
-// 同步 gizmo 的拖拽状态
-watch(gizmoIsTransformDragging, (value) => {
-  isTransformDragging.value = value
-})
 
 const { selectionRect, handlePointerDown, handlePointerMove, handlePointerUp } = useThreeSelection(
   editorStore,
@@ -43,10 +45,10 @@ const { selectionRect, handlePointerDown, handlePointerMove, handlePointerUp } =
     indexToIdMap,
   },
   threeContainerRef,
-  gizmoIsTransformDragging
+  isTransformDragging
 )
 
-// 计算场景中心（用于相机初始对准）
+// 计算场景中心（用于初始化相机位置）
 const sceneCenter = computed<[number, number, number]>(() => {
   if (editorStore.items.length === 0) {
     return [0, 0, 0]
@@ -66,6 +68,34 @@ const sceneCenter = computed<[number, number, number]>(() => {
     (bounds.minY + bounds.maxY) / 2,
   ]
 })
+
+// 轨道控制中心：用户可控，不随数据变化而自动更新
+const orbitTarget = ref<[number, number, number]>([0, 0, 0])
+
+// 智能更新轨道控制中心：仅在方案切换或首次加载时同步
+watch(
+  () => editorStore.activeSchemeId,
+  () => {
+    // 方案切换或首次加载时，重置轨道中心到场景中心
+    if (editorStore.activeSchemeId) {
+      orbitTarget.value = sceneCenter.value
+    }
+  },
+  { immediate: true }
+)
+
+// 聚焦到选中物品的中心
+function focusOnSelection() {
+  const center = editorStore.getSelectedItemsCenter?.()
+  if (center) {
+    orbitTarget.value = [center.x, center.z, center.y]
+  }
+}
+
+// 聚焦到整个场景
+function focusOnScene() {
+  orbitTarget.value = sceneCenter.value
+}
 
 // 计算合适的相机距离
 const cameraDistance = computed(() => {
@@ -94,8 +124,11 @@ const cameraDistance = computed(() => {
 const initialCameraPosition = computed<[number, number, number]>(() => {
   const center = sceneCenter.value
   const distance = cameraDistance.value
-
-  return [center[0] + distance * 0.6, center[1] + distance * 0.8, center[2] + distance * 0.6]
+  return [
+    center[0] + distance * 0.6,
+    center[1] + distance * 0.8,
+    center[2] + distance * 0.6,
+  ]
 })
 </script>
 
@@ -127,11 +160,7 @@ const initialCameraPosition = computed<[number, number, number]>(() => {
     </div>
 
     <!-- Three.js 场景 + 选择层 -->
-    <div
-      v-if="editorStore.items.length > 0"
-      ref="threeContainerRef"
-      class="absolute inset-0"
-    >
+    <div v-if="editorStore.items.length > 0" ref="threeContainerRef" class="absolute inset-0">
       <TresCanvas
         clear-color="#f3f4f6"
         @pointerdown="handlePointerDown"
@@ -143,7 +172,7 @@ const initialCameraPosition = computed<[number, number, number]>(() => {
         <TresPerspectiveCamera
           ref="cameraRef"
           :position="initialCameraPosition"
-          :look-at="sceneCenter"
+          :look-at="orbitTarget"
           :fov="50"
           :near="10"
           :far="150000"
@@ -151,7 +180,7 @@ const initialCameraPosition = computed<[number, number, number]>(() => {
 
         <!-- 轨道控制器 -->
         <OrbitControls
-          :target="sceneCenter"
+          :target="orbitTarget"
           :enableDamping="true"
           :dampingFactor="0.05"
           :mouseButtons="{ MIDDLE: 0, RIGHT: 2 }"
@@ -159,11 +188,7 @@ const initialCameraPosition = computed<[number, number, number]>(() => {
 
         <!-- 光照 -->
         <TresAmbientLight :intensity="0.6" />
-        <TresDirectionalLight
-          :position="[1000, 2000, 1000]"
-          :intensity="0.8"
-          :cast-shadow="true"
-        />
+        <TresDirectionalLight :position="[1000, 2000, 1000]" :intensity="0.8" :cast-shadow="true" />
 
         <!-- 辅助元素 - 适配大场景 -->
         <TresGridHelper :args="[40000, 100, 0xcccccc, 0xe5e5e5]" />
@@ -198,7 +223,7 @@ const initialCameraPosition = computed<[number, number, number]>(() => {
       <!-- 3D 框选矩形 -->
       <div
         v-if="selectionRect"
-        class="absolute border border-blue-400/80 bg-blue-500/10 pointer-events-none"
+        class="pointer-events-none absolute border border-blue-400/80 bg-blue-500/10"
         :style="{
           left: selectionRect.x + 'px',
           top: selectionRect.y + 'px',

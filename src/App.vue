@@ -5,6 +5,7 @@ import { useNotificationStore } from './stores/notificationStore'
 import { useFurnitureStore } from './stores/furnitureStore'
 import { useSettingsStore } from './stores/settingsStore'
 import { useTabStore } from './stores/tabStore'
+import { useUIStore } from './stores/uiStore'
 import Toolbar from './components/Toolbar.vue'
 import Sidebar from './components/Sidebar.vue'
 import StatusBar from './components/StatusBar.vue'
@@ -35,6 +36,7 @@ const notificationStore = useNotificationStore()
 const furnitureStore = useFurnitureStore()
 const settingsStore = useSettingsStore()
 const tabStore = useTabStore()
+const uiStore = useUIStore()
 
 // 导入 commandStore 用于对话框控制
 import { useCommandStore } from './stores/commandStore'
@@ -93,7 +95,7 @@ onMounted(async () => {
               <!-- 方案编辑器 -->
               <template v-if="tabStore.activeTab?.type === 'scheme' && editorStore.activeScheme">
                 <!-- 2D视图 -->
-                <KeepAlive v-if="editorStore.viewMode === '2d'" :max="10">
+                <KeepAlive v-if="uiStore.viewMode === '2d'" :max="10">
                   <CanvasEditor :key="editorStore.activeSchemeId || ''" />
                 </KeepAlive>
 

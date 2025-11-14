@@ -6,13 +6,16 @@ import { coordinates3D } from '@/lib/coordinates'
 export function useThreeTransformGizmo(
   editorStore: ReturnType<typeof useEditorStore>,
   pivotRef: Ref<Object3D | null>,
-  updateSelectedInstancesMatrix: (selectedIds: Set<string>, deltaPosition: Vector3) => void
+  updateSelectedInstancesMatrix: (selectedIds: Set<string>, deltaPosition: Vector3) => void,
+  isTransformDragging?: Ref<boolean>
 ) {
-  const isTransformDragging = ref(false)
+  // 使用共享的 ref 或创建内部 ref（向后兼容）
+  const _isTransformDragging = isTransformDragging || ref(false)
+
   const dragStartWorld = ref<Vector3 | null>(null)
   const lastApplied = ref({ x: 0, y: 0, z: 0 })
   const hasStartedTransform = ref(false)
-  
+
   // 记录上一次应用的 Three 空间位置（用于计算增量）
   const lastThreePosition = ref<Vector3 | null>(null)
 
@@ -20,24 +23,30 @@ export function useThreeTransformGizmo(
 
   // 跟随选中物品中心更新 gizmo 位置（非拖拽时）
   watchEffect(() => {
-    if (isTransformDragging.value) return
+    if (_isTransformDragging.value) {
+      return
+    }
 
     const center = editorStore.getSelectedItemsCenter?.()
     const pivot = pivotRef.value
 
-    if (!center || !pivot) return
+    if (!center || !pivot) {
+      return
+    }
 
     // 使用坐标转换工具
     coordinates3D.setThreeFromGame(pivot.position, center)
   })
 
   function handleGizmoDragging(isDragging: boolean) {
-    isTransformDragging.value = isDragging
+    _isTransformDragging.value = isDragging
 
     if (isDragging) {
       // 开始拖拽时记录初始状态
       const pivot = pivotRef.value
-      if (!pivot) return
+      if (!pivot) {
+        return
+      }
       dragStartWorld.value = markRaw(pivot.position.clone())
       lastThreePosition.value = markRaw(pivot.position.clone())
       lastApplied.value = { x: 0, y: 0, z: 0 }
@@ -53,9 +62,11 @@ export function useThreeTransformGizmo(
 
   function handleGizmoMouseDown() {
     const pivot = pivotRef.value
-    if (!pivot) return
+    if (!pivot) {
+      return
+    }
 
-    isTransformDragging.value = true
+    _isTransformDragging.value = true
     dragStartWorld.value = markRaw(pivot.position.clone())
     lastThreePosition.value = markRaw(pivot.position.clone())
     lastApplied.value = { x: 0, y: 0, z: 0 }
@@ -65,14 +76,15 @@ export function useThreeTransformGizmo(
   function handleGizmoMouseUp() {
     // 松开鼠标时，提交最终的位置变化到 store
     const last = lastApplied.value
+
     if (hasStartedTransform.value && (last.x !== 0 || last.y !== 0 || last.z !== 0)) {
       // 提交真实数据更新
       if (editorStore.moveSelectedItems3D) {
         editorStore.moveSelectedItems3D(last.x, last.y, last.z)
       }
     }
-    
-    isTransformDragging.value = false
+
+    _isTransformDragging.value = false
     dragStartWorld.value = null
     lastThreePosition.value = null
     lastApplied.value = { x: 0, y: 0, z: 0 }
@@ -80,11 +92,15 @@ export function useThreeTransformGizmo(
   }
 
   function handleGizmoChange() {
-    if (!isTransformDragging.value) return
+    if (!_isTransformDragging.value) {
+      return
+    }
 
     const pivot = pivotRef.value
     const lastThree = lastThreePosition.value
-    if (!pivot || !lastThree) return
+    if (!pivot || !lastThree) {
+      return
+    }
 
     const current = pivot.position
 
@@ -94,7 +110,9 @@ export function useThreeTransformGizmo(
     )
 
     // 如果没有移动则跳过
-    if (deltaThree.lengthSq() === 0) return
+    if (deltaThree.lengthSq() === 0) {
+      return
+    }
 
     // 第一次真正发生位移时保存历史
     if (!hasStartedTransform.value) {
@@ -123,7 +141,7 @@ export function useThreeTransformGizmo(
 
   return {
     shouldShowGizmo,
-    isTransformDragging,
+    isTransformDragging: _isTransformDragging,
     handleGizmoDragging,
     handleGizmoMouseDown,
     handleGizmoMouseUp,

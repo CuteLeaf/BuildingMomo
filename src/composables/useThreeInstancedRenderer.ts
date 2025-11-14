@@ -1,4 +1,4 @@
-import { ref, watch, markRaw } from 'vue'
+import { ref, watch, markRaw, type Ref } from 'vue'
 import {
   BoxGeometry,
   Color,
@@ -161,7 +161,9 @@ export function useThreeInstancedRenderer(
   function updateSelectedInstancesMatrix(selectedIds: Set<string>, deltaPosition: Vector3) {
     const meshTarget = instancedMesh.value
     const edgeTarget = edgesInstancedMesh.value
-    if (!meshTarget || !edgeTarget) return
+    if (!meshTarget || !edgeTarget) {
+      return
+    }
 
     const reverseMap = idToIndexMap.value
     const tempMatrix = markRaw(new Matrix4())
@@ -175,16 +177,16 @@ export function useThreeInstancedRenderer(
 
       // 读取当前矩阵
       meshTarget.getMatrixAt(index, tempMatrix)
-      
+
       // 分解矩阵
       tempMatrix.decompose(tempPos, tempQuat, tempScale)
-      
+
       // 应用位置增量
       tempPos.add(deltaPosition)
-      
+
       // 重新组合矩阵
       tempMatrix.compose(tempPos, tempQuat, tempScale)
-      
+
       // 更新两个实例
       meshTarget.setMatrixAt(index, tempMatrix)
       edgeTarget.setMatrixAt(index, tempMatrix)
@@ -200,9 +202,9 @@ export function useThreeInstancedRenderer(
     () => {
       // 拖拽时不触发全量更新，由 handleGizmoChange 直接更新实例矩阵
       if (isTransformDragging?.value) {
-        console.log('[ThreeInstancedRenderer] Skip updateInstances during transform dragging')
         return
       }
+
       updateInstances()
     },
     { deep: true, immediate: true }
