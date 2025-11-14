@@ -710,6 +710,37 @@ export const useEditorStore = defineStore('editor', () => {
     })
   }
 
+  // 3D 移动选中物品（XYZ），不在此保存历史，由调用方控制
+  function moveSelectedItems3D(dx: number, dy: number, dz: number) {
+    if (!activeScheme.value) return
+
+    activeScheme.value.items = activeScheme.value.items.map((item) => {
+      if (!activeScheme.value!.selectedItemIds.has(item.internalId)) {
+        return item
+      }
+
+      const newX = item.x + dx
+      const newY = item.y + dy
+      const newZ = item.z + dz
+
+      return {
+        ...item,
+        x: newX,
+        y: newY,
+        z: newZ,
+        originalData: {
+          ...item.originalData,
+          Location: {
+            ...item.originalData.Location,
+            X: newX,
+            Y: newY,
+            Z: newZ,
+          },
+        },
+      }
+    })
+  }
+
   // 复制选中物品（带偏移）
   function duplicateSelected(offsetX: number = 0, offsetY: number = 0): string[] {
     if (!activeScheme.value) return []
@@ -1268,6 +1299,7 @@ export const useEditorStore = defineStore('editor', () => {
 
     // 编辑操作
     moveSelectedItems,
+    moveSelectedItems3D,
     duplicateSelected,
     deleteSelected,
     updateSelectedItemsTransform,

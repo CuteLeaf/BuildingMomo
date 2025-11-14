@@ -13,7 +13,8 @@ export function useThreeSelection(
   editorStore: ReturnType<typeof useEditorStore>,
   cameraRef: Ref<Camera | null>,
   meshRefs: Ref<Object3D[]>,
-  containerRef: Ref<HTMLElement | null>
+  containerRef: Ref<HTMLElement | null>,
+  transformDraggingRef?: Ref<boolean>
 ) {
   const raycaster = new Raycaster()
   const pointerNdc = new Vector2()
@@ -34,6 +35,7 @@ export function useThreeSelection(
   }
 
   function handlePointerDown(evt: any) {
+    if (transformDraggingRef?.value) return
     if (evt.button !== 0) return
     if (typeof evt.stopPropagation === 'function') {
       evt.stopPropagation()
@@ -46,6 +48,7 @@ export function useThreeSelection(
   }
 
   function handlePointerMove(evt: any) {
+    if (transformDraggingRef?.value) return
     if (!mouseDownPos.value) return
     if (evt.buttons === 0) return
 
@@ -71,6 +74,13 @@ export function useThreeSelection(
   }
 
   function handlePointerUp(evt: any) {
+    if (transformDraggingRef?.value) {
+      mouseDownPos.value = null
+      isSelecting.value = false
+      selectionRect.value = null
+      return
+    }
+
     // pointerleave: 只清理状态，不触发点击/框选逻辑
     if (evt.type === 'pointerleave') {
       mouseDownPos.value = null

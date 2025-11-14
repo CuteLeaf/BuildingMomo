@@ -1,20 +1,31 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import { TresCanvas } from '@tresjs/core'
-import { OrbitControls } from '@tresjs/cientos'
-import type { Object3D } from 'three'
+import { OrbitControls, TransformControls } from '@tresjs/cientos'
+import { Object3D } from 'three'
 import { useEditorStore } from '@/stores/editorStore'
 import { useThreeSelection } from '@/composables/useThreeSelection'
+import { useThreeTransformGizmo } from '@/composables/useThreeTransformGizmo'
 
 const editorStore = useEditorStore()
 
-// 3D 选择相关引用
+// 3D 选择 & gizmo 相关引用
 const threeContainerRef = ref<HTMLElement | null>(null)
 const cameraRef = ref<any | null>(null)
 const meshRefs = ref<Object3D[]>([])
+const gizmoPivot = ref<Object3D | null>(new Object3D())
+
+const {
+  shouldShowGizmo,
+  isTransformDragging,
+  handleGizmoDragging,
+  handleGizmoMouseDown,
+  handleGizmoMouseUp,
+  handleGizmoChange,
+} = useThreeTransformGizmo(editorStore, gizmoPivot)
 
 const { selectionRect, handlePointerDown, handlePointerMove, handlePointerUp } =
-  useThreeSelection(editorStore, cameraRef, meshRefs, threeContainerRef)
+  useThreeSelection(editorStore, cameraRef, meshRefs, threeContainerRef, isTransformDragging)
 
 // 默认长方体尺寸（暂无体积数据时使用）
 const DEFAULT_BOX_SIZE = {
@@ -150,10 +161,10 @@ const initialCameraPosition = computed<[number, number, number]>(() => {
     >
       <TresCanvas
         clear-color="#f3f4f6"
-        @pointerdown.capture="handlePointerDown"
-        @pointermove.capture="handlePointerMove"
-        @pointerup.capture="handlePointerUp"
-        @pointerleave.capture="handlePointerUp"
+        @pointerdown="handlePointerDown"
+        @pointermove="handlePointerMove"
+        @pointerup="handlePointerUp"
+        @pointerleave="handlePointerUp"
       >
         <!-- 相机 - 适配大坐标场景 -->
         <TresPerspectiveCamera
@@ -192,6 +203,19 @@ const initialCameraPosition = computed<[number, number, number]>(() => {
             <TresMeshBasicMaterial :color="0xef4444" />
           </TresMesh>
         </TresGroup>
+
+        <!-- 选中物品的 Transform Gizmo -->
+        <primitive v-if="shouldShowGizmo && gizmoPivot" :object="gizmoPivot" />
+        <TransformControls
+          v-if="shouldShowGizmo && gizmoPivot"
+          :object="gizmoPivot"
+          :camera="cameraRef"
+          mode="translate"
+          @dragging="handleGizmoDragging"
+          @mouseDown="handleGizmoMouseDown"
+          @mouseUp="handleGizmoMouseUp"
+          @change="handleGizmoChange"
+        />
 
         <!-- 渲染所有可见物品 -->
         <TresGroup
