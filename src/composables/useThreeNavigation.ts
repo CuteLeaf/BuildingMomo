@@ -1,4 +1,13 @@
-import { ref, onMounted, onUnmounted, onActivated, onDeactivated, type Ref, computed } from 'vue'
+import {
+  ref,
+  onMounted,
+  onUnmounted,
+  onActivated,
+  onDeactivated,
+  watch,
+  type Ref,
+  computed,
+} from 'vue'
 import { useRafFn, useMagicKeys, clamp } from '@vueuse/core'
 
 type Vec3Tuple = [number, number, number]
@@ -33,14 +42,22 @@ export interface ThreeNavigationResult {
   isViewFocused: Ref<boolean>
   /** 当前是否有导航按键（WASD/Q/Space）按下 */
   isNavKeyPressed: Ref<boolean>
+  /** 当前控制模式：orbit（轨道）或 flight（飞行） */
+  controlMode: Ref<'orbit' | 'flight'>
 
   /** 导航层的 pointer 事件处理函数（容器上转发）：用于标记 3D 视图获得键盘焦点 */
   handleNavPointerDown: (evt: PointerEvent) => void
+  /** 导航层的 pointer move 事件处理函数：用于 flight 模式下中键控制视角 */
+  handleNavPointerMove: (evt: PointerEvent) => void
+  /** 导航层的 pointer up 事件处理函数：用于释放中键状态 */
+  handleNavPointerUp: (evt: PointerEvent) => void
 
   /** 根据给定 position / target 设置相机姿态（用于重置视图、聚焦场景） */
   setPoseFromLookAt: (position: Vec3Tuple, target: Vec3Tuple) => void
   /** 仅改变观察目标，保持当前位置不变（用于聚焦选中） */
   lookAtTarget: (target: Vec3Tuple) => void
+  /** 切换到 orbit 模式，返回新的 orbitTarget（用于 focus 功能） */
+  switchToOrbitMode: () => Vec3Tuple | null
 }
 
 export function useThreeNavigation(
@@ -59,6 +76,8 @@ export function useThreeNavigation(
   const cameraLookAt = ref<Vec3Tuple>([0, 0, 0])
 
   const isViewFocused = ref(false)
+  const controlMode = ref<'orbit' | 'flight'>('orbit')
+  const isMiddleButtonDown = ref(false)
 
   // === 内部姿态状态（弧度制） ===
   let yaw = 0 // 绕世界 Y 轴，水平旋转
@@ -69,11 +88,11 @@ export function useThreeNavigation(
 
   // === 使用 VueUse 的 useMagicKeys 监听按键 ===
   const keys = useMagicKeys()
-  const { w, a, s, d, q, space, shift } = keys
+  const { w, a, s, d, q, space, shift, tab } = keys
 
-  // 计算当前是否有导航键按下（仅在视图聚焦且未拖动时生效）
+  // 计算当前是否有导航键按下（仅在 flight 模式、视图聚焦且未拖动时生效）
   const isNavKeyPressed = computed(() => {
-    if (!isViewFocused.value || deps.isTransformDragging?.value) {
+    if (controlMode.value !== 'flight' || !isViewFocused.value || deps.isTransformDragging?.value) {
       return false
     }
     return w?.value || a?.value || s?.value || d?.value || q?.value || space?.value || false
@@ -104,11 +123,6 @@ export function useThreeNavigation(
     const [fx, fy, fz] = getForward()
     const distance = 2000 // 只影响 lookAt 距离，不影响旋转方向
     cameraLookAt.value = [px + fx * distance, py + fy * distance, pz + fz * distance]
-
-    // 同步更新 OrbitControls 的 target，使其跟随相机前方
-    if (deps.onOrbitTargetUpdate && isNavKeyPressed.value) {
-      deps.onOrbitTargetUpdate(cameraLookAt.value)
-    }
   }
 
   function normalize(v: Vec3Tuple): Vec3Tuple {
@@ -194,11 +208,108 @@ export function useThreeNavigation(
     { immediate: false }
   )
 
-  // === Pointer：仅负责 3D 视图焦点管理（用于启用 WASD/Q/Space 键盘导航） ===
-  function handleNavPointerDown(_evt: PointerEvent) {
+  // === 键盘触发：Tab 作为双向 toggle，WASD/Q/Space 在 orbit 模式下触发进入 flight ===
+  onMounted(() => {
+    // Tab 切换模式
+    const stopWatchTab = watch(
+      () => tab?.value,
+      (pressed) => {
+        if (pressed && isViewFocused.value && !deps.isTransformDragging?.value) {
+          toggleMode()
+        }
+      }
+    )
+
+    // 当 orbit 模式下检测到移动键按下，进入 flight 模式
+    const stopWatchMoveKeys = watch(
+      () =>
+        [
+          w?.value,
+          a?.value,
+          s?.value,
+          d?.value,
+          q?.value,
+          space?.value,
+          controlMode.value,
+          isViewFocused.value,
+        ] as const,
+      (vals) => {
+        const [wv, av, sv, dv, qv, spv, mode, focused] = vals
+        if (
+          mode === 'orbit' &&
+          focused &&
+          (wv || av || sv || dv || qv || spv) &&
+          !deps.isTransformDragging?.value
+        ) {
+          switchToFlightMode()
+        }
+      }
+    )
+
+    // 清理
+    onUnmounted(() => {
+      stopWatchTab()
+      stopWatchMoveKeys()
+    })
+  })
+
+  // === 模式切换函数 ===
+  function switchToFlightMode() {
+    if (controlMode.value === 'flight') return
+    controlMode.value = 'flight'
+  }
+
+  function switchToOrbitMode(): Vec3Tuple | null {
+    if (controlMode.value === 'orbit') return null
+    controlMode.value = 'orbit'
+
+    // 计算新的 orbitTarget：相机位置 + 前方 * 2000
+    const [px, py, pz] = cameraPosition.value
+    const [fx, fy, fz] = getForward()
+    const distance = 2000
+    return [px + fx * distance, py + fy * distance, pz + fz * distance]
+  }
+
+  function toggleMode() {
+    if (controlMode.value === 'orbit') {
+      switchToFlightMode()
+    } else {
+      const newTarget = switchToOrbitMode()
+      if (newTarget && deps.onOrbitTargetUpdate) {
+        deps.onOrbitTargetUpdate(newTarget)
+      }
+    }
+  }
+
+  // === Pointer：视图焦点管理 + 中键控制视角 ===
+  function handleNavPointerDown(evt: PointerEvent) {
     // 任意在 3D 区域点击，都视为视图获得焦点
     if (deps.isTransformDragging?.value) return
     isViewFocused.value = true
+
+    // 中键（button === 1）在 flight 模式下用于控制视角
+    if (evt.button === 1 && controlMode.value === 'flight') {
+      isMiddleButtonDown.value = true
+      evt.preventDefault()
+    }
+  }
+
+  function handleNavPointerMove(evt: PointerEvent) {
+    if (!isMiddleButtonDown.value || controlMode.value !== 'flight') return
+    if (deps.isTransformDragging?.value) return
+
+    // 使用鼠标移动量更新 yaw 和 pitch
+    const sensitivity = options.mouseSensitivity ?? 0.002
+    yaw -= evt.movementX * sensitivity
+    pitch = clamp(pitch - evt.movementY * sensitivity, pitchMinRad, pitchMaxRad)
+
+    updateCameraLookAt()
+  }
+
+  function handleNavPointerUp(evt: PointerEvent) {
+    if (evt.button === 1) {
+      isMiddleButtonDown.value = false
+    }
   }
 
   // === 生命周期管理：KeepAlive 友好 ===
@@ -236,8 +347,12 @@ export function useThreeNavigation(
     cameraLookAt,
     isViewFocused,
     isNavKeyPressed,
+    controlMode,
     handleNavPointerDown,
+    handleNavPointerMove,
+    handleNavPointerUp,
     setPoseFromLookAt,
     lookAtTarget,
+    switchToOrbitMode,
   }
 }
