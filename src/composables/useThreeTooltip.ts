@@ -50,7 +50,12 @@ export function useThreeTooltip(
     }
 
     // 功能未启用或当前处于交互中（框选 / Gizmo / 任意按键按下）时隐藏 tooltip
-    if (!isEnabled.value || isSelecting || isTransformDragging?.value || evt.buttons !== 0) {
+    if (
+      !isEnabled.value ||
+      isSelecting ||
+      isTransformDragging?.value ||
+      evt.buttons !== 0
+    ) {
       hideTooltip()
       return
     }

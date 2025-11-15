@@ -11,6 +11,7 @@ import { useThreeSelection } from '@/composables/useThreeSelection'
 import { useThreeTransformGizmo } from '@/composables/useThreeTransformGizmo'
 import { useThreeInstancedRenderer } from '@/composables/useThreeInstancedRenderer'
 import { useThreeTooltip } from '@/composables/useThreeTooltip'
+import { useThreeNavigation } from '@/composables/useThreeNavigation'
 
 const editorStore = useEditorStore()
 const commandStore = useCommandStore()
@@ -25,6 +26,23 @@ const gizmoPivot = ref<Object3D | null>(markRaw(new Object3D()))
 
 // 创建共享的 isTransformDragging ref
 const isTransformDragging = ref(false)
+
+// 相机导航（WASD/Q/Space）
+const {
+  cameraPosition,
+  cameraLookAt,
+  handleNavPointerDown,
+  setPoseFromLookAt,
+  lookAtTarget,
+} = useThreeNavigation(
+  {
+    baseSpeed: 1500,
+    mouseSensitivity: 0.002,
+    pitchLimits: { min: -80, max: 80 },
+    minHeight: -10000,
+  },
+  { isTransformDragging }
+)
 
 // 先初始化 renderer 获取 updateSelectedInstancesMatrix 函数
 const { instancedMesh, indexToIdMap, updateSelectedInstancesMatrix, setHoveredItemId } =
@@ -83,6 +101,37 @@ function handlePointerMoveWithTooltip(evt: PointerEvent) {
   handleTooltipPointerMove(evt, isSelecting)
 }
 
+// 容器级指针事件：先交给导航，再交给选择/tooltip
+function handleContainerPointerDown(evt: PointerEvent) {
+  handleNavPointerDown(evt)
+  handlePointerDown(evt)
+}
+
+function handleContainerPointerMove(evt: PointerEvent) {
+  handlePointerMoveWithTooltip(evt)
+}
+
+function handleContainerPointerUp(evt: PointerEvent) {
+  handlePointerUp(evt)
+}
+
+function handleContainerPointerLeave(evt: PointerEvent) {
+  handleContainerPointerUp(evt)
+  hideTooltip()
+}
+
+// OrbitControls 变更时，同步导航相机姿态，避免两种视角模式之间跳变
+function handleOrbitChange() {
+  const cam = cameraRef.value as any
+  if (!cam) return
+
+  const pos = cam.position
+  const target = orbitTarget.value
+
+  // 使用当前 orbitTarget 作为观察目标，将导航系统的姿态对齐到 Orbit 的结果
+  setPoseFromLookAt([pos.x, pos.y, pos.z], target)
+}
+
 // 计算场景中心（用于初始化相机位置）
 const sceneCenter = computed<[number, number, number]>(() => {
   if (editorStore.items.length === 0) {
@@ -104,7 +153,7 @@ const sceneCenter = computed<[number, number, number]>(() => {
   ]
 })
 
-// 轨道控制中心：用户可控，不随数据变化而自动更新
+// Orbit 模式下的中心点：用于中键绕场景/选中物品旋转
 const orbitTarget = ref<[number, number, number]>([0, 0, 0])
 
 // 计算合适的相机距离
@@ -130,43 +179,42 @@ const cameraDistance = computed(() => {
   return Math.max(maxRange * 2, 3000)
 })
 
-// 相机位置：不再是响应式计算属性，避免因数据变化而自动重置
-const cameraPosition = ref<[number, number, number]>([0, 0, 0])
-
 // 计算并设置最佳相机位置（类似2D视图的fitToView）
 function fitCameraToScene() {
   const center = sceneCenter.value
   const distance = cameraDistance.value
 
-  cameraPosition.value = [
+  const position: [number, number, number] = [
     center[0] + distance * 0.6,
     center[1] + distance * 0.8,
     center[2] + distance * 0.6,
   ]
+
+  orbitTarget.value = center
+  setPoseFromLookAt(position, center)
 }
 
 // 聚焦到选中物品的中心
 function focusOnSelection() {
   const center = editorStore.getSelectedItemsCenter?.()
   if (center) {
-    orbitTarget.value = [center.x, center.z, center.y]
+    const target: [number, number, number] = [center.x, center.z, center.y]
+    orbitTarget.value = target
+    lookAtTarget(target)
   }
 }
 
 // 聚焦到整个场景
 function focusOnScene() {
-  orbitTarget.value = sceneCenter.value
-  fitCameraToScene() // 同时重置相机位置
+  fitCameraToScene()
 }
 
-// 智能更新轨道控制中心：仅在方案切换或首次加载时同步
+// 智能更新视图：方案切换或首次加载时重置视角
 watch(
   () => editorStore.activeSchemeId,
   () => {
-    // 方案切换或首次加载时，重置轨道中心到场景中心
     if (editorStore.activeSchemeId) {
-      orbitTarget.value = sceneCenter.value
-      fitCameraToScene() // 同时重置相机位置
+      fitCameraToScene()
     }
   },
   { immediate: true }
@@ -211,8 +259,8 @@ onDeactivated(() => {
           ></path>
         </svg>
         <p>请导入 JSON 文件以查看物品</p>
-        <p class="mt-2 text-sm text-gray-300">使用鼠标拖拽旋转视角</p>
-        <p class="text-sm text-gray-300">滚轮缩放，右键平移</p>
+        <p class="mt-2 text-sm text-gray-300">使用中键拖拽绕场景旋转视角</p>
+        <p class="text-sm text-gray-300">滚轮缩放，WASD/Q/空格移动相机</p>
       </div>
     </div>
 
@@ -221,34 +269,34 @@ onDeactivated(() => {
       v-if="editorStore.items.length > 0"
       ref="threeContainerRef"
       class="absolute inset-0"
-      @pointerdown="handlePointerDown"
-      @pointermove="handlePointerMoveWithTooltip"
-      @pointerup="handlePointerUp"
-      @pointerleave="
-        (evt) => {
-          handlePointerUp(evt)
-          hideTooltip()
-        }
-      "
+      @pointerdown="handleContainerPointerDown"
+      @pointermove="handleContainerPointerMove"
+      @pointerup="handleContainerPointerUp"
+      @pointerleave="handleContainerPointerLeave"
+      @mousedown.right.prevent.stop
+      @contextmenu.prevent
     >
       <TresCanvas clear-color="#f3f4f6">
         <!-- 相机 - 适配大坐标场景 -->
         <TresPerspectiveCamera
           ref="cameraRef"
           :position="cameraPosition"
-          :look-at="orbitTarget"
+          :look-at="cameraLookAt"
           :fov="50"
           :near="100"
           :far="150000"
         />
 
-        <!-- 轨道控制器 -->
+        <!-- 轨道控制器：使用中键进行卫星式绕 orbitTarget 旋转，由导航系统接管右键飞行与 WASD 位移 -->
         <OrbitControls
           ref="orbitControlsRef"
           :target="orbitTarget"
           :enableDamping="true"
           :dampingFactor="0.05"
-          :mouseButtons="{ MIDDLE: MOUSE.ROTATE, RIGHT: MOUSE.PAN }"
+          :enableRotate="true"
+          :enablePan="false"
+          :mouseButtons="{ MIDDLE: MOUSE.ROTATE }"
+          @change="handleOrbitChange"
         />
 
         <!-- 光照 -->
@@ -333,7 +381,7 @@ onDeactivated(() => {
       <div class="rounded-md bg-blue-500/90 px-3 py-2 text-xs text-white shadow-sm">
         <div class="font-medium">3D 预览模式</div>
         <div class="mt-1 text-[10px] opacity-80">
-          左键选择/框选 · 中键旋转 · 滚轮缩放 · 右键平移
+          左键选择/框选 · 中键绕场景旋转 · 滚轮缩放 · WASD/Q/空格移动相机
         </div>
       </div>
     </div>
