@@ -3,10 +3,8 @@ import {
   BoxGeometry,
   Color,
   DynamicDrawUsage,
-  EdgesGeometry,
   Euler,
   InstancedMesh,
-  LineBasicMaterial,
   Matrix4,
   MeshStandardMaterial,
   Quaternion,
@@ -34,10 +32,12 @@ export function useThreeInstancedRenderer(
   })
 
   const instancedMesh = ref<InstancedMesh | null>(null)
-  const edgesInstancedMesh = ref<InstancedMesh | null>(null)
 
   const indexToIdMap = ref(new Map<number, string>())
   const idToIndexMap = ref(new Map<string, number>())
+
+  // 当前 hover 的物品（仅 3D 视图内部使用，不改变全局选中状态）
+  const hoveredItemId = ref<string | null>(null)
 
   // 初始化主体实例
   const mesh = new InstancedMesh(baseGeometry, material, MAX_INSTANCES)
@@ -45,20 +45,6 @@ export function useThreeInstancedRenderer(
   mesh.count = 0
 
   instancedMesh.value = markRaw(mesh)
-
-  // 初始化边框实例
-  const edgesGeometry = new EdgesGeometry(baseGeometry)
-  const lineMaterial = new LineBasicMaterial({
-    color: 0x000000,
-    opacity: 0.3,
-    transparent: true,
-  })
-
-  const edgesMesh = new InstancedMesh(edgesGeometry, lineMaterial, MAX_INSTANCES)
-  edgesMesh.instanceMatrix.setUsage(DynamicDrawUsage)
-  edgesMesh.count = 0
-
-  edgesInstancedMesh.value = markRaw(edgesMesh)
 
   const scratchMatrix = markRaw(new Matrix4())
   const scratchPosition = markRaw(new Vector3())
@@ -78,6 +64,12 @@ export function useThreeInstancedRenderer(
   }
 
   function getItemColor(item: AppItem): number {
+    // hover 高亮优先级最高（即使物品已被选中，hover 时也显示为橙色）
+    if (hoveredItemId.value === item.internalId) {
+      return 0xf97316
+    }
+
+    // 其次是选中高亮
     if (editorStore.selectedItemIds.has(item.internalId)) {
       return 0x3b82f6
     }
@@ -90,7 +82,7 @@ export function useThreeInstancedRenderer(
     return 0x94a3b8
   }
 
-  // 仅更新实例颜色（用于选中状态变化时的轻量刷新）
+  // 仅更新实例颜色（用于选中状态变化或 hover 变化时的刷新）
   function updateInstancesColor() {
     const meshTarget = instancedMesh.value
     if (!meshTarget) return
@@ -119,11 +111,45 @@ export function useThreeInstancedRenderer(
     }
   }
 
+  // 局部更新单个物品的颜色（用于 hover 状态变化）
+  function updateInstanceColorById(id: string) {
+    const meshTarget = instancedMesh.value
+    if (!meshTarget) return
+
+    const index = idToIndexMap.value.get(id)
+    if (index === undefined) return
+
+    const item = editorStore.visibleItems.find((it) => it.internalId === id)
+    if (!item) return
+
+    const colorHex = getItemColor(item)
+    scratchColor.setHex(colorHex)
+    meshTarget.setColorAt(index, scratchColor)
+
+    if (meshTarget.instanceColor) {
+      meshTarget.instanceColor.needsUpdate = true
+    }
+  }
+
+  // 设置 hover 物品并局部刷新对应实例颜色
+  function setHoveredItemId(id: string | null) {
+    const prevId = hoveredItemId.value
+    hoveredItemId.value = id
+
+    // 先恢复上一个 hover 的颜色，再应用新的 hover 颜色
+    if (prevId && prevId !== id) {
+      updateInstanceColorById(prevId)
+    }
+
+    if (id) {
+      updateInstanceColorById(id)
+    }
+  }
+
   // 完整重建实例几何和索引映射（用于物品集合变化时）
   function rebuildInstances() {
     const meshTarget = instancedMesh.value
-    const edgeTarget = edgesInstancedMesh.value
-    if (!meshTarget || !edgeTarget) return
+    if (!meshTarget) return
 
     const items = editorStore.visibleItems
     const instanceCount = Math.min(items.length, MAX_INSTANCES)
@@ -134,7 +160,6 @@ export function useThreeInstancedRenderer(
     }
 
     meshTarget.count = instanceCount
-    edgeTarget.count = instanceCount
 
     const map = new Map<number, string>()
 
@@ -171,11 +196,9 @@ export function useThreeInstancedRenderer(
       scratchMatrix.compose(scratchPosition, scratchQuaternion, scratchScale)
 
       meshTarget.setMatrixAt(index, scratchMatrix)
-      edgeTarget.setMatrixAt(index, scratchMatrix)
     }
 
     meshTarget.instanceMatrix.needsUpdate = true
-    edgeTarget.instanceMatrix.needsUpdate = true
 
     indexToIdMap.value = map
     // 同时维护反向映射
@@ -192,8 +215,7 @@ export function useThreeInstancedRenderer(
   // 局部更新选中物品的矩阵（用于拖拽时的视觉更新）
   function updateSelectedInstancesMatrix(selectedIds: Set<string>, deltaPosition: Vector3) {
     const meshTarget = instancedMesh.value
-    const edgeTarget = edgesInstancedMesh.value
-    if (!meshTarget || !edgeTarget) {
+    if (!meshTarget) {
       return
     }
 
@@ -215,14 +237,12 @@ export function useThreeInstancedRenderer(
       // 重新组合矩阵
       scratchMatrix.compose(scratchPosition, scratchQuaternion, scratchScale)
 
-      // 更新两个实例
+      // 更新实例
       meshTarget.setMatrixAt(index, scratchMatrix)
-      edgeTarget.setMatrixAt(index, scratchMatrix)
     }
 
     // 只标记矩阵需要更新，不触发颜色更新
     meshTarget.instanceMatrix.needsUpdate = true
-    edgeTarget.instanceMatrix.needsUpdate = true
   }
 
   // 物品集合变化时重建实例；选中状态变化时仅刷新颜色
@@ -252,9 +272,9 @@ export function useThreeInstancedRenderer(
 
   return {
     instancedMesh,
-    edgesInstancedMesh,
     indexToIdMap,
     idToIndexMap,
     updateSelectedInstancesMatrix,
+    setHoveredItemId,
   }
 }

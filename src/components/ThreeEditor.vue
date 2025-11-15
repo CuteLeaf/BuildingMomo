@@ -1,18 +1,21 @@
 <script setup lang="ts">
-import { ref, computed, markRaw, watch, onActivated, onDeactivated } from 'vue'
+import { ref, computed, markRaw, watch, onActivated, onDeactivated, toRef } from 'vue'
 import { TresCanvas } from '@tresjs/core'
 import { OrbitControls, TransformControls } from '@tresjs/cientos'
 import { Object3D, MOUSE } from 'three'
 import { useEditorStore } from '@/stores/editorStore'
 import { useCommandStore } from '@/stores/commandStore'
 import { useFurnitureStore } from '@/stores/furnitureStore'
+import { useSettingsStore } from '@/stores/settingsStore'
 import { useThreeSelection } from '@/composables/useThreeSelection'
 import { useThreeTransformGizmo } from '@/composables/useThreeTransformGizmo'
 import { useThreeInstancedRenderer } from '@/composables/useThreeInstancedRenderer'
+import { useThreeTooltip } from '@/composables/useThreeTooltip'
 
 const editorStore = useEditorStore()
 const commandStore = useCommandStore()
 const furnitureStore = useFurnitureStore()
+const settingsStore = useSettingsStore()
 
 // 3D 选择 & gizmo 相关引用
 const threeContainerRef = ref<HTMLElement | null>(null)
@@ -24,7 +27,7 @@ const gizmoPivot = ref<Object3D | null>(markRaw(new Object3D()))
 const isTransformDragging = ref(false)
 
 // 先初始化 renderer 获取 updateSelectedInstancesMatrix 函数
-const { instancedMesh, edgesInstancedMesh, indexToIdMap, updateSelectedInstancesMatrix } =
+const { instancedMesh, indexToIdMap, updateSelectedInstancesMatrix, setHoveredItemId } =
   useThreeInstancedRenderer(editorStore, furnitureStore, isTransformDragging)
 
 // 然后初始化 gizmo，传入 updateSelectedInstancesMatrix
@@ -52,6 +55,33 @@ const { selectionRect, handlePointerDown, handlePointerMove, handlePointerUp } =
   threeContainerRef,
   isTransformDragging
 )
+
+// 3D Tooltip 系统（与 2D 复用同一开关）
+const {
+  tooltipVisible,
+  tooltipData,
+  handlePointerMove: handleTooltipPointerMove,
+  hideTooltip,
+} = useThreeTooltip(
+  editorStore,
+  furnitureStore,
+  cameraRef,
+  threeContainerRef,
+  {
+    instancedMesh,
+    indexToIdMap,
+  },
+  toRef(settingsStore.settings, 'showFurnitureTooltip'),
+  isTransformDragging,
+  setHoveredItemId
+)
+
+function handlePointerMoveWithTooltip(evt: PointerEvent) {
+  handlePointerMove(evt)
+  // 3D 中没有拖动选框以外的拖拽逻辑，这里直接用 selectionRect 是否存在来判断是否在框选
+  const isSelecting = !!selectionRect.value
+  handleTooltipPointerMove(evt, isSelecting)
+}
 
 // 计算场景中心（用于初始化相机位置）
 const sceneCenter = computed<[number, number, number]>(() => {
@@ -192,9 +222,14 @@ onDeactivated(() => {
       ref="threeContainerRef"
       class="absolute inset-0"
       @pointerdown="handlePointerDown"
-      @pointermove="handlePointerMove"
+      @pointermove="handlePointerMoveWithTooltip"
       @pointerup="handlePointerUp"
-      @pointerleave="handlePointerUp"
+      @pointerleave="
+        (evt) => {
+          handlePointerUp(evt)
+          hideTooltip()
+        }
+      "
     >
       <TresCanvas clear-color="#f3f4f6">
         <!-- 相机 - 适配大坐标场景 -->
@@ -260,6 +295,30 @@ onDeactivated(() => {
           height: selectionRect.height + 'px',
         }"
       ></div>
+
+      <!-- 3D Tooltip -->
+      <div
+        v-if="tooltipVisible && tooltipData"
+        class="pointer-events-none absolute z-50 rounded-md border border-gray-200 bg-white/80 p-1 shadow-xl backdrop-blur-sm"
+        :style="{
+          left: `${tooltipData.position.x + 12}px`,
+          top: `${tooltipData.position.y - 10}px`,
+          transform: 'translateY(-100%)',
+        }"
+      >
+        <div class="flex items-center gap-2 text-sm">
+          <img
+            v-if="tooltipData.icon"
+            :src="tooltipData.icon"
+            class="h-12 w-12 rounded border border-gray-300"
+            :alt="tooltipData.name"
+            @error="(e) => ((e.target as HTMLImageElement).style.display = 'none')"
+          />
+          <div class="px-1 text-gray-900">
+            <div class="font-medium">{{ tooltipData.name }}</div>
+          </div>
+        </div>
+      </div>
     </div>
 
     <!-- 视图信息 -->
