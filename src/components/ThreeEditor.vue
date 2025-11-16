@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, markRaw, watch, onActivated, onDeactivated, toRef } from 'vue'
+import { ref, computed, markRaw, watch, onActivated, onDeactivated, onMounted, toRef } from 'vue'
 import { TresCanvas } from '@tresjs/core'
 import { OrbitControls, TransformControls } from '@tresjs/cientos'
 import { Object3D, MOUSE } from 'three'
@@ -32,6 +32,7 @@ const threeContainerRef = ref<HTMLElement | null>(null)
 const cameraRef = ref<any | null>(null) // 透视相机
 const orthoCameraRef = ref<any | null>(null) // 正交相机
 const orbitControlsRef = ref<any | null>(null)
+const gridRef = ref<any | null>(null) // 网格引用
 const gizmoPivot = ref<Object3D | null>(markRaw(new Object3D()))
 
 // 当前活动的相机（根据视图类型动态切换）
@@ -243,6 +244,30 @@ const orthoFrustum = computed(() => {
   }
 })
 
+// 根据当前视图计算网格的旋转角度
+const gridRotation = computed<[number, number, number]>(() => {
+  const preset = currentViewPreset.value
+
+  switch (preset) {
+    case 'front':
+    case 'back':
+      // 前/后视图: XY 平面（垂直墙面），绕 X 轴旋转 90°
+      return [Math.PI / 2, 0, 0]
+
+    case 'left':
+    case 'right':
+      // 左/右视图: YZ 平面（垂直墙面），绕 Z 轴旋转 90°
+      return [0, 0, Math.PI / 2]
+
+    case 'top':
+    case 'bottom':
+    case 'perspective':
+    default:
+      // 顶/底/透视视图: XZ 平面（水平地面），默认方向
+      return [0, 0, 0]
+  }
+})
+
 // 计算并设置最佳相机位置（类似2D视图的fitToView）
 function fitCameraToScene() {
   const center = sceneCenter.value
@@ -318,6 +343,17 @@ onActivated(() => {
 onDeactivated(() => {
   commandStore.setZoomFunctions(null, null, null, null)
   commandStore.setViewPresetFunction(null)
+})
+
+// 设置网格深度控制，使其显示在物体后面
+onMounted(() => {
+  if (gridRef.value) {
+    const grid = gridRef.value
+    if (grid.material) {
+      grid.material.depthWrite = false
+      grid.renderOrder = -1
+    }
+  }
 })
 </script>
 
@@ -402,7 +438,9 @@ onDeactivated(() => {
         <TresDirectionalLight :position="[1000, 2000, 1000]" :intensity="0.8" :cast-shadow="true" />
 
         <!-- 辅助元素 - 适配大场景 -->
-        <TresGridHelper :args="[40000, 100, 0xcccccc, 0xe5e5e5]" />
+        <TresGroup :rotation="gridRotation">
+          <TresGridHelper ref="gridRef" :args="[40000, 100, 0xcccccc, 0xe5e5e5]" />
+        </TresGroup>
         <TresAxesHelper :args="[5000]" />
 
         <!-- 原点标记 - 放大以适应大场景 -->
