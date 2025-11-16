@@ -110,17 +110,9 @@ function showSafetyNotice() {
                 isWatchModeSupported ? 'text-gray-600' : 'text-gray-400',
               ]"
             >
-              自动检测建造数据更新
+              {{ isWatchModeSupported ? '自动检测建造数据更新' : '您的浏览器不支持此功能' }}
             </ItemDescription>
           </ItemContent>
-
-          <!-- 不支持提示 -->
-          <div
-            v-if="!isWatchModeSupported"
-            class="absolute bottom-4 rounded-md bg-orange-100 px-3 py-1 text-xs text-orange-700"
-          >
-            浏览器不支持此功能
-          </div>
         </Item>
 
         <!-- 导入建造数据 按钮 -->
