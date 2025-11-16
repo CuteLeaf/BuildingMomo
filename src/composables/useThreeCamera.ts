@@ -1,0 +1,549 @@
+import {
+  ref,
+  computed,
+  onMounted,
+  onUnmounted,
+  onActivated,
+  onDeactivated,
+  type Ref,
+} from 'vue'
+import { useRafFn, useMagicKeys } from '@vueuse/core'
+
+// ============================================================
+// 📦 Types & Constants
+// ============================================================
+
+type Vec3 = [number, number, number]
+
+export type ViewPreset = 'perspective' | 'top' | 'bottom' | 'front' | 'back' | 'left' | 'right'
+
+// 视图预设配置
+interface ViewPresetConfig {
+  direction: Vec3 // 相机相对于目标的方向（单位向量）
+  up: Vec3 // 相机的上方向
+}
+
+const VIEW_PRESETS: Record<ViewPreset, ViewPresetConfig> = {
+  perspective: {
+    direction: [0.6, 0.8, 0.6],
+    up: [0, 1, 0],
+  },
+  top: {
+    direction: [0, 1, 0],
+    up: [0, 0, -1],
+  },
+  bottom: {
+    direction: [0, -1, 0],
+    up: [0, 0, 1],
+  },
+  front: {
+    direction: [0, 0, 1],
+    up: [0, 1, 0],
+  },
+  back: {
+    direction: [0, 0, -1],
+    up: [0, 1, 0],
+  },
+  right: {
+    direction: [1, 0, 0],
+    up: [0, 1, 0],
+  },
+  left: {
+    direction: [-1, 0, 0],
+    up: [0, 1, 0],
+  },
+}
+
+// 相机模式：使用判别联合确保类型安全
+type CameraMode =
+  | { kind: 'orbit'; projection: 'perspective' | 'orthographic'; target: Vec3 }
+  | { kind: 'flight' }
+
+// 相机状态：单一真实来源
+interface CameraState {
+  position: Vec3
+  target: Vec3 // lookAt 点
+  yaw: number // 弧度
+  pitch: number // 弧度
+  viewPreset: ViewPreset | null
+}
+
+// 动画状态
+interface AnimationState {
+  active: boolean
+  startTime: number
+  duration: number
+  fromState: CameraState
+  toState: CameraState
+  targetMode: CameraMode
+}
+
+// 配置选项
+export interface CameraControllerOptions {
+  baseSpeed?: number
+  shiftSpeedMultiplier?: number
+  mouseSensitivity?: number
+  pitchLimits?: { min: number; max: number }
+  minHeight?: number
+}
+
+// 依赖项
+export interface CameraControllerDeps {
+  isTransformDragging?: Ref<boolean>
+  onOrbitTargetUpdate?: (target: Vec3) => void
+}
+
+// 对外接口
+export interface CameraControllerResult {
+  cameraPosition: Ref<Vec3>
+  cameraLookAt: Ref<Vec3>
+  isViewFocused: Ref<boolean>
+  isNavKeyPressed: Ref<boolean>
+  controlMode: Ref<'orbit' | 'flight'>
+  currentViewPreset: Ref<ViewPreset | null>
+  isOrthographic: Ref<boolean>
+  handleNavPointerDown: (evt: PointerEvent) => void
+  handleNavPointerMove: (evt: PointerEvent) => void
+  handleNavPointerUp: (evt: PointerEvent) => void
+  setPoseFromLookAt: (position: Vec3, target: Vec3) => void
+  lookAtTarget: (target: Vec3) => void
+  switchToOrbitMode: () => Vec3 | null
+  setViewPreset: (preset: ViewPreset, target: Vec3, distance: number) => void
+}
+
+// ============================================================
+// 🔧 Utility Functions
+// ============================================================
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.max(min, Math.min(max, value))
+}
+
+function normalize(v: Vec3): Vec3 {
+  const len = Math.hypot(v[0], v[1], v[2])
+  if (len === 0) return [0, 0, 0]
+  return [v[0] / len, v[1] / len, v[2] / len]
+}
+
+function scaleVec3(v: Vec3, scale: number): Vec3 {
+  return [v[0] * scale, v[1] * scale, v[2] * scale]
+}
+
+function addScaled(a: Vec3, b: Vec3, scale: number): Vec3 {
+  return [a[0] + b[0] * scale, a[1] + b[1] * scale, a[2] + b[2] * scale]
+}
+
+function lerp(a: number, b: number, t: number): number {
+  return a + (b - a) * t
+}
+
+function lerpVec3(a: Vec3, b: Vec3, t: number): Vec3 {
+  return [lerp(a[0], b[0], t), lerp(a[1], b[1], t), lerp(a[2], b[2], t)]
+}
+
+function easeInOutCubic(t: number): number {
+  return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2
+}
+
+// ============================================================
+// 🎮 Main Controller
+// ============================================================
+
+export function useThreeCamera(
+  options: CameraControllerOptions = {},
+  deps: CameraControllerDeps = {}
+): CameraControllerResult {
+  // === 配置 ===
+  const baseSpeed = options.baseSpeed ?? 1000
+  const shiftSpeedMultiplier = options.shiftSpeedMultiplier ?? 4
+  const mouseSensitivity = options.mouseSensitivity ?? 0.002
+  const pitchMinRad = ((options.pitchLimits?.min ?? -90) * Math.PI) / 180
+  const pitchMaxRad = ((options.pitchLimits?.max ?? 90) * Math.PI) / 180
+  const minHeight = options.minHeight ?? -10000
+
+  // ============================================================
+  // 🎯 State Management
+  // ============================================================
+
+  const state = ref<CameraState>({
+    position: [0, 0, 3000],
+    target: [0, 0, 0],
+    yaw: 0,
+    pitch: 0,
+    viewPreset: 'perspective',
+  })
+
+  const mode = ref<CameraMode>({
+    kind: 'orbit',
+    projection: 'perspective',
+    target: [0, 0, 0],
+  })
+
+  const animation = ref<AnimationState>({
+    active: false,
+    startTime: 0,
+    duration: 500,
+    fromState: { ...state.value },
+    toState: { ...state.value },
+    targetMode: { ...mode.value },
+  })
+
+  const isViewFocused = ref(false)
+  const isMiddleButtonDown = ref(false)
+  let isActive = false
+
+  // === 键盘输入 ===
+  const keys = useMagicKeys()
+  // 这些键在运行时总是存在，这里通过非空断言消除 TS 的 undefined 警告
+  const w = keys.w!
+  const a = keys.a!
+  const s = keys.s!
+  const d = keys.d!
+  const q = keys.q!
+  const space = keys.space!
+  const shift = keys.shift!
+  // ============================================================
+  // 📐 Geometry Helpers
+  // ============================================================
+
+  function getForwardVector(yaw: number, pitch: number): Vec3 {
+    const cosPitch = Math.cos(pitch)
+    return [Math.sin(yaw) * cosPitch, Math.sin(pitch), Math.cos(yaw) * cosPitch]
+  }
+
+  function getRightVector(yaw: number): Vec3 {
+    // right = forward × up (where up = [0,1,0])
+    const fx = Math.sin(yaw)
+    const fz = Math.cos(yaw)
+    return normalize([fz, 0, -fx])
+  }
+
+  function calculateYawPitchFromDirection(dir: Vec3): { yaw: number; pitch: number } {
+    const dirNorm = normalize(dir)
+    const yaw = Math.atan2(dirNorm[0], dirNorm[2])
+    const pitch = clamp(Math.asin(dirNorm[1]), pitchMinRad, pitchMaxRad)
+    return { yaw, pitch }
+  }
+
+  function updateLookAtFromYawPitch() {
+    const forward = getForwardVector(state.value.yaw, state.value.pitch)
+    state.value.target = addScaled(state.value.position, forward, 2000)
+  }
+
+  // ============================================================
+  // 🎬 Animation System
+  // ============================================================
+
+  function startAnimation(toState: CameraState, targetMode: CameraMode, duration = 500) {
+    animation.value = {
+      active: true,
+      startTime: performance.now(),
+      duration,
+      fromState: { ...state.value },
+      toState,
+      targetMode,
+    }
+  }
+
+  function updateAnimation(timestamp: number) {
+    if (!animation.value.active) return
+
+    const elapsed = timestamp - animation.value.startTime
+    const progress = Math.min(elapsed / animation.value.duration, 1)
+    const eased = easeInOutCubic(progress)
+
+    // 插值位置和目标
+    state.value.position = lerpVec3(
+      animation.value.fromState.position,
+      animation.value.toState.position,
+      eased
+    )
+    state.value.target = lerpVec3(
+      animation.value.fromState.target,
+      animation.value.toState.target,
+      eased
+    )
+    state.value.yaw = lerp(animation.value.fromState.yaw, animation.value.toState.yaw, eased)
+    state.value.pitch = lerp(animation.value.fromState.pitch, animation.value.toState.pitch, eased)
+    state.value.viewPreset = animation.value.toState.viewPreset
+
+    // 动画结束
+    if (progress >= 1) {
+      animation.value.active = false
+      mode.value = animation.value.targetMode
+
+      // 通知外部更新 orbit target
+      if (deps.onOrbitTargetUpdate && mode.value.kind === 'orbit') {
+        deps.onOrbitTargetUpdate(mode.value.target)
+      }
+    }
+  }
+
+  function stopAnimation() {
+    animation.value.active = false
+  }
+
+  // ============================================================
+  // 🎮 Mode Handlers
+  // ============================================================
+
+  // 检查是否有导航键按下
+  function hasNavKeys(): boolean {
+    return !!(w.value || a.value || s.value || d.value || q.value || space.value)
+  }
+
+  // 计算当前是否应该响应导航键
+  const isNavKeyPressed = computed(() => {
+    if (mode.value.kind !== 'flight' || !isViewFocused.value || deps.isTransformDragging?.value) {
+      return false
+    }
+    return hasNavKeys()
+  })
+
+  // Flight 模式更新
+  function updateFlightMode(deltaSeconds: number) {
+    if (!hasNavKeys() || !isViewFocused.value || deps.isTransformDragging?.value) {
+      return
+    }
+
+    const forward = getForwardVector(state.value.yaw, state.value.pitch)
+    const right = getRightVector(state.value.yaw)
+    const up: Vec3 = [0, 1, 0]
+
+    let move: Vec3 = [0, 0, 0]
+
+    const push = (dir: Vec3, sign: number) => {
+      move = [move[0] + dir[0] * sign, move[1] + dir[1] * sign, move[2] + dir[2] * sign]
+    }
+
+    if (w.value) push(forward, 1)
+    if (s.value) push(forward, -1)
+    if (a.value) push(right, 1)
+    if (d.value) push(right, -1)
+    if (space.value) push(up, 1)
+    if (q.value) push(up, -1)
+
+    const moveNorm = normalize(move)
+    if (moveNorm[0] === 0 && moveNorm[1] === 0 && moveNorm[2] === 0) return
+
+    // 应用速度
+    const speedMultiplier = shift.value ? shiftSpeedMultiplier : 1
+    const distance = baseSpeed * deltaSeconds * speedMultiplier
+    const newPos = addScaled(state.value.position, moveNorm, distance)
+
+    // 高度限制
+    if (newPos[1] < minHeight) {
+      newPos[1] = minHeight
+    }
+
+    state.value.position = newPos
+    updateLookAtFromYawPitch()
+  }
+
+  // ============================================================
+  // 🔄 Mode Transitions
+  // ============================================================
+
+  function switchToFlightMode() {
+    if (mode.value.kind === 'flight') return
+    stopAnimation()
+    mode.value = { kind: 'flight' }
+  }
+
+  function switchToOrbitMode(): Vec3 | null {
+    if (mode.value.kind === 'orbit') return null
+    stopAnimation()
+
+    // 计算前方焦点作为新 target
+    const forward = getForwardVector(state.value.yaw, state.value.pitch)
+    const newTarget = addScaled(state.value.position, forward, 2000)
+
+    mode.value = {
+      kind: 'orbit',
+      projection: 'perspective',
+      target: newTarget,
+    }
+
+    return newTarget
+  }
+
+
+  // ============================================================
+  // ⌨️ Input Processing
+  // ============================================================
+
+  function handleNavPointerDown(evt: PointerEvent) {
+    if (deps.isTransformDragging?.value) return
+    isViewFocused.value = true
+
+    // 中键在 flight 模式下控制视角
+    if (evt.button === 1 && mode.value.kind === 'flight') {
+      isMiddleButtonDown.value = true
+      evt.preventDefault()
+    }
+  }
+
+  function handleNavPointerMove(evt: PointerEvent) {
+    if (!isMiddleButtonDown.value || mode.value.kind !== 'flight') return
+    if (deps.isTransformDragging?.value) return
+
+    // 手动旋转 → 退出预设视图
+    state.value.viewPreset = null
+
+    // 更新 yaw/pitch
+    state.value.yaw -= evt.movementX * mouseSensitivity
+    state.value.pitch = clamp(
+      state.value.pitch - evt.movementY * mouseSensitivity,
+      pitchMinRad,
+      pitchMaxRad
+    )
+
+    updateLookAtFromYawPitch()
+  }
+
+  function handleNavPointerUp(evt: PointerEvent) {
+    if (evt.button === 1) {
+      isMiddleButtonDown.value = false
+    }
+  }
+
+  // ============================================================
+  // 🔌 Public API
+  // ============================================================
+
+  function setPoseFromLookAt(position: Vec3, target: Vec3) {
+    state.value.position = [...position]
+    state.value.target = [...target]
+
+    const dir: Vec3 = [target[0] - position[0], target[1] - position[1], target[2] - position[2]]
+    const { yaw, pitch } = calculateYawPitchFromDirection(dir)
+    state.value.yaw = yaw
+    state.value.pitch = pitch
+    console.log('setPoseFromLookAt', position, target)
+  }
+
+  function lookAtTarget(target: Vec3) {
+    setPoseFromLookAt(state.value.position, target)
+  }
+
+  function setViewPreset(preset: ViewPreset, target: Vec3, distance: number) {
+    const config = VIEW_PRESETS[preset]
+    const direction = normalize(config.direction)
+
+    const toPosition = addScaled(target, direction, distance)
+    const { yaw, pitch } = calculateYawPitchFromDirection(scaleVec3(direction, -1))
+
+    const toState: CameraState = {
+      position: toPosition,
+      target: [...target],
+      yaw,
+      pitch,
+      viewPreset: preset,
+    }
+
+    const targetMode: CameraMode = {
+      kind: 'orbit',
+      projection: preset === 'perspective' ? 'perspective' : 'orthographic',
+      target: [...target],
+    }
+
+    startAnimation(toState, targetMode)
+  }
+
+  // ============================================================
+  // 🔁 Update Loop
+  // ============================================================
+
+  const { pause, resume } = useRafFn(
+    ({ delta }) => {
+      if (!isActive) return
+
+      const timestamp = performance.now()
+
+      // 1. 动画优先
+      if (animation.value.active) {
+        updateAnimation(timestamp)
+        return
+      }
+
+      // 2. Flight 模式下更新移动
+      if (mode.value.kind === 'flight') {
+        updateFlightMode(delta / 1000)
+      }
+
+      // 3. Orbit 模式下检测 WASD → 切换到 flight
+      if (
+        mode.value.kind === 'orbit' &&
+        mode.value.projection === 'perspective' &&
+        hasNavKeys() &&
+        isViewFocused.value &&
+        !deps.isTransformDragging?.value
+      ) {
+        switchToFlightMode()
+      }
+    },
+    { immediate: false }
+  )
+
+  // ============================================================
+  // 🔄 Lifecycle
+  // ============================================================
+
+  function activate() {
+    if (isActive) return
+    isActive = true
+    resume()
+  }
+
+  function deactivate() {
+    if (!isActive) return
+    isActive = false
+    pause()
+    isViewFocused.value = false
+  }
+
+  onMounted(() => {
+    activate()
+  })
+
+  onUnmounted(() => {
+    deactivate()
+    stopAnimation()
+  })
+
+  onActivated(() => {
+    activate()
+  })
+
+  onDeactivated(() => {
+    deactivate()
+  })
+
+  // ============================================================
+  // 📤 Return API
+  // ============================================================
+
+  return {
+    // 状态（只读）
+    cameraPosition: computed(() => state.value.position),
+    cameraLookAt: computed(() => state.value.target),
+    isViewFocused,
+    isNavKeyPressed,
+    controlMode: computed(() => (mode.value.kind === 'flight' ? 'flight' : 'orbit')),
+    currentViewPreset: computed(() => state.value.viewPreset),
+    isOrthographic: computed(
+      () => mode.value.kind === 'orbit' && mode.value.projection === 'orthographic'
+    ),
+
+    // 事件处理
+    handleNavPointerDown,
+    handleNavPointerMove,
+    handleNavPointerUp,
+
+    // 命令
+    setPoseFromLookAt,
+    lookAtTarget,
+    switchToOrbitMode,
+    setViewPreset,
+  }
+}

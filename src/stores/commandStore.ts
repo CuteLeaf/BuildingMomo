@@ -5,7 +5,7 @@ import { useUIStore } from './uiStore'
 import { useClipboard } from '../composables/useClipboard'
 import { useFileOperations } from '../composables/useFileOperations'
 import { useTabStore } from './tabStore'
-import type { ViewPreset } from '../composables/useThreeNavigation'
+import type { ViewPreset } from '../composables/useThreeCamera'
 
 // 命令接口
 export interface Command {

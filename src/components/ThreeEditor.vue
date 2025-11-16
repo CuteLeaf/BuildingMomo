@@ -11,7 +11,7 @@ import { useThreeSelection } from '@/composables/useThreeSelection'
 import { useThreeTransformGizmo } from '@/composables/useThreeTransformGizmo'
 import { useThreeInstancedRenderer } from '@/composables/useThreeInstancedRenderer'
 import { useThreeTooltip } from '@/composables/useThreeTooltip'
-import { useThreeNavigation, type ViewPreset } from '@/composables/useThreeNavigation'
+import { useThreeCamera, type ViewPreset } from '@/composables/useThreeCamera'
 import { HoverCard, HoverCardContent, HoverCardTrigger } from '@/components/ui/hover-card'
 import { Button } from '@/components/ui/button'
 import {
@@ -30,6 +30,9 @@ const commandStore = useCommandStore()
 const furnitureStore = useFurnitureStore()
 const settingsStore = useSettingsStore()
 
+// 开发环境标志
+const isDev = import.meta.env.DEV
+
 // 3D 选择 & gizmo 相关引用
 const threeContainerRef = ref<HTMLElement | null>(null)
 const cameraRef = ref<any | null>(null) // 透视相机
@@ -37,6 +40,9 @@ const orthoCameraRef = ref<any | null>(null) // 正交相机
 const orbitControlsRef = ref<any | null>(null)
 const gridRef = ref<any | null>(null) // 网格引用
 const gizmoPivot = ref<Object3D | null>(markRaw(new Object3D()))
+
+// 调试面板状态
+const showCameraDebug = ref(false)
 
 // 当前活动的相机（根据视图类型动态切换）
 const activeCameraRef = computed(() => {
@@ -56,6 +62,8 @@ const {
   controlMode,
   currentViewPreset,
   isOrthographic,
+  isViewFocused,
+  isNavKeyPressed,
   handleNavPointerDown,
   handleNavPointerMove,
   handleNavPointerUp,
@@ -63,7 +71,7 @@ const {
   lookAtTarget,
   switchToOrbitMode,
   setViewPreset,
-} = useThreeNavigation(
+} = useThreeCamera(
   {
     baseSpeed: 1000,
     shiftSpeedMultiplier: 4,
@@ -158,22 +166,22 @@ function handleContainerPointerLeave(evt: PointerEvent) {
   hideTooltip()
 }
 
-// OrbitControls 变更时，同步导航相机姿态，避免两种视角模式之间跳变
+// OrbitControls 变更时，同步内部状态（仅在 orbit 模式下）
 function handleOrbitChange() {
+  // 新架构中，CameraController 是状态的单一来源
+  // OrbitControls 只在 orbit 模式下作为辅助工具
+  // 这里只需要在用户手动拖拽时同步目标点即可
+  if (controlMode.value !== 'orbit') return
+  if (!activeCameraRef.value) return
+
   const cam = activeCameraRef.value as any
-  if (!cam) return
-
-  // flight 模式下不反向同步，避免循环
-  if (controlMode.value === 'flight') return
-
-  // 正交视图下，平移时不应该改变朝向，直接返回
-  if (isOrthographic.value) return
-
   const pos = cam.position
   const target = orbitTarget.value
 
-  // 使用当前 orbitTarget 作为观察目标，将导航系统的姿态对齐到 Orbit 的结果
-  setPoseFromLookAt([pos.x, pos.y, pos.z], target)
+  // 在透视模式下，同步相机旋转后的姿态
+  if (!isOrthographic.value) {
+    setPoseFromLookAt([pos.x, pos.y, pos.z], target)
+  }
 }
 
 // 计算场景中心（用于初始化相机位置）
@@ -209,7 +217,7 @@ const cameraDistance = computed(() => {
   // 安全检查：bounds 可能为 null
   if (!bounds) {
     const rangeZ = heightFilter.max - heightFilter.min
-    return Math.max(rangeZ * 2, 3000)
+    return Math.max(rangeZ * 1, 3000)
   }
 
   const rangeX = bounds.maxX - bounds.minX
@@ -217,7 +225,7 @@ const cameraDistance = computed(() => {
   const rangeZ = heightFilter.max - heightFilter.min
 
   const maxRange = Math.max(rangeX, rangeY, rangeZ)
-  return Math.max(maxRange * 2, 3000)
+  return Math.max(maxRange * 1, 3000)
 })
 
 // 计算正交相机的视锥体参数
@@ -307,11 +315,6 @@ watch(
   { immediate: true }
 )
 
-// 重置3D视图（用于命令系统）
-function resetView3D() {
-  focusOnScene() // 这会同时重置轨道中心和相机位置
-}
-
 // 视图切换函数（供命令系统调用）
 function switchToView(preset: ViewPreset) {
   const center = sceneCenter.value
@@ -321,14 +324,14 @@ function switchToView(preset: ViewPreset) {
   setViewPreset(preset, center, distance)
 
   // 确保在 Orbit 模式
-  const newTarget = switchToOrbitMode()
-  if (newTarget) orbitTarget.value = newTarget
+  // const newTarget = switchToOrbitMode()
+  // if (newTarget) orbitTarget.value = newTarget
 }
 
 // 当 3D 视图激活时，注册视图函数
 onActivated(() => {
   // 3D视图不需要缩放功能，但需要重置视图和聚焦选中功能
-  commandStore.setZoomFunctions(null, null, resetView3D, focusOnSelection)
+  commandStore.setZoomFunctions(null, null, focusOnScene, focusOnSelection)
   // 注册视图切换函数
   commandStore.setViewPresetFunction(switchToView)
 })
@@ -420,7 +423,8 @@ onMounted(() => {
         <OrbitControls
           ref="orbitControlsRef"
           :target="orbitTarget"
-          :enableDamping="false"
+          :enableDamping="true"
+          :dampingFactor="0.5"
           :enabled="controlMode === 'orbit'"
           :enableRotate="!isOrthographic"
           :enablePan="isOrthographic"
@@ -606,6 +610,52 @@ onMounted(() => {
           <template v-else>
             左键选择/框选 · 中键绕场景旋转 · 滚轮缩放 · WASD/Q/空格移动相机
           </template>
+        </div>
+      </div>
+    </div>
+
+    <!-- 相机状态调试面板 (开发模式) -->
+    <div v-if="isDev" class="absolute bottom-4 left-4">
+      <button
+        @click="showCameraDebug = !showCameraDebug"
+        class="rounded-md bg-gray-800/80 px-2 py-1 text-xs text-white hover:bg-gray-700/80"
+      >
+        {{ showCameraDebug ? '隐藏' : '显示' }}相机调试
+      </button>
+      <div
+        v-if="showCameraDebug"
+        class="mt-2 max-h-96 overflow-y-auto rounded-md bg-gray-900/90 px-3 py-2 font-mono text-xs text-green-400 shadow-lg"
+        style="max-width: 350px"
+      >
+        <div class="mb-1 font-bold text-green-300">📷 相机状态</div>
+        <div class="space-y-0.5">
+          <div><span class="text-gray-400">模式:</span> {{ controlMode }}</div>
+          <div><span class="text-gray-400">视图:</span> {{ currentViewPreset || '自定义' }}</div>
+          <div><span class="text-gray-400">投影:</span> {{ isOrthographic ? '正交' : '透视' }}</div>
+          <div class="mt-1 text-gray-400">位置:</div>
+          <div class="pl-2">
+            X: {{ cameraPosition[0].toFixed(1) }}<br />
+            Y: {{ cameraPosition[1].toFixed(1) }}<br />
+            Z: {{ cameraPosition[2].toFixed(1) }}
+          </div>
+          <div class="mt-1 text-gray-400">目标:</div>
+          <div class="pl-2">
+            X: {{ cameraLookAt[0].toFixed(1) }}<br />
+            Y: {{ cameraLookAt[1].toFixed(1) }}<br />
+            Z: {{ cameraLookAt[2].toFixed(1) }}
+          </div>
+          <div class="mt-1 text-gray-400">轨道中心:</div>
+          <div class="pl-2">
+            X: {{ orbitTarget[0].toFixed(1) }}<br />
+            Y: {{ orbitTarget[1].toFixed(1) }}<br />
+            Z: {{ orbitTarget[2].toFixed(1) }}
+          </div>
+          <div class="mt-1">
+            <span class="text-gray-400">视图聚焦:</span> {{ isViewFocused ? '是' : '否' }}
+          </div>
+          <div>
+            <span class="text-gray-400">导航键:</span> {{ isNavKeyPressed ? '激活' : '未激活' }}
+          </div>
         </div>
       </div>
     </div>
