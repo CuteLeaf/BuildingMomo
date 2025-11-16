@@ -9,6 +9,9 @@ import {
   MenubarSeparator,
   MenubarShortcut,
   MenubarTrigger,
+  MenubarSub,
+  MenubarSubContent,
+  MenubarSubTrigger,
 } from '@/components/ui/menubar'
 import { Button } from '@/components/ui/button'
 import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area'
@@ -27,6 +30,27 @@ const tabStore = useTabStore()
 const fileCommands = computed(() => commandStore.getCommandsByCategory('file'))
 const editCommands = computed(() => commandStore.getCommandsByCategory('edit'))
 const viewCommands = computed(() => commandStore.getCommandsByCategory('view'))
+
+// 视图预设命令（透视 + 正交六视图）
+const VIEW_PRESET_IDS = [
+  'view.setViewPerspective',
+  'view.setViewTop',
+  'view.setViewBottom',
+  'view.setViewFront',
+  'view.setViewBack',
+  'view.setViewRight',
+  'view.setViewLeft',
+]
+
+// 主视图命令（不包括视图预设）
+const mainViewCommands = computed(() =>
+  viewCommands.value.filter((cmd) => !VIEW_PRESET_IDS.includes(cmd.id))
+)
+
+// 视图预设命令，保持在 commandStore 中定义的顺序
+const viewPresetCommands = computed(() =>
+  viewCommands.value.filter((cmd) => VIEW_PRESET_IDS.includes(cmd.id))
+)
 
 // 监控状态
 const watchState = computed(() => commandStore.fileOps.watchState)
@@ -163,8 +187,9 @@ onMounted(() => {
       <MenubarMenu>
         <MenubarTrigger class="text-sm font-medium">视图</MenubarTrigger>
         <MenubarContent :sideOffset="10">
-          <template v-for="cmd in viewCommands" :key="cmd.id">
-            <!-- 在"重置视图"之前添加分隔线 -->
+          <!-- 主视图命令（缩放、重置视图、聚焦、2D/3D、工作坐标系等） -->
+          <template v-for="cmd in mainViewCommands" :key="cmd.id">
+            <!-- 在“重置视图”、“工作坐标系”之前添加分隔线 -->
             <MenubarSeparator
               v-if="cmd.id === 'view.fitToView' || cmd.id === 'view.coordinateSystem'"
             />
@@ -173,6 +198,24 @@ onMounted(() => {
               <MenubarShortcut v-if="cmd.shortcut">{{ cmd.shortcut }}</MenubarShortcut>
             </MenubarItem>
           </template>
+
+          <!-- 主视图命令与视图预设之间的分隔线 -->
+          <MenubarSeparator />
+
+          <!-- 视图预设子菜单：透视视图 + 正交六视图 -->
+          <MenubarSub>
+            <MenubarSubTrigger>视图预设</MenubarSubTrigger>
+            <MenubarSubContent>
+              <template v-for="cmd in viewPresetCommands" :key="cmd.id">
+                <!-- 在“顶视图”之前添加分隔线，将透视视图与正交视图分组 -->
+                <MenubarSeparator v-if="cmd.id === 'view.setViewTop'" />
+                <MenubarItem :disabled="!isEnabled(cmd.id)" @click="handleCommand(cmd.id)">
+                  {{ cmd.label }}
+                  <MenubarShortcut v-if="cmd.shortcut">{{ cmd.shortcut }}</MenubarShortcut>
+                </MenubarItem>
+              </template>
+            </MenubarSubContent>
+          </MenubarSub>
         </MenubarContent>
       </MenubarMenu>
 

@@ -5,6 +5,7 @@ import { useUIStore } from './uiStore'
 import { useClipboard } from '../composables/useClipboard'
 import { useFileOperations } from '../composables/useFileOperations'
 import { useTabStore } from './tabStore'
+import type { ViewPreset } from '../composables/useThreeNavigation'
 
 // 命令接口
 export interface Command {
@@ -27,6 +28,9 @@ export const useCommandStore = defineStore('command', () => {
   const zoomOutFn = ref<(() => void) | null>(null)
   const fitToViewFn = ref<(() => void) | null>(null)
   const focusSelectionFn = ref<(() => void) | null>(null)
+
+  // 视图切换函数引用（3D视图专用）
+  const setViewPresetFn = ref<((preset: ViewPreset) => void) | null>(null)
 
   // 移动对话框状态
   const showMoveDialog = ref(false)
@@ -315,6 +319,90 @@ export const useCommandStore = defineStore('command', () => {
       },
     },
 
+    // ===== 3D视图预设 =====
+    {
+      id: 'view.setViewPerspective',
+      label: '透视视图',
+      shortcut: '0',
+      category: 'view',
+      enabled: () =>
+        editorStore.items.length > 0 && uiStore.viewMode === '3d' && setViewPresetFn.value !== null,
+      execute: () => {
+        console.log('[Command] 切换到透视视图')
+        setViewPresetFn.value?.('perspective')
+      },
+    },
+    {
+      id: 'view.setViewTop',
+      label: '顶视图',
+      shortcut: '7',
+      category: 'view',
+      enabled: () =>
+        editorStore.items.length > 0 && uiStore.viewMode === '3d' && setViewPresetFn.value !== null,
+      execute: () => {
+        console.log('[Command] 切换到顶视图')
+        setViewPresetFn.value?.('top')
+      },
+    },
+    {
+      id: 'view.setViewBottom',
+      label: '底视图',
+      shortcut: '9',
+      category: 'view',
+      enabled: () =>
+        editorStore.items.length > 0 && uiStore.viewMode === '3d' && setViewPresetFn.value !== null,
+      execute: () => {
+        console.log('[Command] 切换到底视图')
+        setViewPresetFn.value?.('bottom')
+      },
+    },
+    {
+      id: 'view.setViewFront',
+      label: '前视图',
+      shortcut: '1',
+      category: 'view',
+      enabled: () =>
+        editorStore.items.length > 0 && uiStore.viewMode === '3d' && setViewPresetFn.value !== null,
+      execute: () => {
+        console.log('[Command] 切换到前视图')
+        setViewPresetFn.value?.('front')
+      },
+    },
+    {
+      id: 'view.setViewBack',
+      label: '后视图',
+      category: 'view',
+      enabled: () =>
+        editorStore.items.length > 0 && uiStore.viewMode === '3d' && setViewPresetFn.value !== null,
+      execute: () => {
+        console.log('[Command] 切换到后视图')
+        setViewPresetFn.value?.('back')
+      },
+    },
+    {
+      id: 'view.setViewRight',
+      label: '右侧视图',
+      shortcut: '3',
+      category: 'view',
+      enabled: () =>
+        editorStore.items.length > 0 && uiStore.viewMode === '3d' && setViewPresetFn.value !== null,
+      execute: () => {
+        console.log('[Command] 切换到右侧视图')
+        setViewPresetFn.value?.('right')
+      },
+    },
+    {
+      id: 'view.setViewLeft',
+      label: '左侧视图',
+      category: 'view',
+      enabled: () =>
+        editorStore.items.length > 0 && uiStore.viewMode === '3d' && setViewPresetFn.value !== null,
+      execute: () => {
+        console.log('[Command] 切换到左侧视图')
+        setViewPresetFn.value?.('left')
+      },
+    },
+
     // ===== 帮助菜单 =====
     {
       id: 'help.openDocs',
@@ -377,6 +465,11 @@ export const useCommandStore = defineStore('command', () => {
     focusSelectionFn.value = focusSelection || null
   }
 
+  // 设置视图切换函数（由 ThreeEditor 调用）
+  function setViewPresetFunction(fn: ((preset: ViewPreset) => void) | null) {
+    setViewPresetFn.value = fn
+  }
+
   return {
     commands,
     commandMap,
@@ -386,6 +479,7 @@ export const useCommandStore = defineStore('command', () => {
     executeCommand,
     isCommandEnabled,
     setZoomFunctions,
+    setViewPresetFunction,
     showMoveDialog,
     showCoordinateDialog,
   }

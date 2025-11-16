@@ -11,7 +11,16 @@ import { useThreeSelection } from '@/composables/useThreeSelection'
 import { useThreeTransformGizmo } from '@/composables/useThreeTransformGizmo'
 import { useThreeInstancedRenderer } from '@/composables/useThreeInstancedRenderer'
 import { useThreeTooltip } from '@/composables/useThreeTooltip'
-import { useThreeNavigation } from '@/composables/useThreeNavigation'
+import { useThreeNavigation, type ViewPreset } from '@/composables/useThreeNavigation'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import { Button } from '@/components/ui/button'
+import { Camera } from 'lucide-vue-next'
 
 const editorStore = useEditorStore()
 const commandStore = useCommandStore()
@@ -20,9 +29,15 @@ const settingsStore = useSettingsStore()
 
 // 3D 选择 & gizmo 相关引用
 const threeContainerRef = ref<HTMLElement | null>(null)
-const cameraRef = ref<any | null>(null)
+const cameraRef = ref<any | null>(null) // 透视相机
+const orthoCameraRef = ref<any | null>(null) // 正交相机
 const orbitControlsRef = ref<any | null>(null)
 const gizmoPivot = ref<Object3D | null>(markRaw(new Object3D()))
+
+// 当前活动的相机（根据视图类型动态切换）
+const activeCameraRef = computed(() => {
+  return isOrthographic.value ? orthoCameraRef.value : cameraRef.value
+})
 
 // 创建共享的 isTransformDragging ref
 const isTransformDragging = ref(false)
@@ -35,12 +50,15 @@ const {
   cameraPosition,
   cameraLookAt,
   controlMode,
+  currentViewPreset,
+  isOrthographic,
   handleNavPointerDown,
   handleNavPointerMove,
   handleNavPointerUp,
   setPoseFromLookAt,
   lookAtTarget,
   switchToOrbitMode,
+  setViewPreset,
 } = useThreeNavigation(
   {
     baseSpeed: 1000,
@@ -79,7 +97,7 @@ const {
 
 const { selectionRect, handlePointerDown, handlePointerMove, handlePointerUp } = useThreeSelection(
   editorStore,
-  cameraRef,
+  activeCameraRef,
   {
     instancedMesh,
     indexToIdMap,
@@ -109,7 +127,7 @@ const {
 } = useThreeTooltip(
   editorStore,
   furnitureStore,
-  cameraRef,
+  activeCameraRef,
   threeContainerRef,
   {
     instancedMesh,
@@ -150,7 +168,7 @@ function handleContainerPointerLeave(evt: PointerEvent) {
 
 // OrbitControls 变更时，同步导航相机姿态，避免两种视角模式之间跳变
 function handleOrbitChange() {
-  const cam = cameraRef.value as any
+  const cam = activeCameraRef.value as any
   if (!cam) return
 
   // flight 模式下不反向同步，避免循环
@@ -207,6 +225,24 @@ const cameraDistance = computed(() => {
   return Math.max(maxRange * 2, 3000)
 })
 
+// 计算正交相机的视锥体参数
+const orthoFrustum = computed(() => {
+  const distance = cameraDistance.value
+  // 使用距离作为视锥体大小的基准，留一些余量
+  const size = distance * 0.6
+
+  // 获取容器宽高比（默认 16:9，实际会由 TresCanvas 自动适配）
+  const container = threeContainerRef.value
+  const aspect = container ? container.clientWidth / container.clientHeight : 16 / 9
+
+  return {
+    left: (-size * aspect) / 2,
+    right: (size * aspect) / 2,
+    top: size / 2,
+    bottom: -size / 2,
+  }
+})
+
 // 计算并设置最佳相机位置（类似2D视图的fitToView）
 function fitCameraToScene() {
   const center = sceneCenter.value
@@ -257,15 +293,31 @@ function resetView3D() {
   focusOnScene() // 这会同时重置轨道中心和相机位置
 }
 
-// 当3D视图激活时，注册视图函数
+// 视图切换函数（供命令系统调用）
+function switchToView(preset: ViewPreset) {
+  const center = sceneCenter.value
+  const distance = cameraDistance.value
+
+  // 切换到预设视图（带动画）
+  setViewPreset(preset, center, distance)
+
+  // 确保在 Orbit 模式
+  const newTarget = switchToOrbitMode()
+  if (newTarget) orbitTarget.value = newTarget
+}
+
+// 当 3D 视图激活时，注册视图函数
 onActivated(() => {
   // 3D视图不需要缩放功能，但需要重置视图和聚焦选中功能
   commandStore.setZoomFunctions(null, null, resetView3D, focusOnSelection)
+  // 注册视图切换函数
+  commandStore.setViewPresetFunction(switchToView)
 })
 
-// 当3D视图停用时，清除函数
+// 当 3D 视图停用时，清除函数
 onDeactivated(() => {
   commandStore.setZoomFunctions(null, null, null, null)
+  commandStore.setViewPresetFunction(null)
 })
 </script>
 
@@ -309,8 +361,9 @@ onDeactivated(() => {
       @contextmenu.prevent
     >
       <TresCanvas clear-color="#f3f4f6">
-        <!-- 相机 - 适配大坐标场景 -->
+        <!-- 透视相机 - perspective 视图 -->
         <TresPerspectiveCamera
+          v-if="!isOrthographic"
           ref="cameraRef"
           :position="cameraPosition"
           :look-at="cameraLookAt"
@@ -319,14 +372,28 @@ onDeactivated(() => {
           :far="150000"
         />
 
-        <!-- 轨道控制器：使用中键进行卫星式绕 orbitTarget 旋转，由导航系统接管右键飞行与 WASD 位移 -->
+        <!-- 正交相机 - 六个方向视图 -->
+        <TresOrthographicCamera
+          v-if="isOrthographic"
+          ref="orthoCameraRef"
+          :position="cameraPosition"
+          :look-at="cameraLookAt"
+          :left="orthoFrustum.left"
+          :right="orthoFrustum.right"
+          :top="orthoFrustum.top"
+          :bottom="orthoFrustum.bottom"
+          :near="100"
+          :far="150000"
+        />
+
+        <!-- 轨道控制器：透视视图下使用中键旋转，正交视图下使用中键平移 -->
         <OrbitControls
           ref="orbitControlsRef"
           :target="orbitTarget"
           :enableDamping="false"
-          :enableRotate="true"
-          :enablePan="false"
-          :mouseButtons="{ MIDDLE: MOUSE.ROTATE }"
+          :enableRotate="!isOrthographic"
+          :enablePan="isOrthographic"
+          :mouseButtons="isOrthographic ? { MIDDLE: MOUSE.PAN } : { MIDDLE: MOUSE.ROTATE }"
           @change="handleOrbitChange"
         />
 
@@ -351,7 +418,7 @@ onDeactivated(() => {
         <TransformControls
           v-if="shouldShowGizmo && gizmoPivot"
           :object="gizmoPivot"
-          :camera="cameraRef"
+          :camera="activeCameraRef"
           mode="translate"
           @dragging="handleGizmoDragging"
           @mouseDown="handleGizmoMouseDown"
@@ -398,6 +465,66 @@ onDeactivated(() => {
           </div>
         </div>
       </div>
+    </div>
+
+    <!-- 视图切换按钮 -->
+    <div v-if="editorStore.items.length > 0" class="absolute top-4 right-4">
+      <DropdownMenu>
+        <DropdownMenuTrigger as-child>
+          <Button variant="outline" size="sm" class="shadow-md">
+            <Camera class="mr-2 h-4 w-4" />
+            <span v-if="currentViewPreset">
+              {{
+                currentViewPreset === 'perspective'
+                  ? '透视'
+                  : currentViewPreset === 'top'
+                    ? '顶视图'
+                    : currentViewPreset === 'bottom'
+                      ? '底视图'
+                      : currentViewPreset === 'front'
+                        ? '前视图'
+                        : currentViewPreset === 'back'
+                          ? '后视图'
+                          : currentViewPreset === 'right'
+                            ? '右视图'
+                            : '左视图'
+              }}
+            </span>
+            <span v-else>自定义</span>
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" class="w-48">
+          <DropdownMenuItem @click="commandStore.executeCommand('view.setViewPerspective')">
+            <span class="flex-1">🎯 透视视图</span>
+            <span class="text-xs text-muted-foreground">0</span>
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem @click="commandStore.executeCommand('view.setViewTop')">
+            <span class="flex-1">⬆️ 顶视图</span>
+            <span class="text-xs text-muted-foreground">7</span>
+          </DropdownMenuItem>
+          <DropdownMenuItem @click="commandStore.executeCommand('view.setViewBottom')">
+            <span class="flex-1">⬇️ 底视图</span>
+            <span class="text-xs text-muted-foreground">9</span>
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem @click="commandStore.executeCommand('view.setViewFront')">
+            <span class="flex-1">➡️ 前视图</span>
+            <span class="text-xs text-muted-foreground">1</span>
+          </DropdownMenuItem>
+          <DropdownMenuItem @click="commandStore.executeCommand('view.setViewBack')">
+            <span class="flex-1">⬅️ 后视图</span>
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem @click="commandStore.executeCommand('view.setViewRight')">
+            <span class="flex-1">👉 右侧视图</span>
+            <span class="text-xs text-muted-foreground">3</span>
+          </DropdownMenuItem>
+          <DropdownMenuItem @click="commandStore.executeCommand('view.setViewLeft')">
+            <span class="flex-1">👈 左侧视图</span>
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
     </div>
 
     <!-- 视图信息 -->

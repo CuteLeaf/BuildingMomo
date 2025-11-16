@@ -12,6 +12,49 @@ import { useRafFn, useMagicKeys, clamp } from '@vueuse/core'
 
 type Vec3Tuple = [number, number, number]
 
+// 视图预设类型
+export type ViewPreset = 'perspective' | 'top' | 'bottom' | 'front' | 'back' | 'left' | 'right'
+
+// 视图预设配置（相对于目标点的方向向量）
+interface ViewPresetConfig {
+  // 相机应该在目标点的哪个方向（单位向量）
+  direction: Vec3Tuple
+  // 相机的上方向（用于正确的视角方向）
+  up: Vec3Tuple
+}
+
+// 视图预设配置表
+const VIEW_PRESETS: Record<ViewPreset, ViewPresetConfig> = {
+  perspective: {
+    direction: [0.6, 0.8, 0.6], // 默认等距视角
+    up: [0, 1, 0],
+  },
+  top: {
+    direction: [0, 1, 0], // 从上往下看
+    up: [0, 0, -1], // 上方向指向-Z（屏幕上方对应游戏世界的前方）
+  },
+  bottom: {
+    direction: [0, -1, 0], // 从下往上看
+    up: [0, 0, 1],
+  },
+  front: {
+    direction: [0, 0, 1], // 从前往后看（+Z看向-Z）
+    up: [0, 1, 0],
+  },
+  back: {
+    direction: [0, 0, -1], // 从后往前看
+    up: [0, 1, 0],
+  },
+  right: {
+    direction: [1, 0, 0], // 从右往左看
+    up: [0, 1, 0],
+  },
+  left: {
+    direction: [-1, 0, 0], // 从左往右看
+    up: [0, 1, 0],
+  },
+}
+
 export interface ThreeNavigationOptions {
   /** 基础移动速度，单位：world units / 秒 */
   baseSpeed?: number
@@ -44,6 +87,10 @@ export interface ThreeNavigationResult {
   isNavKeyPressed: Ref<boolean>
   /** 当前控制模式：orbit（轨道）或 flight（飞行） */
   controlMode: Ref<'orbit' | 'flight'>
+  /** 当前视图预设（如果手动旋转则为 null） */
+  currentViewPreset: Ref<ViewPreset | null>
+  /** 当前是否为正交视图（六个方向视图） */
+  isOrthographic: Ref<boolean>
 
   /** 导航层的 pointer 事件处理函数（容器上转发）：用于标记 3D 视图获得键盘焦点 */
   handleNavPointerDown: (evt: PointerEvent) => void
@@ -58,6 +105,8 @@ export interface ThreeNavigationResult {
   lookAtTarget: (target: Vec3Tuple) => void
   /** 切换到 orbit 模式，返回新的 orbitTarget（用于 focus 功能） */
   switchToOrbitMode: () => Vec3Tuple | null
+  /** 切换到预设视图（带平滑动画） */
+  setViewPreset: (preset: ViewPreset, target: Vec3Tuple, distance: number) => void
 }
 
 export function useThreeNavigation(
@@ -78,6 +127,21 @@ export function useThreeNavigation(
   const isViewFocused = ref(false)
   const controlMode = ref<'orbit' | 'flight'>('orbit')
   const isMiddleButtonDown = ref(false)
+  const currentViewPreset = ref<ViewPreset | null>('perspective')
+
+  // 判断当前是否为正交视图（六个方向视图）
+  const isOrthographic = computed(() => {
+    return currentViewPreset.value !== null && currentViewPreset.value !== 'perspective'
+  })
+
+  // 动画状态
+  let animationFrameId: number | null = null
+  let animationStartTime = 0
+  let animationDuration = 500 // 毫秒
+  let animationStartPos: Vec3Tuple = [0, 0, 0]
+  let animationEndPos: Vec3Tuple = [0, 0, 0]
+  let animationStartTarget: Vec3Tuple = [0, 0, 0]
+  let animationEndTarget: Vec3Tuple = [0, 0, 0]
 
   // === 内部姿态状态（弧度制） ===
   let yaw = 0 // 绕世界 Y 轴，水平旋转
@@ -90,9 +154,14 @@ export function useThreeNavigation(
   const keys = useMagicKeys()
   const { w, a, s, d, q, space, shift, tab } = keys
 
-  // 计算当前是否有导航键按下（仅在 flight 模式、视图聚焦且未拖动时生效）
+  // 计算当前是否有导航键按下（仅在 flight 模式、视图聚焦、未拖动且非正交视图时生效）
   const isNavKeyPressed = computed(() => {
-    if (controlMode.value !== 'flight' || !isViewFocused.value || deps.isTransformDragging?.value) {
+    if (
+      controlMode.value !== 'flight' ||
+      !isViewFocused.value ||
+      deps.isTransformDragging?.value ||
+      isOrthographic.value
+    ) {
       return false
     }
     return w?.value || a?.value || s?.value || d?.value || q?.value || space?.value || false
@@ -156,6 +225,103 @@ export function useThreeNavigation(
 
   function lookAtTarget(target: Vec3Tuple) {
     setPoseFromLookAt(cameraPosition.value, target)
+  }
+
+  // 缓动函数（ease-in-out）
+  function easeInOutCubic(t: number): number {
+    return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2
+  }
+
+  // 线性插值
+  function lerp(a: number, b: number, t: number): number {
+    return a + (b - a) * t
+  }
+
+  // 向量插值
+  function lerpVec3(a: Vec3Tuple, b: Vec3Tuple, t: number): Vec3Tuple {
+    return [lerp(a[0], b[0], t), lerp(a[1], b[1], t), lerp(a[2], b[2], t)]
+  }
+
+  // 动画更新函数
+  function animateCamera(timestamp: number) {
+    const elapsed = timestamp - animationStartTime
+    const progress = Math.min(elapsed / animationDuration, 1)
+    const easedProgress = easeInOutCubic(progress)
+
+    // 插值相机位置
+    const newPos = lerpVec3(animationStartPos, animationEndPos, easedProgress)
+    cameraPosition.value = newPos
+
+    // 插值观察目标
+    const newTarget = lerpVec3(animationStartTarget, animationEndTarget, easedProgress)
+    cameraLookAt.value = newTarget
+
+    // 同步更新内部姿态（yaw/pitch）
+    const dir: Vec3Tuple = [
+      newTarget[0] - newPos[0],
+      newTarget[1] - newPos[1],
+      newTarget[2] - newPos[2],
+    ]
+    const dirNorm = normalize(dir)
+    yaw = Math.atan2(dirNorm[0], dirNorm[2])
+    pitch = clamp(Math.asin(dirNorm[1]), pitchMinRad, pitchMaxRad)
+
+    // 继续动画或结束
+    if (progress < 1) {
+      animationFrameId = requestAnimationFrame(animateCamera)
+    } else {
+      animationFrameId = null
+      // 动画结束后，如果需要更新 orbitTarget
+      if (deps.onOrbitTargetUpdate) {
+        deps.onOrbitTargetUpdate(animationEndTarget)
+      }
+    }
+  }
+
+  // 停止当前动画
+  function stopAnimation() {
+    if (animationFrameId !== null) {
+      cancelAnimationFrame(animationFrameId)
+      animationFrameId = null
+    }
+  }
+
+  // 切换到预设视图（带平滑动画）
+  function setViewPreset(preset: ViewPreset, target: Vec3Tuple, distance: number) {
+    // 停止当前动画
+    stopAnimation()
+
+    // 切换到 Orbit 模式
+    if (controlMode.value !== 'orbit') {
+      controlMode.value = 'orbit'
+    }
+
+    // 获取预设配置
+    const config = VIEW_PRESETS[preset]
+    const dir = config.direction
+
+    // 归一化方向向量
+    const dirNorm = normalize(dir)
+
+    // 计算相机位置：目标点 + 方向 * 距离
+    const newPos: Vec3Tuple = [
+      target[0] + dirNorm[0] * distance,
+      target[1] + dirNorm[1] * distance,
+      target[2] + dirNorm[2] * distance,
+    ]
+
+    // 设置动画起始和结束状态
+    animationStartPos = [...cameraPosition.value]
+    animationEndPos = newPos
+    animationStartTarget = [...cameraLookAt.value]
+    animationEndTarget = target
+    animationStartTime = performance.now()
+
+    // 更新当前视图预设
+    currentViewPreset.value = preset
+
+    // 开始动画
+    animationFrameId = requestAnimationFrame(animateCamera)
   }
 
   // === 使用 VueUse 的 useRafFn 实现更新循环 ===
@@ -297,6 +463,11 @@ export function useThreeNavigation(
   function handleNavPointerMove(evt: PointerEvent) {
     if (!isMiddleButtonDown.value || controlMode.value !== 'flight') return
     if (deps.isTransformDragging?.value) return
+    // 正交视图下禁用中键旋转
+    if (isOrthographic.value) return
+
+    // 手动旋转时，退出预设视图
+    currentViewPreset.value = null
 
     // 使用鼠标移动量更新 yaw 和 pitch
     const sensitivity = options.mouseSensitivity ?? 0.002
@@ -332,6 +503,7 @@ export function useThreeNavigation(
 
   onUnmounted(() => {
     deactivate()
+    stopAnimation()
   })
 
   onActivated(() => {
@@ -348,11 +520,14 @@ export function useThreeNavigation(
     isViewFocused,
     isNavKeyPressed,
     controlMode,
+    currentViewPreset,
+    isOrthographic,
     handleNavPointerDown,
     handleNavPointerMove,
     handleNavPointerUp,
     setPoseFromLookAt,
     lookAtTarget,
     switchToOrbitMode,
+    setViewPreset,
   }
 }
