@@ -3,7 +3,7 @@ import type { useEditorStore } from '../stores/editorStore'
 import type { AppItem } from '../types/editor'
 import { useInputState } from './useInputState'
 import { hitTestItem } from './useItemRenderer'
-import { useCanvasCoordinates } from './useCanvasCoordinates'
+import { createCanvas2DCoordinates } from '@/lib/coordinates'
 
 export function useCanvasSelection(
   editorStore: ReturnType<typeof useEditorStore>,
@@ -19,7 +19,7 @@ export function useCanvasSelection(
   const { isShiftPressed, isAltPressed, isSpacePressed } = useInputState()
 
   // 使用坐标转换工具
-  const { screenToWorld } = useCanvasCoordinates(stageRef)
+  const { screenToWorld } = createCanvas2DCoordinates(stageRef)
 
   // 框选状态
   const selectionRect = ref<{ x: number; y: number; width: number; height: number } | null>(null)

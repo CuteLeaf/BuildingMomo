@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
 import { useEditorStore } from '../stores/editorStore'
+import { useUIStore } from '../stores/uiStore'
 import {
   Dialog,
   DialogContent,
@@ -23,6 +24,7 @@ const emit = defineEmits<{
 }>()
 
 const editorStore = useEditorStore()
+const uiStore = useUIStore()
 
 // 表单数据
 const mode = ref<'relative' | 'absolute'>('relative')
@@ -81,9 +83,9 @@ watch(
     if (isOpen) {
       resetForm()
       // 如果当前有激活的工作坐标系，使用它
-      if (editorStore.workingCoordinateSystem.enabled) {
+      if (uiStore.workingCoordinateSystem.enabled) {
         coordinateMode.value = 'working'
-        workingAngle.value = editorStore.workingCoordinateSystem.rotationAngle
+        workingAngle.value = uiStore.workingCoordinateSystem.rotationAngle
       } else {
         coordinateMode.value = 'global'
       }

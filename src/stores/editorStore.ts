@@ -6,7 +6,6 @@ import type {
   GameDataFile,
   HomeScheme,
   TransformParams,
-  WorkingCoordinateSystem,
   HistorySnapshot,
   HistoryStack,
 } from '../types/editor'
@@ -82,12 +81,6 @@ export const useEditorStore = defineStore('editor', () => {
 
   // 全局剪贴板（支持跨方案复制粘贴）
   const clipboard = ref<AppItem[]>([])
-
-  // 工作坐标系状态
-  const workingCoordinateSystem = ref<WorkingCoordinateSystem>({
-    enabled: false,
-    rotationAngle: 0,
-  })
 
   // 计算属性：当前激活的方案
   const activeScheme = computed(
@@ -331,23 +324,31 @@ export const useEditorStore = defineStore('editor', () => {
     if (type === 'selection' && history.undoStack.length > 0) {
       const lastSnapshot = history.undoStack[history.undoStack.length - 1]
       if (lastSnapshot && lastSnapshot.type === 'selection') {
-        // 替换栈顶的选择操作
-        history.undoStack[history.undoStack.length - 1] = {
-          items: cloneItems(activeScheme.value.items),
-          selectedItemIds: cloneSelection(activeScheme.value.selectedItemIds),
-          timestamp: Date.now(),
-          type: 'selection',
-        }
+        // 仅更新选择集合和时间戳，避免重复深拷贝 items
+        lastSnapshot.selectedItemIds = cloneSelection(activeScheme.value.selectedItemIds)
+        lastSnapshot.timestamp = Date.now()
         return
       }
     }
 
     // 创建快照
-    const snapshot: HistorySnapshot = {
-      items: cloneItems(activeScheme.value.items),
-      selectedItemIds: cloneSelection(activeScheme.value.selectedItemIds),
-      timestamp: Date.now(),
-      type,
+    let snapshot: HistorySnapshot
+    if (type === 'selection') {
+      // 选择操作：只保存选择状态，items 设为 null 以减少性能开销
+      snapshot = {
+        items: null,
+        selectedItemIds: cloneSelection(activeScheme.value.selectedItemIds),
+        timestamp: Date.now(),
+        type,
+      }
+    } else {
+      // 编辑操作：保存完整的物品数据和选择状态
+      snapshot = {
+        items: cloneItems(activeScheme.value.items),
+        selectedItemIds: cloneSelection(activeScheme.value.selectedItemIds),
+        timestamp: Date.now(),
+        type,
+      }
     }
 
     // 推入撤销栈
@@ -383,8 +384,17 @@ export const useEditorStore = defineStore('editor', () => {
 
     // 从撤销栈弹出并恢复状态
     const snapshot = history.undoStack.pop()!
-    activeScheme.value.items = cloneItems(snapshot.items)
-    activeScheme.value.selectedItemIds = cloneSelection(snapshot.selectedItemIds)
+
+    if (snapshot.type === 'edit') {
+      // 编辑操作：恢复物品和选择状态
+      if (snapshot.items) {
+        activeScheme.value.items = cloneItems(snapshot.items)
+      }
+      activeScheme.value.selectedItemIds = cloneSelection(snapshot.selectedItemIds)
+    } else if (snapshot.type === 'selection') {
+      // 选择操作：只恢复选择状态，避免不必要的物品深拷贝
+      activeScheme.value.selectedItemIds = cloneSelection(snapshot.selectedItemIds)
+    }
 
     console.log(`[History] 撤销操作 (类型: ${snapshot.type})`)
   }
@@ -410,8 +420,15 @@ export const useEditorStore = defineStore('editor', () => {
 
     // 从重做栈弹出并恢复状态
     const snapshot = history.redoStack.pop()!
-    activeScheme.value.items = cloneItems(snapshot.items)
-    activeScheme.value.selectedItemIds = cloneSelection(snapshot.selectedItemIds)
+
+    if (snapshot.type === 'edit') {
+      if (snapshot.items) {
+        activeScheme.value.items = cloneItems(snapshot.items)
+      }
+      activeScheme.value.selectedItemIds = cloneSelection(snapshot.selectedItemIds)
+    } else if (snapshot.type === 'selection') {
+      activeScheme.value.selectedItemIds = cloneSelection(snapshot.selectedItemIds)
+    }
 
     console.log('[History] 重做操作')
   }
@@ -692,6 +709,39 @@ export const useEditorStore = defineStore('editor', () => {
         }
       }
       return item
+    })
+  }
+
+  // 3D 移动选中物品（XYZ），不在此保存历史，由调用方控制
+  function moveSelectedItems3D(dx: number, dy: number, dz: number) {
+    if (!activeScheme.value) {
+      return
+    }
+
+    activeScheme.value.items = activeScheme.value.items.map((item) => {
+      if (!activeScheme.value!.selectedItemIds.has(item.internalId)) {
+        return item
+      }
+
+      const newX = item.x + dx
+      const newY = item.y + dy
+      const newZ = item.z + dz
+
+      return {
+        ...item,
+        x: newX,
+        y: newY,
+        z: newZ,
+        originalData: {
+          ...item.originalData,
+          Location: {
+            ...item.originalData.Location,
+            X: newX,
+            Y: newY,
+            Z: newZ,
+          },
+        },
+      }
     })
   }
 
@@ -1153,60 +1203,14 @@ export const useEditorStore = defineStore('editor', () => {
   // 获取选中物品的中心坐标（用于UI显示）
   function getSelectedItemsCenter(): { x: number; y: number; z: number } | null {
     const selected = selectedItems.value
-    if (selected.length === 0) return null
+    if (selected.length === 0) {
+      return null
+    }
 
     return {
       x: selected.reduce((sum, item) => sum + item.x, 0) / selected.length,
       y: selected.reduce((sum, item) => sum + item.y, 0) / selected.length,
       z: selected.reduce((sum, item) => sum + item.z, 0) / selected.length,
-    }
-  }
-
-  // 设置工作坐标系
-  function setWorkingCoordinateSystem(enabled: boolean, angle: number) {
-    workingCoordinateSystem.value.enabled = enabled
-    workingCoordinateSystem.value.rotationAngle = angle
-  }
-
-  // 工作坐标系坐标转换：工作坐标系 -> 全局坐标系
-  function workingToGlobal(point: { x: number; y: number; z: number }): {
-    x: number
-    y: number
-    z: number
-  } {
-    if (!workingCoordinateSystem.value.enabled) {
-      return point
-    }
-
-    const angleRad = (workingCoordinateSystem.value.rotationAngle * Math.PI) / 180
-    const cos = Math.cos(angleRad)
-    const sin = Math.sin(angleRad)
-
-    return {
-      x: point.x * cos - point.y * sin,
-      y: point.x * sin + point.y * cos,
-      z: point.z,
-    }
-  }
-
-  // 工作坐标系坐标转换：全局坐标系 -> 工作坐标系
-  function globalToWorking(point: { x: number; y: number; z: number }): {
-    x: number
-    y: number
-    z: number
-  } {
-    if (!workingCoordinateSystem.value.enabled) {
-      return point
-    }
-
-    const angleRad = (-workingCoordinateSystem.value.rotationAngle * Math.PI) / 180
-    const cos = Math.cos(angleRad)
-    const sin = Math.sin(angleRad)
-
-    return {
-      x: point.x * cos - point.y * sin,
-      y: point.x * sin + point.y * cos,
-      z: point.z,
     }
   }
 
@@ -1253,6 +1257,7 @@ export const useEditorStore = defineStore('editor', () => {
 
     // 编辑操作
     moveSelectedItems,
+    moveSelectedItems3D,
     duplicateSelected,
     deleteSelected,
     updateSelectedItemsTransform,
@@ -1263,12 +1268,6 @@ export const useEditorStore = defineStore('editor', () => {
     cutToClipboard,
     pasteFromClipboard,
     pasteItems,
-
-    // 工作坐标系
-    workingCoordinateSystem,
-    setWorkingCoordinateSystem,
-    workingToGlobal,
-    globalToWorking,
 
     // 历史记录
     saveHistory,

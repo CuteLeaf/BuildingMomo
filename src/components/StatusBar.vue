@@ -2,12 +2,14 @@
 import { computed } from 'vue'
 import { useDateFormat } from '@vueuse/core'
 import { useEditorStore } from '../stores/editorStore'
+import { useUIStore } from '../stores/uiStore'
 import { useCommandStore } from '../stores/commandStore'
 import { useSettingsStore } from '../stores/settingsStore'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { Copy } from 'lucide-vue-next'
 
 const editorStore = useEditorStore()
+const uiStore = useUIStore()
 const commandStore = useCommandStore()
 const settingsStore = useSettingsStore()
 
@@ -55,8 +57,8 @@ const groupStats = computed(() => ({
 
 // 工作坐标系
 const coordinateSystem = computed(() => ({
-  enabled: editorStore.workingCoordinateSystem.enabled,
-  angle: editorStore.workingCoordinateSystem.rotationAngle,
+  enabled: uiStore.workingCoordinateSystem.enabled,
+  angle: uiStore.workingCoordinateSystem.rotationAngle,
 }))
 
 const coordinateTooltip = computed(() => {

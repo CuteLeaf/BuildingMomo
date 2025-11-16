@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
-import { useEditorStore } from '../stores/editorStore'
+import { useUIStore } from '../stores/uiStore'
 import {
   Dialog,
   DialogContent,
@@ -22,7 +22,7 @@ const emit = defineEmits<{
   'update:open': [value: boolean]
 }>()
 
-const editorStore = useEditorStore()
+const uiStore = useUIStore()
 
 // 坐标系选择
 const coordinateMode = ref<'global' | 'working'>('global')
@@ -33,9 +33,9 @@ watch(
   () => props.open,
   (isOpen) => {
     if (isOpen) {
-      if (editorStore.workingCoordinateSystem.enabled) {
+      if (uiStore.workingCoordinateSystem.enabled) {
         coordinateMode.value = 'working'
-        workingAngle.value = editorStore.workingCoordinateSystem.rotationAngle
+        workingAngle.value = uiStore.workingCoordinateSystem.rotationAngle
       } else {
         coordinateMode.value = 'global'
         workingAngle.value = 45
@@ -76,9 +76,9 @@ const yLabelPos = computed(() => ({
 // 确认按钮处理
 function handleConfirm() {
   if (coordinateMode.value === 'global') {
-    editorStore.setWorkingCoordinateSystem(false, 0)
+    uiStore.setWorkingCoordinateSystem(false, 0)
   } else {
-    editorStore.setWorkingCoordinateSystem(true, workingAngle.value)
+    uiStore.setWorkingCoordinateSystem(true, workingAngle.value)
   }
   emit('update:open', false)
 }
