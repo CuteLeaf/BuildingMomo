@@ -1,12 +1,4 @@
-import {
-  ref,
-  computed,
-  onMounted,
-  onUnmounted,
-  onActivated,
-  onDeactivated,
-  type Ref,
-} from 'vue'
+import { ref, computed, onMounted, onUnmounted, onActivated, onDeactivated, type Ref } from 'vue'
 import { useRafFn, useMagicKeys } from '@vueuse/core'
 
 // ============================================================
@@ -23,7 +15,7 @@ interface ViewPresetConfig {
   up: Vec3 // 相机的上方向
 }
 
-const VIEW_PRESETS: Record<ViewPreset, ViewPresetConfig> = {
+export const VIEW_PRESETS: Record<ViewPreset, ViewPresetConfig> = {
   perspective: {
     direction: [0.6, 0.8, 0.6],
     up: [0, 1, 0],
@@ -66,16 +58,7 @@ interface CameraState {
   yaw: number // 弧度
   pitch: number // 弧度
   viewPreset: ViewPreset | null
-}
-
-// 动画状态
-interface AnimationState {
-  active: boolean
-  startTime: number
-  duration: number
-  fromState: CameraState
-  toState: CameraState
-  targetMode: CameraMode
+  up: Vec3 // 相机的上方向
 }
 
 // 配置选项
@@ -97,6 +80,7 @@ export interface CameraControllerDeps {
 export interface CameraControllerResult {
   cameraPosition: Ref<Vec3>
   cameraLookAt: Ref<Vec3>
+  cameraUp: Ref<Vec3>
   isViewFocused: Ref<boolean>
   isNavKeyPressed: Ref<boolean>
   controlMode: Ref<'orbit' | 'flight'>
@@ -133,18 +117,6 @@ function addScaled(a: Vec3, b: Vec3, scale: number): Vec3 {
   return [a[0] + b[0] * scale, a[1] + b[1] * scale, a[2] + b[2] * scale]
 }
 
-function lerp(a: number, b: number, t: number): number {
-  return a + (b - a) * t
-}
-
-function lerpVec3(a: Vec3, b: Vec3, t: number): Vec3 {
-  return [lerp(a[0], b[0], t), lerp(a[1], b[1], t), lerp(a[2], b[2], t)]
-}
-
-function easeInOutCubic(t: number): number {
-  return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2
-}
-
 // ============================================================
 // 🎮 Main Controller
 // ============================================================
@@ -171,21 +143,13 @@ export function useThreeCamera(
     yaw: 0,
     pitch: 0,
     viewPreset: 'perspective',
+    up: [0, 1, 0],
   })
 
   const mode = ref<CameraMode>({
     kind: 'orbit',
     projection: 'perspective',
     target: [0, 0, 0],
-  })
-
-  const animation = ref<AnimationState>({
-    active: false,
-    startTime: 0,
-    duration: 500,
-    fromState: { ...state.value },
-    toState: { ...state.value },
-    targetMode: { ...mode.value },
   })
 
   const isViewFocused = ref(false)
@@ -228,59 +192,6 @@ export function useThreeCamera(
   function updateLookAtFromYawPitch() {
     const forward = getForwardVector(state.value.yaw, state.value.pitch)
     state.value.target = addScaled(state.value.position, forward, 2000)
-  }
-
-  // ============================================================
-  // 🎬 Animation System
-  // ============================================================
-
-  function startAnimation(toState: CameraState, targetMode: CameraMode, duration = 500) {
-    animation.value = {
-      active: true,
-      startTime: performance.now(),
-      duration,
-      fromState: { ...state.value },
-      toState,
-      targetMode,
-    }
-  }
-
-  function updateAnimation(timestamp: number) {
-    if (!animation.value.active) return
-
-    const elapsed = timestamp - animation.value.startTime
-    const progress = Math.min(elapsed / animation.value.duration, 1)
-    const eased = easeInOutCubic(progress)
-
-    // 插值位置和目标
-    state.value.position = lerpVec3(
-      animation.value.fromState.position,
-      animation.value.toState.position,
-      eased
-    )
-    state.value.target = lerpVec3(
-      animation.value.fromState.target,
-      animation.value.toState.target,
-      eased
-    )
-    state.value.yaw = lerp(animation.value.fromState.yaw, animation.value.toState.yaw, eased)
-    state.value.pitch = lerp(animation.value.fromState.pitch, animation.value.toState.pitch, eased)
-    state.value.viewPreset = animation.value.toState.viewPreset
-
-    // 动画结束
-    if (progress >= 1) {
-      animation.value.active = false
-      mode.value = animation.value.targetMode
-
-      // 通知外部更新 orbit target
-      if (deps.onOrbitTargetUpdate && mode.value.kind === 'orbit') {
-        deps.onOrbitTargetUpdate(mode.value.target)
-      }
-    }
-  }
-
-  function stopAnimation() {
-    animation.value.active = false
   }
 
   // ============================================================
@@ -346,13 +257,11 @@ export function useThreeCamera(
 
   function switchToFlightMode() {
     if (mode.value.kind === 'flight') return
-    stopAnimation()
     mode.value = { kind: 'flight' }
   }
 
   function switchToOrbitMode(): Vec3 | null {
     if (mode.value.kind === 'orbit') return null
-    stopAnimation()
 
     // 计算前方焦点作为新 target
     const forward = getForwardVector(state.value.yaw, state.value.pitch)
@@ -366,7 +275,6 @@ export function useThreeCamera(
 
     return newTarget
   }
-
 
   // ============================================================
   // ⌨️ Input Processing
@@ -430,24 +338,30 @@ export function useThreeCamera(
     const config = VIEW_PRESETS[preset]
     const direction = normalize(config.direction)
 
-    const toPosition = addScaled(target, direction, distance)
+    const newPosition = addScaled(target, direction, distance)
     const { yaw, pitch } = calculateYawPitchFromDirection(scaleVec3(direction, -1))
 
-    const toState: CameraState = {
-      position: toPosition,
+    // 直接设置状态，无动画
+    state.value = {
+      position: newPosition,
       target: [...target],
       yaw,
       pitch,
       viewPreset: preset,
+      up: [...config.up],
     }
 
-    const targetMode: CameraMode = {
+    // 直接切换模式
+    mode.value = {
       kind: 'orbit',
       projection: preset === 'perspective' ? 'perspective' : 'orthographic',
       target: [...target],
     }
 
-    startAnimation(toState, targetMode)
+    // 通知外部更新 orbit target
+    if (deps.onOrbitTargetUpdate) {
+      deps.onOrbitTargetUpdate(mode.value.target)
+    }
   }
 
   // ============================================================
@@ -458,12 +372,15 @@ export function useThreeCamera(
     ({ delta }) => {
       if (!isActive) return
 
-      const timestamp = performance.now()
-
-      // 1. 动画优先
-      if (animation.value.active) {
-        updateAnimation(timestamp)
-        return
+      // 1. 在正交预设视图下，强制同步 up 向量保持坐标对齐
+      if (
+        mode.value.kind === 'orbit' &&
+        mode.value.projection === 'orthographic' &&
+        state.value.viewPreset &&
+        state.value.viewPreset !== 'perspective'
+      ) {
+        const config = VIEW_PRESETS[state.value.viewPreset]
+        state.value.up = [...config.up]
       }
 
       // 2. Flight 模式下更新移动
@@ -508,7 +425,6 @@ export function useThreeCamera(
 
   onUnmounted(() => {
     deactivate()
-    stopAnimation()
   })
 
   onActivated(() => {
@@ -527,6 +443,7 @@ export function useThreeCamera(
     // 状态（只读）
     cameraPosition: computed(() => state.value.position),
     cameraLookAt: computed(() => state.value.target),
+    cameraUp: computed(() => state.value.up),
     isViewFocused,
     isNavKeyPressed,
     controlMode: computed(() => (mode.value.kind === 'flight' ? 'flight' : 'orbit')),

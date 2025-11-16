@@ -59,6 +59,7 @@ const orbitTarget = ref<[number, number, number]>([0, 0, 0])
 const {
   cameraPosition,
   cameraLookAt,
+  cameraUp,
   controlMode,
   currentViewPreset,
   isOrthographic,
@@ -168,9 +169,6 @@ function handleContainerPointerLeave(evt: PointerEvent) {
 
 // OrbitControls 变更时，同步内部状态（仅在 orbit 模式下）
 function handleOrbitChange() {
-  // 新架构中，CameraController 是状态的单一来源
-  // OrbitControls 只在 orbit 模式下作为辅助工具
-  // 这里只需要在用户手动拖拽时同步目标点即可
   if (controlMode.value !== 'orbit') return
   if (!activeCameraRef.value) return
 
@@ -232,7 +230,7 @@ const cameraDistance = computed(() => {
 const orthoFrustum = computed(() => {
   const distance = cameraDistance.value
   // 使用距离作为视锥体大小的基准，留一些余量
-  const size = distance * 0.6
+  const size = distance * 0.93
 
   // 获取容器宽高比（默认 16:9，实际会由 TresCanvas 自动适配）
   const container = threeContainerRef.value
@@ -320,7 +318,7 @@ function switchToView(preset: ViewPreset) {
   const center = sceneCenter.value
   const distance = cameraDistance.value
 
-  // 切换到预设视图（带动画）
+  // 切换到预设视图
   setViewPreset(preset, center, distance)
 
   // 确保在 Orbit 模式
@@ -400,6 +398,7 @@ onMounted(() => {
           ref="cameraRef"
           :position="cameraPosition"
           :look-at="cameraLookAt"
+          :up="cameraUp"
           :fov="50"
           :near="100"
           :far="150000"
@@ -411,6 +410,7 @@ onMounted(() => {
           ref="orthoCameraRef"
           :position="cameraPosition"
           :look-at="cameraLookAt"
+          :up="cameraUp"
           :left="orthoFrustum.left"
           :right="orthoFrustum.right"
           :top="orthoFrustum.top"
