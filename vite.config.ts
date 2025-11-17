@@ -18,6 +18,16 @@ export default defineConfig(() => {
       tailwindcss(),
     ],
     base,
+    // 开发服务器代理配置
+    server: {
+      proxy: {
+        '/api/nuan5': {
+          target: 'https://nuan5.pro',
+          changeOrigin: true,
+          rewrite: (path) => path.replace(/^\/api\/nuan5/, ''),
+        },
+      },
+    },
     resolve: {
       alias: {
         '@': fileURLToPath(new URL('./src', import.meta.url)),

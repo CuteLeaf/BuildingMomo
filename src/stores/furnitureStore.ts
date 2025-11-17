@@ -15,7 +15,10 @@ const CACHE_KEY = 'furniture_data'
 
 // 远程数据源
 const FURNITURE_DATA_URL = 'https://nuan5.pro/assets/data/building-momo-furniture.json'
-const ICON_BASE_URL = 'https://nuan5.pro/assets/furniture-icon/'
+// 根据环境判断使用代理还是直连
+const ICON_BASE_URL = import.meta.env.DEV
+  ? '/api/nuan5/assets/furniture-icon/'
+  : 'https://nuan5.pro/assets/furniture-icon/'
 
 // 24小时（毫秒）
 const UPDATE_INTERVAL = 24 * 60 * 60 * 1000

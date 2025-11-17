@@ -6,17 +6,19 @@ import {
   DynamicDrawUsage,
   Euler,
   InstancedMesh,
+  InstancedBufferAttribute,
   Matrix4,
   MeshStandardMaterial,
-  MeshBasicMaterial,
+  ShaderMaterial,
   Quaternion,
   Vector3,
+  GLSL3,
 } from 'three'
 import type { useEditorStore } from '@/stores/editorStore'
 import type { AppItem } from '@/types/editor'
 import { coordinates3D } from '@/lib/coordinates'
 import type { useFurnitureStore } from '@/stores/furnitureStore'
-import { getThreeIconTextureManager } from './useThreeIconTextureManager'
+import { getThreeTextureArray } from './useThreeTextureArray'
 
 const MAX_INSTANCES = 10000
 
@@ -52,15 +54,79 @@ export function useThreeInstancedRenderer(
 
   // === Icon 模式（新增） ===
   const planeGeometry = new PlaneGeometry(180, 180) // 固定大小：180x180 游戏单位
-  const textureManager = getThreeIconTextureManager()
-  const placeholderTexture = textureManager.createPlaceholderTexture()
 
-  const iconMaterial = new MeshBasicMaterial({
-    map: placeholderTexture,
+  // 初始化纹理数组（使用 Texture2DArray）
+  const textureArray = getThreeTextureArray()
+  const arrayTexture = textureArray.initTextureArray()
+
+  // 为每个实例添加纹理索引属性（1个float: 纹理层索引）
+  const textureIndices = new Float32Array(MAX_INSTANCES)
+  planeGeometry.setAttribute('textureIndex', new InstancedBufferAttribute(textureIndices, 1))
+
+  // 使用自定义 Shader 支持纹理数组和实例颜色
+  const iconMaterial = new ShaderMaterial({
+    uniforms: {
+      textureArray: { value: arrayTexture },
+      textureDepth: { value: textureArray.getCurrentCapacity() }, // 动态纹理深度
+    },
+    vertexShader: `
+      // 自定义 attribute
+      in float textureIndex;
+      
+      // Varyings
+      out vec2 vUv;
+      out float vTextureIndex;
+      out vec3 vInstanceColor;
+      
+      void main() {
+        vUv = uv;
+        vTextureIndex = textureIndex;
+        
+        // instanceColor 由 Three.js 自动注入（当 USE_INSTANCING_COLOR 定义时）
+        #ifdef USE_INSTANCING_COLOR
+          vInstanceColor = instanceColor;
+        #else
+          vInstanceColor = vec3(1.0);
+        #endif
+        
+        // 应用实例矩阵变换（instanceMatrix 由 Three.js 自动注入）
+        vec4 mvPosition = modelViewMatrix * instanceMatrix * vec4(position, 1.0);
+        gl_Position = projectionMatrix * mvPosition;
+      }
+    `,
+    fragmentShader: `
+      precision highp sampler3D;
+      
+      uniform sampler3D textureArray;  // 3D 纹理数组
+      uniform float textureDepth;      // 纹理数组的深度（动态）
+      
+      in vec2 vUv;
+      in float vTextureIndex;
+      in vec3 vInstanceColor;
+      
+      out vec4 fragColor;
+      
+      void main() {
+        // 将索引转换为归一化的 Z 坐标 (0.0 ~ 1.0)
+        // 注意：为了精准采样，需要偏移到层中心
+        float z = (vTextureIndex + 0.5) / textureDepth;
+        
+        // 从 3D 纹理中采样
+        vec4 texColor = texture(textureArray, vec3(vUv, z));
+        
+        // Alpha 测试（丢弃透明像素）
+        if (texColor.a < 0.5) discard;
+        
+        // 应用实例颜色（混合模式：multiply）
+        vec3 finalColor = texColor.rgb * vInstanceColor;
+        
+        fragColor = vec4(finalColor, texColor.a);
+      }
+    `,
     transparent: true,
-    alphaTest: 0.5, // 半透明像素阈值
-    depthWrite: true, // 启用深度写入，确保正确的前后遮挡关系
-    depthTest: true, // 启用深度测试
+    depthWrite: true,
+    depthTest: true,
+    glslVersion: GLSL3, // 启用 GLSL 3.0 （WebGL2）
   })
 
   const iconInstancedMesh = ref<InstancedMesh | null>(null)
@@ -199,7 +265,7 @@ export function useThreeInstancedRenderer(
   }
 
   // 完整重建实例几何和索引映射（用于物品集合变化时）
-  function rebuildInstances() {
+  async function rebuildInstances() {
     const meshTarget = instancedMesh.value
     const iconMeshTarget = iconInstancedMesh.value
     if (!meshTarget || !iconMeshTarget) return
@@ -216,6 +282,23 @@ export function useThreeInstancedRenderer(
     // 同时更新两个 mesh 的实例数量
     meshTarget.count = instanceCount
     iconMeshTarget.count = instanceCount
+
+    // 预加载所有可见物品的图标到纹理数组（异步）
+    const itemIds = items.slice(0, instanceCount).map((item) => item.gameId)
+    await textureArray.preloadIcons(itemIds).catch((err) => {
+      console.warn('[ThreeInstancedRenderer] 图标预加载失败:', err)
+    })
+
+    // 预加载后更新纹理和深度 uniform（纹理可能已扩容）
+    const material = iconMeshTarget.material as ShaderMaterial
+    if (material.uniforms) {
+      if (material.uniforms.textureArray) {
+        material.uniforms.textureArray.value = textureArray.getTextureArray()
+      }
+      if (material.uniforms.textureDepth) {
+        material.uniforms.textureDepth.value = textureArray.getCurrentCapacity()
+      }
+    }
 
     const map = new Map<number, string>()
 
@@ -277,11 +360,21 @@ export function useThreeInstancedRenderer(
 
       scratchMatrix.compose(scratchPosition, scratchQuaternion, scratchScale)
       iconMeshTarget.setMatrixAt(index, scratchMatrix)
+
+      // === 设置纹理索引（指向纹理数组中的对应层） ===
+      const texIndex = textureArray.getTextureIndex(item.gameId)
+      textureIndices[index] = texIndex
     }
 
     // 同时更新两个 mesh 的矩阵
     meshTarget.instanceMatrix.needsUpdate = true
     iconMeshTarget.instanceMatrix.needsUpdate = true
+
+    // 标记纹理索引属性需要更新
+    const textureIndexAttr = planeGeometry.getAttribute('textureIndex')
+    if (textureIndexAttr) {
+      textureIndexAttr.needsUpdate = true
+    }
 
     indexToIdMap.value = map
     // 同时维护反向映射
