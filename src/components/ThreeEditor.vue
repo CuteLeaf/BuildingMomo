@@ -15,6 +15,14 @@ import { useThreeCamera, type ViewPreset } from '@/composables/useThreeCamera'
 import { HoverCard, HoverCardContent, HoverCardTrigger } from '@/components/ui/hover-card'
 import { Button } from '@/components/ui/button'
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuShortcut,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import {
   Camera,
   Eye,
   ChevronsUp,
@@ -108,7 +116,13 @@ const {
   orbitControlsRef
 )
 
-const { selectionRect, handlePointerDown, handlePointerMove, handlePointerUp } = useThreeSelection(
+const {
+  selectionRect,
+  handlePointerDown,
+  handlePointerMove,
+  handlePointerUp,
+  performClickSelection,
+} = useThreeSelection(
   editorStore,
   activeCameraRef,
   {
@@ -148,6 +162,11 @@ function handlePointerMoveWithTooltip(evt: PointerEvent) {
 
 // 容器级指针事件：先交给导航，再交给选择/tooltip
 function handleContainerPointerDown(evt: PointerEvent) {
+  // 如果右键菜单已打开，点击画布任意位置先关闭菜单
+  if (contextMenuOpen.value) {
+    contextMenuOpen.value = false
+  }
+
   handleNavPointerDown(evt)
   handlePointerDown(evt)
 }
@@ -165,6 +184,25 @@ function handleContainerPointerUp(evt: PointerEvent) {
 function handleContainerPointerLeave(evt: PointerEvent) {
   handleContainerPointerUp(evt)
   hideTooltip()
+}
+
+// 右键菜单状态
+const contextMenuOpen = ref(false)
+const menuPosition = ref({ x: 0, y: 0 })
+
+// 处理右键菜单（参考 Blender：右键不改变选中状态）
+function handleContextMenu(evt: PointerEvent) {
+  evt.preventDefault()
+  evt.stopPropagation()
+
+  // 更新菜单位置
+  menuPosition.value = {
+    x: evt.clientX,
+    y: evt.clientY,
+  }
+
+  // 直接打开菜单，不改变任何选中状态
+  contextMenuOpen.value = true
 }
 
 // OrbitControls 变更时，同步内部状态（仅在 orbit 模式下）
@@ -379,6 +417,80 @@ onMounted(() => {
       </div>
     </div>
 
+    <!-- 右键菜单 -->
+    <DropdownMenu v-model:open="contextMenuOpen" :modal="false">
+      <!-- 虚拟触发器：不可见但存在于 DOM 中，动态定位到鼠标位置 -->
+      <DropdownMenuTrigger as-child>
+        <div
+          :style="{
+            position: 'fixed',
+            left: `${menuPosition.x}px`,
+            top: `${menuPosition.y}px`,
+            width: '1px',
+            height: '1px',
+            pointerEvents: 'none',
+            opacity: 0,
+          }"
+        />
+      </DropdownMenuTrigger>
+
+      <!-- 菜单内容 -->
+      <DropdownMenuContent
+        :side="'bottom'"
+        :align="'start'"
+        :side-offset="0"
+        :align-offset="0"
+        @escape-key-down="contextMenuOpen = false"
+        @pointer-down-outside="contextMenuOpen = false"
+      >
+        <DropdownMenuItem
+          :disabled="!commandStore.isCommandEnabled('edit.cut')"
+          @select="commandStore.executeCommand('edit.cut')"
+        >
+          <span>剪切</span>
+          <DropdownMenuShortcut>Ctrl+X</DropdownMenuShortcut>
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          :disabled="!commandStore.isCommandEnabled('edit.copy')"
+          @select="commandStore.executeCommand('edit.copy')"
+        >
+          <span>复制</span>
+          <DropdownMenuShortcut>Ctrl+C</DropdownMenuShortcut>
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          :disabled="!commandStore.isCommandEnabled('edit.paste')"
+          @select="commandStore.executeCommand('edit.paste')"
+        >
+          <span>粘贴</span>
+          <DropdownMenuShortcut>Ctrl+V</DropdownMenuShortcut>
+        </DropdownMenuItem>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem
+          :disabled="!commandStore.isCommandEnabled('edit.move')"
+          @select="commandStore.executeCommand('edit.move')"
+        >
+          <span>移动和旋转</span>
+          <DropdownMenuShortcut>Ctrl+M</DropdownMenuShortcut>
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          :disabled="!commandStore.isCommandEnabled('view.focusSelection')"
+          @select="commandStore.executeCommand('view.focusSelection')"
+        >
+          <span>聚焦选中</span>
+          <DropdownMenuShortcut>F</DropdownMenuShortcut>
+        </DropdownMenuItem>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem
+          :disabled="!commandStore.isCommandEnabled('edit.delete')"
+          @select="commandStore.executeCommand('edit.delete')"
+          variant="destructive"
+        >
+          <span>删除</span>
+          <DropdownMenuShortcut>Delete</DropdownMenuShortcut>
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+
     <!-- Three.js 场景 + 选择层 -->
     <div
       v-if="editorStore.items.length > 0"
@@ -388,8 +500,7 @@ onMounted(() => {
       @pointermove="handleContainerPointerMove"
       @pointerup="handleContainerPointerUp"
       @pointerleave="handleContainerPointerLeave"
-      @mousedown.right.prevent.stop
-      @contextmenu.prevent
+      @contextmenu="handleContextMenu"
     >
       <TresCanvas clear-color="#f3f4f6">
         <!-- 透视相机 - perspective 视图 -->

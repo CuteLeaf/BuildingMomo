@@ -43,6 +43,8 @@ export function useThreeSelection(
 
   function handlePointerDown(evt: any) {
     if (transformDraggingRef?.value) return
+    // 排除右键（button === 2），留给右键菜单处理
+    if (evt.button === 2) return
     if (evt.button !== 0) return
     if (typeof evt.stopPropagation === 'function') {
       evt.stopPropagation()
@@ -224,5 +226,6 @@ export function useThreeSelection(
     handlePointerDown,
     handlePointerMove,
     handlePointerUp,
+    performClickSelection,
   }
 }
