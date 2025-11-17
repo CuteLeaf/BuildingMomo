@@ -146,6 +146,7 @@ export function useThreeSelection(
     if (!instancedMesh || !idMap) return
 
     const intersects = raycaster.intersectObject(instancedMesh, false)
+
     const hit = intersects[0]
 
     if (hit && hit.instanceId !== undefined) {

@@ -52,18 +52,13 @@ const gizmoPivot = ref<Object3D | null>(markRaw(new Object3D()))
 // 调试面板状态
 const showCameraDebug = ref(false)
 
-// 当前活动的相机（根据视图类型动态切换）
-const activeCameraRef = computed(() => {
-  return isOrthographic.value ? orthoCameraRef.value : cameraRef.value
-})
-
 // 创建共享的 isTransformDragging ref
 const isTransformDragging = ref(false)
 
 // Orbit 模式下的中心点：用于中键绕场景/选中物品旋转
 const orbitTarget = ref<[number, number, number]>([0, 0, 0])
 
-// 相机导航（WASD/Q/Space）
+// 相机导航（WASD/Q/Space）- 优先定义，因为后续依赖 isOrthographic
 const {
   cameraPosition,
   cameraLookAt,
@@ -97,9 +92,82 @@ const {
   }
 )
 
+// 当前活动的相机（根据视图类型动态切换）
+const activeCameraRef = computed(() => {
+  return isOrthographic.value ? orthoCameraRef.value : cameraRef.value
+})
+
 // 先初始化 renderer 获取 updateSelectedInstancesMatrix 函数
-const { instancedMesh, indexToIdMap, updateSelectedInstancesMatrix, setHoveredItemId } =
-  useThreeInstancedRenderer(editorStore, furnitureStore, isTransformDragging)
+const {
+  instancedMesh,
+  iconInstancedMesh,
+  indexToIdMap,
+  updateSelectedInstancesMatrix,
+  setHoveredItemId,
+  updateIconFacing,
+} = useThreeInstancedRenderer(editorStore, furnitureStore, isTransformDragging)
+
+// 当前 3D 显示模式（根据设置和视图类型动态决定）
+const currentDisplayMode = computed(() => {
+  // 如果开启了"正交视图自动图标模式"并且当前是正交视图
+  if (settingsStore.settings.threeIconModeInOrthographic && isOrthographic.value) {
+    return 'icon'
+  }
+  // 否则使用用户设置的模式
+  return settingsStore.settings.threeDisplayMode
+})
+
+// 是否显示 Box mesh
+const shouldShowBoxMesh = computed(() => currentDisplayMode.value === 'box')
+
+// 是否显示 Icon mesh
+const shouldShowIconMesh = computed(() => currentDisplayMode.value === 'icon')
+
+// 当前用于拾取/选择的 InstancedMesh（根据显示模式切换）
+const pickInstancedMesh = computed(() =>
+  shouldShowIconMesh.value ? iconInstancedMesh.value : instancedMesh.value
+)
+
+// 在视图或模式变化时，更新 Icon 面朝方向（仅图标模式）
+watch(
+  [() => currentDisplayMode.value, () => currentViewPreset.value],
+  ([mode, preset]) => {
+    if (mode !== 'icon') {
+      return
+    }
+
+    let normal: [number, number, number] = [0, 0, 1]
+    switch (preset) {
+      case 'top':
+        normal = [0, 1, 0]
+        break
+      case 'bottom':
+        normal = [0, -1, 0]
+        break
+      case 'front':
+        normal = [0, 0, 1]
+        break
+      case 'back':
+        normal = [0, 0, -1]
+        break
+      case 'right':
+        normal = [1, 0, 0]
+        break
+      case 'left':
+        normal = [-1, 0, 0]
+        break
+      case 'perspective':
+      default:
+        // 透视视图：使用固定朝向（朝前），避免相机旋转时的复杂性
+        // 如果需要 Billboard 效果（图标始终面向相机），需要实时更新
+        normal = [0, 0, 1]
+        break
+    }
+
+    updateIconFacing(normal)
+  },
+  { immediate: true }
+)
 
 // 然后初始化 gizmo，传入 updateSelectedInstancesMatrix
 const {
@@ -116,17 +184,11 @@ const {
   orbitControlsRef
 )
 
-const {
-  selectionRect,
-  handlePointerDown,
-  handlePointerMove,
-  handlePointerUp,
-  performClickSelection,
-} = useThreeSelection(
+const { selectionRect, handlePointerDown, handlePointerMove, handlePointerUp } = useThreeSelection(
   editorStore,
   activeCameraRef,
   {
-    instancedMesh,
+    instancedMesh: pickInstancedMesh,
     indexToIdMap,
   },
   threeContainerRef,
@@ -145,7 +207,7 @@ const {
   activeCameraRef,
   threeContainerRef,
   {
-    instancedMesh,
+    instancedMesh: pickInstancedMesh,
     indexToIdMap,
   },
   toRef(settingsStore.settings, 'showFurnitureTooltip'),
@@ -574,8 +636,9 @@ onMounted(() => {
           @change="handleGizmoChange"
         />
 
-        <!-- Instanced 渲染 -->
-        <primitive v-if="instancedMesh" :object="instancedMesh" />
+        <!-- Instanced 渲染：按显示模式切换 -->
+        <primitive v-if="shouldShowBoxMesh && instancedMesh" :object="instancedMesh" />
+        <primitive v-if="shouldShowIconMesh && iconInstancedMesh" :object="iconInstancedMesh" />
       </TresCanvas>
 
       <!-- 3D 框选矩形 -->

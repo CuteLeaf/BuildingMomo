@@ -123,6 +123,43 @@ async function handleClearCache() {
             </div>
             <Switch v-model="settingsStore.settings.enableDuplicateDetection" />
           </div>
+
+          <!-- 3D 视图设置分组 -->
+          <div class="border-t pt-4">
+            <h3 class="mb-3 text-sm font-medium">3D 视图</h3>
+          </div>
+
+          <!-- 3D 显示模式开关 -->
+          <div class="flex items-center justify-between">
+            <div class="space-y-0.5">
+              <Label>3D 视图显示模式</Label>
+              <p class="text-xs text-muted-foreground">
+                选择立方体模式（完整体积）或图标模式（平面图标，交互更好）
+              </p>
+            </div>
+            <div class="flex items-center gap-2">
+              <span class="text-xs text-muted-foreground">
+                {{ settingsStore.settings.threeDisplayMode === 'box' ? '立方体' : '图标' }}
+              </span>
+              <Switch
+                :model-value="settingsStore.settings.threeDisplayMode === 'icon'"
+                @update:model-value="
+                  (val: boolean) => (settingsStore.settings.threeDisplayMode = val ? 'icon' : 'box')
+                "
+              />
+            </div>
+          </div>
+
+          <!-- 正交视图自动切换开关 -->
+          <div class="flex items-center justify-between">
+            <div class="space-y-0.5">
+              <Label>正交视图自动使用图标模式</Label>
+              <p class="text-xs text-muted-foreground">
+                在顶视图、前视图等正交视图下自动切换为图标模式，以便选中
+              </p>
+            </div>
+            <Switch v-model="settingsStore.settings.threeIconModeInOrthographic" />
+          </div>
         </TabsContent>
 
         <!-- 数据管理 Tab -->

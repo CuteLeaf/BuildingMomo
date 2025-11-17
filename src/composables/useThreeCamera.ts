@@ -327,7 +327,6 @@ export function useThreeCamera(
     const { yaw, pitch } = calculateYawPitchFromDirection(dir)
     state.value.yaw = yaw
     state.value.pitch = pitch
-    console.log('setPoseFromLookAt', position, target)
   }
 
   function lookAtTarget(target: Vec3) {

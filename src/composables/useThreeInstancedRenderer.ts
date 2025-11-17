@@ -1,12 +1,14 @@
 import { ref, watch, markRaw, type Ref } from 'vue'
 import {
   BoxGeometry,
+  PlaneGeometry,
   Color,
   DynamicDrawUsage,
   Euler,
   InstancedMesh,
   Matrix4,
   MeshStandardMaterial,
+  MeshBasicMaterial,
   Quaternion,
   Vector3,
 } from 'three'
@@ -14,6 +16,7 @@ import type { useEditorStore } from '@/stores/editorStore'
 import type { AppItem } from '@/types/editor'
 import { coordinates3D } from '@/lib/coordinates'
 import type { useFurnitureStore } from '@/stores/furnitureStore'
+import { getThreeIconTextureManager } from './useThreeIconTextureManager'
 
 const MAX_INSTANCES = 10000
 
@@ -25,6 +28,7 @@ export function useThreeInstancedRenderer(
   furnitureStore: ReturnType<typeof useFurnitureStore>,
   isTransformDragging?: Ref<boolean>
 ) {
+  // === Box 模式（原有） ===
   const baseGeometry = new BoxGeometry(1, 1, 1)
   const material = new MeshStandardMaterial({
     transparent: true,
@@ -39,12 +43,39 @@ export function useThreeInstancedRenderer(
   // 当前 hover 的物品（仅 3D 视图内部使用，不改变全局选中状态）
   const hoveredItemId = ref<string | null>(null)
 
-  // 初始化主体实例
+  // 初始化 Box 实例
   const mesh = new InstancedMesh(baseGeometry, material, MAX_INSTANCES)
   mesh.instanceMatrix.setUsage(DynamicDrawUsage)
   mesh.count = 0
 
   instancedMesh.value = markRaw(mesh)
+
+  // === Icon 模式（新增） ===
+  const planeGeometry = new PlaneGeometry(180, 180) // 固定大小：180x180 游戏单位
+  const textureManager = getThreeIconTextureManager()
+  const placeholderTexture = textureManager.createPlaceholderTexture()
+
+  const iconMaterial = new MeshBasicMaterial({
+    map: placeholderTexture,
+    transparent: true,
+    alphaTest: 0.5, // 半透明像素阈值
+    depthWrite: true, // 启用深度写入，确保正确的前后遮挡关系
+    depthTest: true, // 启用深度测试
+  })
+
+  const iconInstancedMesh = ref<InstancedMesh | null>(null)
+
+  // Icon 模式使用相同的索引映射（与 Box 模式共享）
+
+  // 初始化 Icon 实例
+  const iconMesh = new InstancedMesh(planeGeometry, iconMaterial, MAX_INSTANCES)
+  iconMesh.instanceMatrix.setUsage(DynamicDrawUsage)
+  iconMesh.count = 0
+
+  iconInstancedMesh.value = markRaw(iconMesh)
+
+  // 存储当前的图标朝向（默认朝上，适配默认视图）
+  const currentIconNormal = ref<[number, number, number]>([0, 1, 0])
 
   const scratchMatrix = markRaw(new Matrix4())
   const scratchPosition = markRaw(new Vector3())
@@ -52,6 +83,8 @@ export function useThreeInstancedRenderer(
   const scratchQuaternion = markRaw(new Quaternion())
   const scratchScale = markRaw(new Vector3())
   const scratchColor = markRaw(new Color())
+  const scratchTmpVec3 = markRaw(new Vector3(0, 0, 1))
+  const scratchDefaultNormal = markRaw(new Vector3(0, 0, 1))
 
   function convertColorToHex(colorStr: string | undefined): number {
     if (!colorStr) return 0x94a3b8
@@ -85,7 +118,8 @@ export function useThreeInstancedRenderer(
   // 仅更新实例颜色（用于选中状态变化或 hover 变化时的刷新）
   function updateInstancesColor() {
     const meshTarget = instancedMesh.value
-    if (!meshTarget) return
+    const iconMeshTarget = iconInstancedMesh.value
+    if (!meshTarget || !iconMeshTarget) return
 
     const items = editorStore.visibleItems
     const map = indexToIdMap.value
@@ -103,18 +137,26 @@ export function useThreeInstancedRenderer(
 
       const colorHex = getItemColor(item)
       scratchColor.setHex(colorHex)
+
+      // 同时更新两个 mesh 的颜色
       meshTarget.setColorAt(index, scratchColor)
+      iconMeshTarget.setColorAt(index, scratchColor)
     }
 
+    // 同时标记两个 mesh 的颜色需要更新
     if (meshTarget.instanceColor) {
       meshTarget.instanceColor.needsUpdate = true
+    }
+    if (iconMeshTarget.instanceColor) {
+      iconMeshTarget.instanceColor.needsUpdate = true
     }
   }
 
   // 局部更新单个物品的颜色（用于 hover 状态变化）
   function updateInstanceColorById(id: string) {
     const meshTarget = instancedMesh.value
-    if (!meshTarget) return
+    const iconMeshTarget = iconInstancedMesh.value
+    if (!meshTarget || !iconMeshTarget) return
 
     const index = idToIndexMap.value.get(id)
     if (index === undefined) return
@@ -124,10 +166,16 @@ export function useThreeInstancedRenderer(
 
     const colorHex = getItemColor(item)
     scratchColor.setHex(colorHex)
+
+    // 同时更新两个 mesh
     meshTarget.setColorAt(index, scratchColor)
+    iconMeshTarget.setColorAt(index, scratchColor)
 
     if (meshTarget.instanceColor) {
       meshTarget.instanceColor.needsUpdate = true
+    }
+    if (iconMeshTarget.instanceColor) {
+      iconMeshTarget.instanceColor.needsUpdate = true
     }
   }
 
@@ -149,17 +197,21 @@ export function useThreeInstancedRenderer(
   // 完整重建实例几何和索引映射（用于物品集合变化时）
   function rebuildInstances() {
     const meshTarget = instancedMesh.value
-    if (!meshTarget) return
+    const iconMeshTarget = iconInstancedMesh.value
+    if (!meshTarget || !iconMeshTarget) return
 
     const items = editorStore.visibleItems
     const instanceCount = Math.min(items.length, MAX_INSTANCES)
+
     if (items.length > MAX_INSTANCES) {
       console.warn(
         `[ThreeInstancedRenderer] 当前可见物品数量 (${items.length}) 超过上限 ${MAX_INSTANCES}，仅渲染前 ${MAX_INSTANCES} 个`
       )
     }
 
+    // 同时更新两个 mesh 的实例数量
     meshTarget.count = instanceCount
+    iconMeshTarget.count = instanceCount
 
     const map = new Map<number, string>()
 
@@ -173,6 +225,8 @@ export function useThreeInstancedRenderer(
       coordinates3D.setThreeFromGame(scratchPosition, { x: item.x, y: item.y, z: item.z })
 
       const { Rotation, Scale } = item.originalData
+
+      // === Box 模式：使用真实的旋转和尺寸 ===
       // 旋转轴从游戏坐标系映射到 Three.js：
       // 游戏 Roll(X) -> Three.js X
       // 游戏 Yaw(Z，高度轴) -> Three.js Y
@@ -194,11 +248,27 @@ export function useThreeInstancedRenderer(
       scratchScale.set((Scale.X || 1) * sizeX, (Scale.Z || 1) * sizeZ, (Scale.Y || 1) * sizeY)
 
       scratchMatrix.compose(scratchPosition, scratchQuaternion, scratchScale)
-
       meshTarget.setMatrixAt(index, scratchMatrix)
+
+      // === Icon 模式：固定大小，使用当前视图的正确朝向 ===
+      // 位置相同，但使用固定尺寸和当前的朝向
+      // 从 currentIconNormal 计算正确的旋转四元数
+      scratchTmpVec3
+        .set(currentIconNormal.value[0], currentIconNormal.value[1], currentIconNormal.value[2])
+        .normalize()
+
+      // 计算从 PlaneGeometry 的默认法线 (+Z) 到目标法线的旋转
+      scratchQuaternion.setFromUnitVectors(scratchDefaultNormal, scratchTmpVec3)
+
+      scratchScale.set(1, 1, 1) // 使用 PlaneGeometry 的原始尺寸 (180x180)
+
+      scratchMatrix.compose(scratchPosition, scratchQuaternion, scratchScale)
+      iconMeshTarget.setMatrixAt(index, scratchMatrix)
     }
 
+    // 同时更新两个 mesh 的矩阵
     meshTarget.instanceMatrix.needsUpdate = true
+    iconMeshTarget.instanceMatrix.needsUpdate = true
 
     indexToIdMap.value = map
     // 同时维护反向映射
@@ -215,7 +285,8 @@ export function useThreeInstancedRenderer(
   // 局部更新选中物品的矩阵（用于拖拽时的视觉更新）
   function updateSelectedInstancesMatrix(selectedIds: Set<string>, deltaPosition: Vector3) {
     const meshTarget = instancedMesh.value
-    if (!meshTarget) {
+    const iconMeshTarget = iconInstancedMesh.value
+    if (!meshTarget || !iconMeshTarget) {
       return
     }
 
@@ -225,6 +296,7 @@ export function useThreeInstancedRenderer(
       const index = reverseMap.get(id)
       if (index === undefined) continue
 
+      // === 更新 Box mesh ===
       // 读取当前矩阵
       meshTarget.getMatrixAt(index, scratchMatrix)
 
@@ -239,10 +311,19 @@ export function useThreeInstancedRenderer(
 
       // 更新实例
       meshTarget.setMatrixAt(index, scratchMatrix)
+
+      // === 更新 Icon mesh ===
+      // Icon mesh 只需更新位置，不改变旋转和缩放
+      iconMeshTarget.getMatrixAt(index, scratchMatrix)
+      scratchMatrix.decompose(scratchPosition, scratchQuaternion, scratchScale)
+      scratchPosition.add(deltaPosition)
+      scratchMatrix.compose(scratchPosition, scratchQuaternion, scratchScale)
+      iconMeshTarget.setMatrixAt(index, scratchMatrix)
     }
 
-    // 只标记矩阵需要更新，不触发颜色更新
+    // 同时标记两个 mesh 的矩阵需要更新
     meshTarget.instanceMatrix.needsUpdate = true
+    iconMeshTarget.instanceMatrix.needsUpdate = true
   }
 
   // 物品集合变化时重建实例；选中状态变化时仅刷新颜色
@@ -259,6 +340,43 @@ export function useThreeInstancedRenderer(
     { deep: true, immediate: true }
   )
 
+  // 更新 Icon 平面朝向（使其法线指向给定方向）
+  function updateIconFacing(normal: [number, number, number]) {
+    // 归一化输入向量，避免存储大数值
+    const len = Math.sqrt(normal[0] ** 2 + normal[1] ** 2 + normal[2] ** 2)
+    const normalized: [number, number, number] =
+      len > 0.0001 ? [normal[0] / len, normal[1] / len, normal[2] / len] : [0, 0, 1] // 默认朝向
+
+    // 保存归一化后的朝向，确保 rebuildInstances 时使用正确的朝向
+    currentIconNormal.value = normalized
+
+    const iconMeshTarget = iconInstancedMesh.value
+    if (!iconMeshTarget) return
+
+    // 使用已经归一化的值
+    scratchTmpVec3.set(normalized[0], normalized[1], normalized[2])
+
+    // 计算从 +Z 指向目标法线的旋转
+    // 使用独立的四元数，避免被后续的 decompose 覆盖
+    const targetQuaternion = markRaw(new Quaternion())
+    targetQuaternion.setFromUnitVectors(scratchDefaultNormal, scratchTmpVec3)
+
+    const count = iconMeshTarget.count
+
+    for (let index = 0; index < count; index++) {
+      // 读取现有矩阵，保留位置和缩放
+      iconMeshTarget.getMatrixAt(index, scratchMatrix)
+      // decompose 会将旧的旋转写入 scratchQuaternion，但不影响 targetQuaternion
+      scratchMatrix.decompose(scratchPosition, scratchQuaternion, scratchScale)
+
+      // 应用新朝向（使用独立的 targetQuaternion）
+      scratchMatrix.compose(scratchPosition, targetQuaternion, scratchScale)
+      iconMeshTarget.setMatrixAt(index, scratchMatrix)
+    }
+
+    iconMeshTarget.instanceMatrix.needsUpdate = true
+  }
+
   watch(
     () => Array.from(editorStore.selectedItemIds),
     () => {
@@ -272,9 +390,11 @@ export function useThreeInstancedRenderer(
 
   return {
     instancedMesh,
+    iconInstancedMesh,
     indexToIdMap,
     idToIndexMap,
     updateSelectedInstancesMatrix,
     setHoveredItemId,
+    updateIconFacing,
   }
 }

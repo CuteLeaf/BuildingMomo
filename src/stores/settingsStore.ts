@@ -12,6 +12,10 @@ export interface AppSettings {
 
   // 编辑辅助
   enableDuplicateDetection: boolean
+
+  // 3D 视图设置
+  threeDisplayMode: 'box' | 'icon' // 3D 显示模式：立方体或图标
+  threeIconModeInOrthographic: boolean // 正交视图下自动使用图标模式
 }
 
 // 默认设置
@@ -20,6 +24,8 @@ const DEFAULT_SETTINGS: AppSettings = {
   showBackground: true,
   autoUpdateFurniture: true,
   enableDuplicateDetection: true,
+  threeDisplayMode: 'box',
+  threeIconModeInOrthographic: true,
 }
 
 const STORAGE_KEY = 'buildingmomo_settings'
