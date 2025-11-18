@@ -14,6 +14,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
+import { Slider } from '@/components/ui/slider'
 import { Button } from '@/components/ui/button'
 import { RefreshCw, Trash2 } from 'lucide-vue-next'
 
@@ -32,6 +33,16 @@ const isOpen = computed({
 
 const furnitureStore = useFurnitureStore()
 const settingsStore = useSettingsStore()
+
+// 图标显示阈值 - 使用 computed 的 getter/setter 处理 Slider 的值
+const iconShowThresholdModel = computed({
+  get: () => [settingsStore.settings.iconShowThreshold],
+  set: (value: number[]) => {
+    if (value.length > 0) {
+      settingsStore.settings.iconShowThreshold = value[0]!
+    }
+  },
+})
 
 // 使用 VueUse 的 useTimeAgo 格式化最后更新时间
 const lastUpdateText = computed(() => {
@@ -106,6 +117,28 @@ async function handleClearCache() {
               <p class="text-xs text-muted-foreground">在画布上显示参考背景图</p>
             </div>
             <Switch v-model="settingsStore.settings.showBackground" />
+          </div>
+
+          <!-- 图标显示阈值 -->
+          <div class="space-y-3">
+            <div class="space-y-0.5">
+              <Label>图标显示缩放阈值</Label>
+              <p class="text-xs text-muted-foreground">
+                控制在多大缩放级别时显示图标（当前:
+                {{ (settingsStore.settings.iconShowThreshold * 100).toFixed(0) }}%）
+              </p>
+            </div>
+            <div class="flex items-center gap-3">
+              <span class="w-10 text-xs text-muted-foreground">10%</span>
+              <Slider
+                v-model="iconShowThresholdModel"
+                :min="0.1"
+                :max="2.0"
+                :step="0.1"
+                class="flex-1"
+              />
+              <span class="w-10 text-xs text-muted-foreground">200%</span>
+            </div>
           </div>
 
           <!-- 分割线 -->

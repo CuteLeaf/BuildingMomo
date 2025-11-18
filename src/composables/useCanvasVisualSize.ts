@@ -3,6 +3,8 @@
  * 负责将目标屏幕像素大小转换为世界坐标大小
  */
 
+import { useSettingsStore } from '../stores/settingsStore'
+
 // 缩放响应曲线配置
 const SCALE_CURVE = {
   // 使用幂函数曲线
@@ -25,9 +27,7 @@ const ICON_BASE = {
   size: 48, // 基础尺寸
   minSize: 16, // 最小屏幕像素
   maxSize: 96, // 最大屏幕像素
-  showThreshold: 1.0, // 开始显示图标的缩放阈值
-  fadeEndThreshold: 1.2, // 图标完全不透明的缩放阈值
-  markerHideThreshold: 1.2, // 隐藏标点的缩放阈值
+  transitionMultiplier: 1.2, // 渐变过渡倍数（相对于阈值）
 }
 
 /**
@@ -46,6 +46,8 @@ function toWorldSize(screenPixels: number, scale: number): number {
 }
 
 export function useCanvasVisualSize() {
+  const settingsStore = useSettingsStore()
+
   return {
     /**
      * 获取标点半径（世界坐标）
@@ -90,26 +92,32 @@ export function useCanvasVisualSize() {
      * 判断是否应该显示图标
      */
     shouldShowIcon: (scale: number) => {
-      return scale > ICON_BASE.showThreshold
+      const threshold = settingsStore.settings.iconShowThreshold
+      return scale > threshold
     },
 
     /**
      * 判断是否应该显示标点
      */
     shouldShowMarker: (scale: number) => {
-      return scale <= ICON_BASE.markerHideThreshold
+      const threshold = settingsStore.settings.iconShowThreshold
+      const fadeEnd = threshold * ICON_BASE.transitionMultiplier
+      return scale <= fadeEnd
     },
 
     /**
      * 获取图标透明度（渐变过渡）
      */
     getIconOpacity: (scale: number) => {
-      if (scale <= ICON_BASE.showThreshold) return 0
-      if (scale >= ICON_BASE.fadeEndThreshold) return 1
+      const threshold = settingsStore.settings.iconShowThreshold
+      const fadeEnd = threshold * ICON_BASE.transitionMultiplier
 
-      // 在 showThreshold 和 fadeEndThreshold 之间线性插值
-      const range = ICON_BASE.fadeEndThreshold - ICON_BASE.showThreshold
-      const progress = (scale - ICON_BASE.showThreshold) / range
+      if (scale <= threshold) return 0
+      if (scale >= fadeEnd) return 1
+
+      // 在 threshold 和 fadeEnd 之间线性插值
+      const range = fadeEnd - threshold
+      const progress = (scale - threshold) / range
       return Math.max(0, Math.min(1, progress))
     },
 
@@ -117,12 +125,15 @@ export function useCanvasVisualSize() {
      * 获取标点透明度（与图标相反的渐变）
      */
     getMarkerOpacity: (scale: number) => {
-      if (scale <= ICON_BASE.showThreshold) return 1
-      if (scale >= ICON_BASE.fadeEndThreshold) return 0
+      const threshold = settingsStore.settings.iconShowThreshold
+      const fadeEnd = threshold * ICON_BASE.transitionMultiplier
 
-      // 在 showThreshold 和 fadeEndThreshold 之间线性插值（反向）
-      const range = ICON_BASE.fadeEndThreshold - ICON_BASE.showThreshold
-      const progress = (scale - ICON_BASE.showThreshold) / range
+      if (scale <= threshold) return 1
+      if (scale >= fadeEnd) return 0
+
+      // 在 threshold 和 fadeEnd 之间线性插值（反向）
+      const range = fadeEnd - threshold
+      const progress = (scale - threshold) / range
       return Math.max(0, Math.min(1, 1 - progress))
     },
   }

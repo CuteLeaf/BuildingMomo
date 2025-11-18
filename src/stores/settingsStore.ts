@@ -6,6 +6,7 @@ export interface AppSettings {
   // 显示设置
   showFurnitureTooltip: boolean
   showBackground: boolean
+  iconShowThreshold: number
 
   // 数据设置
   autoUpdateFurniture: boolean
@@ -18,6 +19,7 @@ export interface AppSettings {
 const DEFAULT_SETTINGS: AppSettings = {
   showFurnitureTooltip: true,
   showBackground: true,
+  iconShowThreshold: 0.3,
   autoUpdateFurniture: true,
   enableDuplicateDetection: true,
 }

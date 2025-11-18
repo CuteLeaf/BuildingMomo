@@ -121,7 +121,6 @@ const {
   handlePointerDown,
   handlePointerMove,
   handlePointerUp,
-  performClickSelection,
 } = useThreeSelection(
   editorStore,
   activeCameraRef,
