@@ -47,6 +47,8 @@ export function useThreeInstancedRenderer(
 
   // 初始化 Box 实例
   const mesh = new InstancedMesh(baseGeometry, material, MAX_INSTANCES)
+  // 关闭视锥体剔除，避免因包围球未更新导致大场景下消失
+  mesh.frustumCulled = false
   mesh.instanceMatrix.setUsage(DynamicDrawUsage)
   mesh.count = 0
 
@@ -68,6 +70,7 @@ export function useThreeInstancedRenderer(
     uniforms: {
       textureArray: { value: arrayTexture },
       textureDepth: { value: textureArray.getCurrentCapacity() }, // 动态纹理深度
+      uDefaultColor: { value: new Color(0x94a3b8) }, // 默认颜色
     },
     vertexShader: `
       // 自定义 attribute
@@ -99,6 +102,7 @@ export function useThreeInstancedRenderer(
       
       uniform sampler3D textureArray;  // 3D 纹理数组
       uniform float textureDepth;      // 纹理数组的深度（动态）
+      uniform vec3 uDefaultColor;      // 默认颜色
       
       in vec2 vUv;
       in float vTextureIndex;
@@ -112,18 +116,35 @@ export function useThreeInstancedRenderer(
         float z = (vTextureIndex + 0.5) / textureDepth;
         
         // 从 3D 纹理中采样
-        vec4 texColor = texture(textureArray, vec3(vUv, z));
+        vec4 texColor = texture(textureArray, vec3(vUv.x, 1.0 - vUv.y, z));
         
-        // Alpha 测试（丢弃透明像素）
-        if (texColor.a < 0.5) discard;
+        // 计算边框 (3% 宽度)
+        float borderW = 0.03;
+        bool isBorder = vUv.x < borderW || vUv.x > (1.0 - borderW) || 
+                       vUv.y < borderW || vUv.y > (1.0 - borderW);
+                       
+        // 检查是否为默认颜色
+        // 使用 uniform 传入的默认颜色进行比较，避免硬编码导致的精度问题
+        float colorDist = distance(vInstanceColor, uDefaultColor);
+        // 稍微放宽容差以防万一
+        bool isDefaultColor = colorDist < 0.05;
         
-        // 应用实例颜色（混合模式：multiply）
-        vec3 finalColor = texColor.rgb * vInstanceColor;
+        if (isBorder && !isDefaultColor) {
+          // 显示实心边框
+          fragColor = vec4(vInstanceColor, 1.0);
+        } else {
+          // 仅显示图标 (无底色)
+          fragColor = texColor;
+        }
         
-        fragColor = vec4(finalColor, texColor.a);
+        // Alpha 测试：如果几乎完全透明，则丢弃像素
+        // 解决 depthWrite: true 导致的透明遮挡问题
+        if (fragColor.a < 0.5) {
+          discard;
+        }
       }
     `,
-    transparent: true,
+    transparent: false,
     depthWrite: true,
     depthTest: true,
     glslVersion: GLSL3, // 启用 GLSL 3.0 （WebGL2）
@@ -135,6 +156,8 @@ export function useThreeInstancedRenderer(
 
   // 初始化 Icon 实例
   const iconMesh = new InstancedMesh(planeGeometry, iconMaterial, MAX_INSTANCES)
+  // 关闭视锥体剔除，避免因包围球未更新导致大场景下消失
+  iconMesh.frustumCulled = false
   iconMesh.instanceMatrix.setUsage(DynamicDrawUsage)
   iconMesh.count = 0
 
@@ -166,15 +189,15 @@ export function useThreeInstancedRenderer(
     return (r << 16) | (g << 8) | b
   }
 
-  function getItemColor(item: AppItem): number {
+  function getItemColor(item: AppItem, type: 'box' | 'icon'): number {
     // hover 高亮优先级最高（即使物品已被选中，hover 时也显示为橙色）
     if (hoveredItemId.value === item.internalId) {
-      return 0xf97316
+      return type === 'icon' ? 0xf59e0b : 0xf97316 // Icon: amber-400, Box: orange-500
     }
 
     // 其次是选中高亮
     if (editorStore.selectedItemIds.has(item.internalId)) {
-      return 0x3b82f6
+      return type === 'icon' ? 0x38bdf8 : 0x3b82f6 // Icon: sky-400, Box: blue-500
     }
 
     const groupId = item.originalData.GroupID
@@ -205,11 +228,11 @@ export function useThreeInstancedRenderer(
       const item = itemById.get(id)
       if (!item) continue
 
-      const colorHex = getItemColor(item)
-      scratchColor.setHex(colorHex)
-
-      // 同时更新两个 mesh 的颜色
+      // 分别计算 box 和 icon 的颜色
+      scratchColor.setHex(getItemColor(item, 'box'))
       meshTarget.setColorAt(index, scratchColor)
+
+      scratchColor.setHex(getItemColor(item, 'icon'))
       iconMeshTarget.setColorAt(index, scratchColor)
     }
 
@@ -234,11 +257,11 @@ export function useThreeInstancedRenderer(
     const item = editorStore.visibleItems.find((it) => it.internalId === id)
     if (!item) return
 
-    const colorHex = getItemColor(item)
-    scratchColor.setHex(colorHex)
-
-    // 同时更新两个 mesh
+    // 分别计算 box 和 icon 的颜色
+    scratchColor.setHex(getItemColor(item, 'box'))
     meshTarget.setColorAt(index, scratchColor)
+
+    scratchColor.setHex(getItemColor(item, 'icon'))
     iconMeshTarget.setColorAt(index, scratchColor)
 
     if (meshTarget.instanceColor) {

@@ -1,5 +1,15 @@
 <script setup lang="ts">
-import { ref, computed, markRaw, watch, onActivated, onDeactivated, onMounted, onUnmounted, toRef } from 'vue'
+import {
+  ref,
+  computed,
+  markRaw,
+  watch,
+  onActivated,
+  onDeactivated,
+  onMounted,
+  onUnmounted,
+  toRef,
+} from 'vue'
 import { TresCanvas } from '@tresjs/core'
 import { OrbitControls, TransformControls } from '@tresjs/cientos'
 import { Object3D, MOUSE } from 'three'
@@ -608,7 +618,7 @@ onUnmounted(() => {
           :up="cameraUp"
           :fov="50"
           :near="100"
-          :far="150000"
+          :far="100000"
         />
 
         <!-- 正交相机 - 六个方向视图 -->
@@ -623,7 +633,7 @@ onUnmounted(() => {
           :top="orthoFrustum.top"
           :bottom="orthoFrustum.bottom"
           :near="100"
-          :far="150000"
+          :far="100000"
         />
 
         <!-- 轨道控制器：透视视图下使用中键旋转，正交视图下使用中键平移 -->
