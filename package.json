@@ -9,7 +9,8 @@
     "preview": "vite preview",
     "deploy": "npm run build && git add dist -f && git commit -m 'deploy' && git subtree push --prefix dist origin gh-pages",
     "fetch-data": "node scripts/fetch-data.js",
-    "prebuild": "npm run fetch-data"
+    "prebuild": "npm run fetch-data",
+    "prepare": "husky"
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.1.17",
@@ -35,6 +36,8 @@
     "@types/three": "^0.181.0",
     "@vitejs/plugin-vue": "^6.0.1",
     "@vue/tsconfig": "^0.8.1",
+    "husky": "^9.1.7",
+    "lint-staged": "^16.2.7",
     "prettier": "^3.6.2",
     "prettier-plugin-tailwindcss": "^0.7.1",
     "typescript": "~5.9.3",
@@ -43,5 +46,10 @@
   },
   "overrides": {
     "vite": "npm:rolldown-vite@7.1.14"
+  },
+  "lint-staged": {
+    "*.{js,jsx,ts,tsx,vue,json,md}": [
+      "prettier --write"
+    ]
   }
 }
