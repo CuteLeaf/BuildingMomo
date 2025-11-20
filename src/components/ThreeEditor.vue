@@ -119,6 +119,7 @@ const activeCameraRef = computed(() => {
 const {
   instancedMesh,
   iconInstancedMesh,
+  simpleBoxInstancedMesh,
   indexToIdMap,
   updateSelectedInstancesMatrix,
   setHoveredItemId,
@@ -126,12 +127,8 @@ const {
 } = useThreeInstancedRenderer(editorStore, furnitureStore, isTransformDragging)
 
 // 当前 3D 显示模式（根据设置和视图类型动态决定）
+// 当前 3D 显示模式（完全由用户设置决定）
 const currentDisplayMode = computed(() => {
-  // 如果开启了"正交视图自动图标模式"并且当前是正交视图
-  if (settingsStore.settings.threeIconModeInOrthographic && isOrthographic.value) {
-    return 'icon'
-  }
-  // 否则使用用户设置的模式
   return settingsStore.settings.threeDisplayMode
 })
 
@@ -141,10 +138,16 @@ const shouldShowBoxMesh = computed(() => currentDisplayMode.value === 'box')
 // 是否显示 Icon mesh
 const shouldShowIconMesh = computed(() => currentDisplayMode.value === 'icon')
 
+// 是否显示 Simple Box mesh
+const shouldShowSimpleBoxMesh = computed(() => currentDisplayMode.value === 'simple-box')
+
 // 当前用于拾取/选择的 InstancedMesh（根据显示模式切换）
-const pickInstancedMesh = computed(() =>
-  shouldShowIconMesh.value ? iconInstancedMesh.value : instancedMesh.value
-)
+// 当前用于拾取/选择的 InstancedMesh（根据显示模式切换）
+const pickInstancedMesh = computed(() => {
+  if (shouldShowIconMesh.value) return iconInstancedMesh.value
+  if (shouldShowSimpleBoxMesh.value) return simpleBoxInstancedMesh.value
+  return instancedMesh.value
+})
 
 // 创建节流函数，用于透视视图下的图标朝向更新（避免过于频繁的更新）
 const updateIconFacingThrottled = useThrottleFn(
@@ -266,29 +269,29 @@ function handlePointerMoveWithTooltip(evt: PointerEvent) {
 }
 
 // 滑块绑定的代理（Slider 组件通常使用数组）
-const iconScaleProxy = computed({
-  get: () => [settingsStore.settings.threeIconScale],
+const symbolScaleProxy = computed({
+  get: () => [settingsStore.settings.threeSymbolScale],
   set: (val) => {
     if (val && val.length > 0 && typeof val[0] === 'number') {
-      settingsStore.settings.threeIconScale = val[0]
+      settingsStore.settings.threeSymbolScale = val[0]
     }
   },
 })
 
-// 处理容器滚轮事件（用于 Ctrl+滚轮 缩放图标）
+// 处理容器滚轮事件（用于 Ctrl+滚轮 缩放图标/方块）
 function handleContainerWheel(evt: WheelEvent) {
-  // 仅在图标模式下且按下 Ctrl 键时生效
-  if (shouldShowIconMesh.value && evt.ctrlKey) {
+  // 仅在图标或简化方块模式下且按下 Ctrl 键时生效
+  if ((shouldShowIconMesh.value || shouldShowSimpleBoxMesh.value) && evt.ctrlKey) {
     evt.preventDefault()
     evt.stopPropagation()
 
     // 计算新的缩放值
     const delta = evt.deltaY > 0 ? -0.1 : 0.1
-    const current = settingsStore.settings.threeIconScale
+    const current = settingsStore.settings.threeSymbolScale
     const next = Math.min(Math.max(current + delta, 0.1), 3.0)
 
     // 保留一位小数
-    settingsStore.settings.threeIconScale = Number(next.toFixed(1))
+    settingsStore.settings.threeSymbolScale = Number(next.toFixed(1))
   }
 }
 
@@ -718,6 +721,10 @@ onUnmounted(() => {
         <!-- Instanced 渲染：按显示模式切换 -->
         <primitive v-if="shouldShowBoxMesh && instancedMesh" :object="instancedMesh" />
         <primitive v-if="shouldShowIconMesh && iconInstancedMesh" :object="iconInstancedMesh" />
+        <primitive
+          v-if="shouldShowSimpleBoxMesh && simpleBoxInstancedMesh"
+          :object="simpleBoxInstancedMesh"
+        />
       </TresCanvas>
 
       <!-- 3D 框选矩形 -->
@@ -867,8 +874,8 @@ onUnmounted(() => {
       </div>
     </div>
 
-    <!-- 图标大小控制 (仅在图标模式显示) -->
-    <div v-if="shouldShowIconMesh" class="absolute bottom-4 left-4 w-64">
+    <!-- 图标/方块大小控制 (仅在图标或简化方块模式显示) -->
+    <div v-if="shouldShowIconMesh || shouldShowSimpleBoxMesh" class="absolute bottom-4 left-4 w-64">
       <Item
         variant="muted"
         size="sm"
@@ -876,12 +883,12 @@ onUnmounted(() => {
       >
         <ItemContent>
           <div class="mb-2 flex items-center justify-between">
-            <ItemTitle class="text-xs font-medium">图标大小</ItemTitle>
+            <ItemTitle class="text-xs font-medium">图标/方块大小</ItemTitle>
             <span class="text-xs text-gray-500"
-              >{{ Math.round(settingsStore.settings.threeIconScale * 100) }}%</span
+              >{{ Math.round(settingsStore.settings.threeSymbolScale * 100) }}%</span
             >
           </div>
-          <Slider v-model="iconScaleProxy" :max="3" :min="0.1" :step="0.1" />
+          <Slider v-model="symbolScaleProxy" :max="3" :min="0.1" :step="0.1" />
           <ItemDescription class="mt-2 text-[10px] text-gray-400">
             Ctrl + 滚轮快速调整
           </ItemDescription>

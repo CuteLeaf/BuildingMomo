@@ -33,7 +33,8 @@ export function useThreeInstancedRenderer(
 ) {
   const settingsStore = useSettingsStore()
 
-  // === Box 模式（原有） ===
+  // === Box 模式（原有） & Simple Box 模式（复用） ===
+  // 基础几何体 1x1x1
   const baseGeometry = new BoxGeometry(1, 1, 1)
   const material = new MeshStandardMaterial({
     transparent: true,
@@ -59,8 +60,24 @@ export function useThreeInstancedRenderer(
 
   instancedMesh.value = markRaw(mesh)
 
+  // === Simple Box 模式 ===
+  // 复用 baseGeometry (1x1x1)，通过缩放实现 100x100x100 的效果
+  const simpleBoxMaterial = new MeshStandardMaterial({
+    transparent: true,
+    opacity: 0.9,
+  })
+
+  const simpleBoxInstancedMesh = ref<InstancedMesh | null>(null)
+
+  const simpleBoxMesh = new InstancedMesh(baseGeometry, simpleBoxMaterial, MAX_INSTANCES)
+  simpleBoxMesh.frustumCulled = false
+  simpleBoxMesh.instanceMatrix.setUsage(DynamicDrawUsage)
+  simpleBoxMesh.count = 0
+
+  simpleBoxInstancedMesh.value = markRaw(simpleBoxMesh)
+
   // === Icon 模式（新增） ===
-  const planeGeometry = new PlaneGeometry(150, 150) // 固定大小：150x150 游戏单位
+  const planeGeometry = new PlaneGeometry(100, 100)
 
   // 初始化纹理数组（使用 Texture2DArray）
   const textureArray = getThreeTextureArray()
@@ -197,12 +214,12 @@ export function useThreeInstancedRenderer(
   function getItemColor(item: AppItem, type: 'box' | 'icon'): number {
     // hover 高亮优先级最高（即使物品已被选中，hover 时也显示为橙色）
     if (hoveredItemId.value === item.internalId) {
-      return type === 'icon' ? 0xf59e0b : 0xf97316 // Icon: amber-400, Box: orange-500
+      return type === 'icon' ? 0xf59e0b : 0xf97316 // Icon: amber-400, Box/SimpleBox: orange-500
     }
 
     // 其次是选中高亮
     if (editorStore.selectedItemIds.has(item.internalId)) {
-      return type === 'icon' ? 0x38bdf8 : 0x3b82f6 // Icon: sky-400, Box: blue-500
+      return type === 'icon' ? 0x38bdf8 : 0x3b82f6 // Icon: sky-400, Box/SimpleBox: blue-500
     }
 
     const groupId = item.originalData.GroupID
@@ -215,13 +232,13 @@ export function useThreeInstancedRenderer(
 
   // 仅更新实例颜色（用于选中状态变化或 hover 变化时的刷新）
   function updateInstancesColor() {
+    const mode = settingsStore.settings.threeDisplayMode
     const meshTarget = instancedMesh.value
     const iconMeshTarget = iconInstancedMesh.value
-    if (!meshTarget || !iconMeshTarget) return
+    const simpleBoxMeshTarget = simpleBoxInstancedMesh.value
 
     const items = editorStore.visibleItems
     const map = indexToIdMap.value
-
     if (!map || map.size === 0) return
 
     const itemById = new Map<string, AppItem>()
@@ -229,32 +246,40 @@ export function useThreeInstancedRenderer(
       itemById.set(item.internalId, item)
     }
 
-    for (const [index, id] of map.entries()) {
-      const item = itemById.get(id)
-      if (!item) continue
-
-      // 分别计算 box 和 icon 的颜色
-      scratchColor.setHex(getItemColor(item, 'box'))
-      meshTarget.setColorAt(index, scratchColor)
-
-      scratchColor.setHex(getItemColor(item, 'icon'))
-      iconMeshTarget.setColorAt(index, scratchColor)
-    }
-
-    // 同时标记两个 mesh 的颜色需要更新
-    if (meshTarget.instanceColor) {
-      meshTarget.instanceColor.needsUpdate = true
-    }
-    if (iconMeshTarget.instanceColor) {
-      iconMeshTarget.instanceColor.needsUpdate = true
+    // 仅更新当前可见的 Mesh
+    if (mode === 'box' && meshTarget) {
+      for (const [index, id] of map.entries()) {
+        const item = itemById.get(id)
+        if (!item) continue
+        scratchColor.setHex(getItemColor(item, 'box'))
+        meshTarget.setColorAt(index, scratchColor)
+      }
+      if (meshTarget.instanceColor) meshTarget.instanceColor.needsUpdate = true
+    } else if (mode === 'icon' && iconMeshTarget) {
+      for (const [index, id] of map.entries()) {
+        const item = itemById.get(id)
+        if (!item) continue
+        scratchColor.setHex(getItemColor(item, 'icon'))
+        iconMeshTarget.setColorAt(index, scratchColor)
+      }
+      if (iconMeshTarget.instanceColor) iconMeshTarget.instanceColor.needsUpdate = true
+    } else if (mode === 'simple-box' && simpleBoxMeshTarget) {
+      for (const [index, id] of map.entries()) {
+        const item = itemById.get(id)
+        if (!item) continue
+        scratchColor.setHex(getItemColor(item, 'box'))
+        simpleBoxMeshTarget.setColorAt(index, scratchColor)
+      }
+      if (simpleBoxMeshTarget.instanceColor) simpleBoxMeshTarget.instanceColor.needsUpdate = true
     }
   }
 
   // 局部更新单个物品的颜色（用于 hover 状态变化）
   function updateInstanceColorById(id: string) {
+    const mode = settingsStore.settings.threeDisplayMode
     const meshTarget = instancedMesh.value
     const iconMeshTarget = iconInstancedMesh.value
-    if (!meshTarget || !iconMeshTarget) return
+    const simpleBoxMeshTarget = simpleBoxInstancedMesh.value
 
     const index = idToIndexMap.value.get(id)
     if (index === undefined) return
@@ -262,18 +287,18 @@ export function useThreeInstancedRenderer(
     const item = editorStore.visibleItems.find((it) => it.internalId === id)
     if (!item) return
 
-    // 分别计算 box 和 icon 的颜色
-    scratchColor.setHex(getItemColor(item, 'box'))
-    meshTarget.setColorAt(index, scratchColor)
-
-    scratchColor.setHex(getItemColor(item, 'icon'))
-    iconMeshTarget.setColorAt(index, scratchColor)
-
-    if (meshTarget.instanceColor) {
-      meshTarget.instanceColor.needsUpdate = true
-    }
-    if (iconMeshTarget.instanceColor) {
-      iconMeshTarget.instanceColor.needsUpdate = true
+    if (mode === 'box' && meshTarget) {
+      scratchColor.setHex(getItemColor(item, 'box'))
+      meshTarget.setColorAt(index, scratchColor)
+      if (meshTarget.instanceColor) meshTarget.instanceColor.needsUpdate = true
+    } else if (mode === 'icon' && iconMeshTarget) {
+      scratchColor.setHex(getItemColor(item, 'icon'))
+      iconMeshTarget.setColorAt(index, scratchColor)
+      if (iconMeshTarget.instanceColor) iconMeshTarget.instanceColor.needsUpdate = true
+    } else if (mode === 'simple-box' && simpleBoxMeshTarget) {
+      scratchColor.setHex(getItemColor(item, 'box'))
+      simpleBoxMeshTarget.setColorAt(index, scratchColor)
+      if (simpleBoxMeshTarget.instanceColor) simpleBoxMeshTarget.instanceColor.needsUpdate = true
     }
   }
 
@@ -304,9 +329,15 @@ export function useThreeInstancedRenderer(
 
   // 完整重建实例几何和索引映射（用于物品集合变化时）
   async function rebuildInstances() {
+    const mode = settingsStore.settings.threeDisplayMode
     const meshTarget = instancedMesh.value
     const iconMeshTarget = iconInstancedMesh.value
-    if (!meshTarget || !iconMeshTarget) return
+    const simpleBoxMeshTarget = simpleBoxInstancedMesh.value
+
+    // 至少需要当前模式的 mesh 存在
+    if (mode === 'box' && !meshTarget) return
+    if (mode === 'icon' && !iconMeshTarget) return
+    if (mode === 'simple-box' && !simpleBoxMeshTarget) return
 
     const items = editorStore.visibleItems
     const instanceCount = Math.min(items.length, MAX_INSTANCES)
@@ -317,123 +348,141 @@ export function useThreeInstancedRenderer(
       )
     }
 
-    // 同时更新两个 mesh 的实例数量
-    meshTarget.count = instanceCount
-    iconMeshTarget.count = instanceCount
+    // 仅更新当前模式的 count
+    if (mode === 'box' && meshTarget) meshTarget.count = instanceCount
+    if (mode === 'icon' && iconMeshTarget) iconMeshTarget.count = instanceCount
+    if (mode === 'simple-box' && simpleBoxMeshTarget) simpleBoxMeshTarget.count = instanceCount
 
-    // 预加载所有可见物品的图标到纹理数组（异步）
-    const itemIds = items.slice(0, instanceCount).map((item) => item.gameId)
-    await textureArray.preloadIcons(itemIds).catch((err) => {
-      console.warn('[ThreeInstancedRenderer] 图标预加载失败:', err)
-    })
+    // 如果是 Icon 模式，需要预加载纹理
+    if (mode === 'icon' && iconMeshTarget) {
+      const itemIds = items.slice(0, instanceCount).map((item) => item.gameId)
+      await textureArray.preloadIcons(itemIds).catch((err) => {
+        console.warn('[ThreeInstancedRenderer] 图标预加载失败:', err)
+      })
 
-    // 预加载后更新纹理和深度 uniform（纹理可能已扩容）
-    const material = iconMeshTarget.material as ShaderMaterial
-    if (material.uniforms) {
-      if (material.uniforms.textureArray) {
-        material.uniforms.textureArray.value = textureArray.getTextureArray()
-      }
-      if (material.uniforms.textureDepth) {
-        material.uniforms.textureDepth.value = textureArray.getCurrentCapacity()
+      // 预加载后更新纹理和深度 uniform
+      const material = iconMeshTarget.material as ShaderMaterial
+      if (material.uniforms) {
+        if (material.uniforms.textureArray) {
+          material.uniforms.textureArray.value = textureArray.getTextureArray()
+        }
+        if (material.uniforms.textureDepth) {
+          material.uniforms.textureDepth.value = textureArray.getCurrentCapacity()
+        }
       }
     }
 
     const map = new Map<number, string>()
+    const symbolScale = settingsStore.settings.threeSymbolScale
 
     for (let index = 0; index < instanceCount; index++) {
       const item = items[index]
-      if (!item) {
-        continue
-      }
+      if (!item) continue
       map.set(index, item.internalId)
 
       coordinates3D.setThreeFromGame(scratchPosition, { x: item.x, y: item.y, z: item.z })
-
       const { Rotation, Scale } = item.originalData
 
-      // === Box 模式：使用真实的旋转和尺寸 ===
-      // 旋转轴从游戏坐标系映射到 Three.js：
-      // 游戏 Roll(X) -> Three.js X
-      // 游戏 Yaw(Z，高度轴) -> Three.js Y
-      // 游戏 Pitch(Y，前后轴) -> Three.js Z
-      scratchEuler.set(
-        (Rotation.Roll * Math.PI) / 180,
-        (Rotation.Yaw * Math.PI) / 180,
-        (Rotation.Pitch * Math.PI) / 180,
-        'XYZ'
-      )
-      scratchQuaternion.setFromEuler(scratchEuler)
+      // 1. Box 模式计算
+      if (mode === 'box' && meshTarget) {
+        scratchEuler.set(
+          (Rotation.Roll * Math.PI) / 180,
+          (Rotation.Yaw * Math.PI) / 180,
+          (Rotation.Pitch * Math.PI) / 180,
+          'XYZ'
+        )
+        scratchQuaternion.setFromEuler(scratchEuler)
 
-      // 从家具元数据获取真实尺寸（游戏坐标：X=长, Y=宽, Z=高）
-      const furnitureSize = furnitureStore.getFurnitureSize(item.gameId) ?? DEFAULT_FURNITURE_SIZE
-      const [sizeX, sizeY, sizeZ] = furnitureSize
+        const furnitureSize = furnitureStore.getFurnitureSize(item.gameId) ?? DEFAULT_FURNITURE_SIZE
+        const [sizeX, sizeY, sizeZ] = furnitureSize
+        scratchScale.set((Scale.X || 1) * sizeX, (Scale.Z || 1) * sizeZ, (Scale.Y || 1) * sizeY)
 
-      // 应用游戏内缩放并映射到 Three.js 坐标系：
-      // 游戏 X -> Three.js X，游戏 Z(高度) -> Three.js Y，游戏 Y -> Three.js Z
-      scratchScale.set((Scale.X || 1) * sizeX, (Scale.Z || 1) * sizeZ, (Scale.Y || 1) * sizeY)
-
-      scratchMatrix.compose(scratchPosition, scratchQuaternion, scratchScale)
-      meshTarget.setMatrixAt(index, scratchMatrix)
-
-      // === Icon 模式：固定大小，使用当前视图的正确朝向和 up 向量 ===
-      // 位置相同，但使用固定尺寸和当前的朝向
-      scratchTmpVec3
-        .set(currentIconNormal.value[0], currentIconNormal.value[1], currentIconNormal.value[2])
-        .normalize()
-
-      // 如果有 up 向量约束，使用 lookAt 方法；否则使用 setFromUnitVectors
-      if (currentIconUp.value) {
-        scratchUpVec3
-          .set(currentIconUp.value[0], currentIconUp.value[1], currentIconUp.value[2])
-          .normalize()
-        scratchLookAtTarget.set(-scratchTmpVec3.x, -scratchTmpVec3.y, -scratchTmpVec3.z)
-        scratchMatrix.lookAt(new Vector3(0, 0, 0), scratchLookAtTarget, scratchUpVec3)
-        scratchQuaternion.setFromRotationMatrix(scratchMatrix)
-      } else {
-        // 计算从 PlaneGeometry 的默认法线 (+Z) 到目标法线的旋转
-        scratchQuaternion.setFromUnitVectors(scratchDefaultNormal, scratchTmpVec3)
+        scratchMatrix.compose(scratchPosition, scratchQuaternion, scratchScale)
+        meshTarget.setMatrixAt(index, scratchMatrix)
       }
 
-      const scale = settingsStore.settings.threeIconScale
-      scratchScale.set(scale, scale, scale) // 使用设置中的缩放比例
+      // 2. Icon 模式计算
+      if (mode === 'icon' && iconMeshTarget) {
+        scratchTmpVec3
+          .set(currentIconNormal.value[0], currentIconNormal.value[1], currentIconNormal.value[2])
+          .normalize()
 
-      scratchMatrix.compose(scratchPosition, scratchQuaternion, scratchScale)
-      iconMeshTarget.setMatrixAt(index, scratchMatrix)
+        if (currentIconUp.value) {
+          scratchUpVec3
+            .set(currentIconUp.value[0], currentIconUp.value[1], currentIconUp.value[2])
+            .normalize()
+          scratchLookAtTarget.set(-scratchTmpVec3.x, -scratchTmpVec3.y, -scratchTmpVec3.z)
+          scratchMatrix.lookAt(new Vector3(0, 0, 0), scratchLookAtTarget, scratchUpVec3)
+          scratchQuaternion.setFromRotationMatrix(scratchMatrix)
+        } else {
+          scratchQuaternion.setFromUnitVectors(scratchDefaultNormal, scratchTmpVec3)
+        }
 
-      // === 设置纹理索引（指向纹理数组中的对应层） ===
-      const texIndex = textureArray.getTextureIndex(item.gameId)
-      textureIndices[index] = texIndex
+        scratchScale.set(symbolScale, symbolScale, symbolScale)
+        scratchMatrix.compose(scratchPosition, scratchQuaternion, scratchScale)
+        iconMeshTarget.setMatrixAt(index, scratchMatrix)
+
+        const texIndex = textureArray.getTextureIndex(item.gameId)
+        textureIndices[index] = texIndex
+      }
+
+      // 3. Simple Box 模式计算
+      if (mode === 'simple-box' && simpleBoxMeshTarget) {
+        // 旋转同 Box
+        scratchEuler.set(
+          (Rotation.Roll * Math.PI) / 180,
+          (Rotation.Yaw * Math.PI) / 180,
+          (Rotation.Pitch * Math.PI) / 180,
+          'XYZ'
+        )
+        scratchQuaternion.setFromEuler(scratchEuler)
+
+        // 缩放：基础 100 * symbolScale
+        const s = 100 * symbolScale
+        scratchScale.set(s, s, s)
+
+        scratchMatrix.compose(scratchPosition, scratchQuaternion, scratchScale)
+        simpleBoxMeshTarget.setMatrixAt(index, scratchMatrix)
+      }
     }
 
-    // 同时更新两个 mesh 的矩阵
-    meshTarget.instanceMatrix.needsUpdate = true
-    iconMeshTarget.instanceMatrix.needsUpdate = true
-
-    // 标记纹理索引属性需要更新
-    const textureIndexAttr = planeGeometry.getAttribute('textureIndex')
-    if (textureIndexAttr) {
-      textureIndexAttr.needsUpdate = true
+    // 标记更新
+    if (mode === 'box' && meshTarget) meshTarget.instanceMatrix.needsUpdate = true
+    if (mode === 'icon' && iconMeshTarget) {
+      iconMeshTarget.instanceMatrix.needsUpdate = true
+      const textureIndexAttr = planeGeometry.getAttribute('textureIndex')
+      if (textureIndexAttr) textureIndexAttr.needsUpdate = true
     }
+    if (mode === 'simple-box' && simpleBoxMeshTarget)
+      simpleBoxMeshTarget.instanceMatrix.needsUpdate = true
 
     indexToIdMap.value = map
-    // 同时维护反向映射
     const reverseMap = new Map<string, number>()
     for (const [index, id] of map.entries()) {
       reverseMap.set(id, index)
     }
     idToIndexMap.value = reverseMap
 
-    // 几何更新后刷新一次颜色，确保选中高亮正确
+    // 刷新颜色
     updateInstancesColor()
+  }
+
+  // 辅助函数：应用位置增量到指定 Mesh
+  function applyPositionDelta(mesh: InstancedMesh, index: number, delta: Vector3) {
+    mesh.getMatrixAt(index, scratchMatrix)
+    scratchMatrix.decompose(scratchPosition, scratchQuaternion, scratchScale)
+    scratchPosition.add(delta)
+    scratchMatrix.compose(scratchPosition, scratchQuaternion, scratchScale)
+    mesh.setMatrixAt(index, scratchMatrix)
+    mesh.instanceMatrix.needsUpdate = true
   }
 
   // 局部更新选中物品的矩阵（用于拖拽时的视觉更新）
   function updateSelectedInstancesMatrix(selectedIds: Set<string>, deltaPosition: Vector3) {
+    const mode = settingsStore.settings.threeDisplayMode
     const meshTarget = instancedMesh.value
     const iconMeshTarget = iconInstancedMesh.value
-    if (!meshTarget || !iconMeshTarget) {
-      return
-    }
+    const simpleBoxMeshTarget = simpleBoxInstancedMesh.value
 
     const reverseMap = idToIndexMap.value
 
@@ -441,34 +490,14 @@ export function useThreeInstancedRenderer(
       const index = reverseMap.get(id)
       if (index === undefined) continue
 
-      // === 更新 Box mesh ===
-      // 读取当前矩阵
-      meshTarget.getMatrixAt(index, scratchMatrix)
-
-      // 分解矩阵
-      scratchMatrix.decompose(scratchPosition, scratchQuaternion, scratchScale)
-
-      // 应用位置增量
-      scratchPosition.add(deltaPosition)
-
-      // 重新组合矩阵
-      scratchMatrix.compose(scratchPosition, scratchQuaternion, scratchScale)
-
-      // 更新实例
-      meshTarget.setMatrixAt(index, scratchMatrix)
-
-      // === 更新 Icon mesh ===
-      // Icon mesh 只需更新位置，不改变旋转和缩放
-      iconMeshTarget.getMatrixAt(index, scratchMatrix)
-      scratchMatrix.decompose(scratchPosition, scratchQuaternion, scratchScale)
-      scratchPosition.add(deltaPosition)
-      scratchMatrix.compose(scratchPosition, scratchQuaternion, scratchScale)
-      iconMeshTarget.setMatrixAt(index, scratchMatrix)
+      if (mode === 'box' && meshTarget) {
+        applyPositionDelta(meshTarget, index, deltaPosition)
+      } else if (mode === 'icon' && iconMeshTarget) {
+        applyPositionDelta(iconMeshTarget, index, deltaPosition)
+      } else if (mode === 'simple-box' && simpleBoxMeshTarget) {
+        applyPositionDelta(simpleBoxMeshTarget, index, deltaPosition)
+      }
     }
-
-    // 同时标记两个 mesh 的矩阵需要更新
-    meshTarget.instanceMatrix.needsUpdate = true
-    iconMeshTarget.instanceMatrix.needsUpdate = true
   }
 
   // 物品集合变化时重建实例；选中状态变化时仅刷新颜色
@@ -479,14 +508,24 @@ export function useThreeInstancedRenderer(
       if (isTransformDragging?.value) {
         return
       }
-
       rebuildInstances()
     },
     { deep: true, immediate: true }
   )
 
+  // 监听显示模式变化，立即重建实例
+  watch(
+    () => settingsStore.settings.threeDisplayMode,
+    () => {
+      rebuildInstances()
+    }
+  )
+
   // 更新 Icon 平面朝向（使其法线指向给定方向，同时约束up向量防止绕法线旋转）
   function updateIconFacing(normal: [number, number, number], up?: [number, number, number]) {
+    // 仅在 Icon 模式下执行
+    if (settingsStore.settings.threeDisplayMode !== 'icon') return
+
     // 归一化输入向量，避免存储大数值
     const len = Math.sqrt(normal[0] ** 2 + normal[1] ** 2 + normal[2] ** 2)
     const normalized: [number, number, number] =
@@ -521,7 +560,7 @@ export function useThreeInstancedRenderer(
       targetQuaternion.setFromUnitVectors(scratchDefaultNormal, scratchTmpVec3)
     }
 
-    const scale = settingsStore.settings.threeIconScale
+    const scale = settingsStore.settings.threeSymbolScale
     scratchScale.set(scale, scale, scale)
 
     const count = iconMeshTarget.count
@@ -539,33 +578,43 @@ export function useThreeInstancedRenderer(
     iconMeshTarget.instanceMatrix.needsUpdate = true
   }
 
-  // 仅更新图标缩放（性能优化：不改变位置和旋转）
-  function updateIconsScale() {
+  // 更新图标和简化方块的缩放
+  function updateSymbolsScale() {
+    const mode = settingsStore.settings.threeDisplayMode
     const iconMeshTarget = iconInstancedMesh.value
-    if (!iconMeshTarget) return
+    const simpleBoxMeshTarget = simpleBoxInstancedMesh.value
+    const scale = settingsStore.settings.threeSymbolScale
 
-    const scale = settingsStore.settings.threeIconScale
-    scratchScale.set(scale, scale, scale)
-
-    const count = iconMeshTarget.count
-
-    for (let index = 0; index < count; index++) {
-      iconMeshTarget.getMatrixAt(index, scratchMatrix)
-      scratchMatrix.decompose(scratchPosition, scratchQuaternion, scratchTmpVec3)
-
-      // 仅更新缩放
-      scratchMatrix.compose(scratchPosition, scratchQuaternion, scratchScale)
-      iconMeshTarget.setMatrixAt(index, scratchMatrix)
+    if (mode === 'icon' && iconMeshTarget) {
+      scratchScale.set(scale, scale, scale)
+      const count = iconMeshTarget.count
+      for (let index = 0; index < count; index++) {
+        iconMeshTarget.getMatrixAt(index, scratchMatrix)
+        scratchMatrix.decompose(scratchPosition, scratchQuaternion, scratchTmpVec3)
+        scratchMatrix.compose(scratchPosition, scratchQuaternion, scratchScale)
+        iconMeshTarget.setMatrixAt(index, scratchMatrix)
+      }
+      iconMeshTarget.instanceMatrix.needsUpdate = true
+    } else if (mode === 'simple-box' && simpleBoxMeshTarget) {
+      // Simple Box 缩放需要 * 100
+      const s = 100 * scale
+      scratchScale.set(s, s, s)
+      const count = simpleBoxMeshTarget.count
+      for (let index = 0; index < count; index++) {
+        simpleBoxMeshTarget.getMatrixAt(index, scratchMatrix)
+        scratchMatrix.decompose(scratchPosition, scratchQuaternion, scratchTmpVec3)
+        scratchMatrix.compose(scratchPosition, scratchQuaternion, scratchScale)
+        simpleBoxMeshTarget.setMatrixAt(index, scratchMatrix)
+      }
+      simpleBoxMeshTarget.instanceMatrix.needsUpdate = true
     }
-
-    iconMeshTarget.instanceMatrix.needsUpdate = true
   }
 
-  // 监听图标缩放设置变化
+  // 监听图标/方块缩放设置变化
   watch(
-    () => settingsStore.settings.threeIconScale,
+    () => settingsStore.settings.threeSymbolScale,
     () => {
-      updateIconsScale()
+      updateSymbolsScale()
     }
   )
 
@@ -594,6 +643,7 @@ export function useThreeInstancedRenderer(
   return {
     instancedMesh,
     iconInstancedMesh,
+    simpleBoxInstancedMesh,
     indexToIdMap,
     idToIndexMap,
     updateSelectedInstancesMatrix,
