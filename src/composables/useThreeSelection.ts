@@ -90,14 +90,6 @@ export function useThreeSelection(
       return
     }
 
-    // pointerleave: 只清理状态，不触发点击/框选逻辑
-    if (evt.type === 'pointerleave') {
-      mouseDownPos.value = null
-      isSelecting.value = false
-      selectionRect.value = null
-      return
-    }
-
     const start = mouseDownPos.value
     const rectInfo = selectionRect.value
 

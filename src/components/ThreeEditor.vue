@@ -338,6 +338,9 @@ function handleContainerWheel(evt: WheelEvent) {
 
 // 容器级指针事件：先交给导航，再交给选择/tooltip
 function handleContainerPointerDown(evt: PointerEvent) {
+  // 捕获指针，确保移出画布后仍能响应事件
+  ;(evt.target as HTMLElement).setPointerCapture(evt.pointerId)
+
   // 如果右键菜单已打开，点击画布任意位置先关闭菜单
   if (contextMenuOpen.value) {
     contextMenuOpen.value = false
@@ -353,12 +356,12 @@ function handleContainerPointerMove(evt: PointerEvent) {
 }
 
 function handleContainerPointerUp(evt: PointerEvent) {
+  ;(evt.target as HTMLElement).releasePointerCapture(evt.pointerId)
   handleNavPointerUp(evt)
   handlePointerUp(evt)
 }
 
 function handleContainerPointerLeave(evt: PointerEvent) {
-  handleContainerPointerUp(evt)
   hideTooltip()
 }
 
@@ -611,7 +614,7 @@ onUnmounted(() => {
     <div
       v-if="editorStore.items.length > 0"
       ref="threeContainerRef"
-      class="absolute inset-0"
+      class="absolute inset-0 overflow-hidden"
       @pointerdown="handleContainerPointerDown"
       @pointermove="handleContainerPointerMove"
       @pointerup="handleContainerPointerUp"
