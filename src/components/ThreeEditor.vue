@@ -361,7 +361,7 @@ function handleContainerPointerUp(evt: PointerEvent) {
   handlePointerUp(evt)
 }
 
-function handleContainerPointerLeave(evt: PointerEvent) {
+function handleContainerPointerLeave() {
   hideTooltip()
 }
 
