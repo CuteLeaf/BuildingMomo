@@ -12,7 +12,6 @@ import {
   Quaternion,
   Vector3,
   GLSL3,
-  DoubleSide,
   Sphere,
 } from 'three'
 import type { useEditorStore } from '@/stores/editorStore'
@@ -338,7 +337,7 @@ export function useThreeInstancedRenderer(
     const iconMeshTarget = iconInstancedMesh.value
     const simpleBoxMeshTarget = simpleBoxInstancedMesh.value
 
-    const items = editorStore.visibleItems
+    const items = editorStore.items
     const map = indexToIdMap.value
     if (!map || map.size === 0) return
 
@@ -385,7 +384,7 @@ export function useThreeInstancedRenderer(
     const index = idToIndexMap.value.get(id)
     if (index === undefined) return
 
-    const item = editorStore.visibleItems.find((it) => it.internalId === id)
+    const item = editorStore.items.find((it) => it.internalId === id)
     if (!item) return
 
     if (mode === 'box' && meshTarget) {
@@ -440,7 +439,7 @@ export function useThreeInstancedRenderer(
     if (mode === 'icon' && !iconMeshTarget) return
     if (mode === 'simple-box' && !simpleBoxMeshTarget) return
 
-    const items = editorStore.visibleItems
+    const items = editorStore.items
     const instanceCount = Math.min(items.length, MAX_INSTANCES)
 
     if (items.length > MAX_INSTANCES) {
@@ -603,7 +602,7 @@ export function useThreeInstancedRenderer(
 
   // 物品集合变化时重建实例；选中状态变化时仅刷新颜色
   watch(
-    () => editorStore.visibleItems,
+    () => editorStore.items,
     () => {
       // 拖拽时不触发全量更新，由 handleGizmoChange 直接更新实例矩阵
       if (isTransformDragging?.value) {

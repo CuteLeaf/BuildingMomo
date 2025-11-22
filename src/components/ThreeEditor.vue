@@ -95,7 +95,7 @@ onMounted(() => {
 
     backgroundSize.value = { width, height }
 
-    // CanvasEditor: x,y 是左上角
+    // ThreeEditor: x,y 是左上角
     // Three Plane: position 是中心点
     backgroundPosition.value = [
       xOffset + width / 2,
@@ -857,7 +857,7 @@ onUnmounted(() => {
     <!-- 视图信息 -->
     <div v-if="editorStore.items.length > 0" class="absolute right-4 bottom-4 space-y-2">
       <div class="rounded-md bg-white/90 px-3 py-2 text-xs text-gray-600 shadow-sm">
-        <div>物品数量: {{ editorStore.visibleItems.length }} / {{ editorStore.items.length }}</div>
+        <div>物品数量: {{ editorStore.items.length }}</div>
         <div v-if="editorStore.selectedItemIds.size > 0">
           已选中: {{ editorStore.selectedItemIds.size }}
         </div>

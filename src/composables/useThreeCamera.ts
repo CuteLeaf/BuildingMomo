@@ -191,17 +191,16 @@ export function useThreeCamera(
     }
 
     const bounds = editorStore.bounds
-    const heightFilter = editorStore.heightFilter
 
     // 安全检查：bounds 可能为 null
     if (!bounds) {
-      return [0, (heightFilter.min + heightFilter.max) / 2, 0]
+      return [0, 0, 0]
     }
 
     return [
-      (bounds.minX + bounds.maxX) / 2,
-      (heightFilter.min + heightFilter.max) / 2, // Z轴（高度）
-      (bounds.minY + bounds.maxY) / 2,
+      bounds.centerX,
+      bounds.centerZ, // Z轴（高度）
+      bounds.centerY,
     ]
   })
 
@@ -211,17 +210,15 @@ export function useThreeCamera(
     }
 
     const bounds = editorStore.bounds
-    const heightFilter = editorStore.heightFilter
 
     // 安全检查：bounds 可能为 null
     if (!bounds) {
-      const rangeZ = heightFilter.max - heightFilter.min
-      return Math.max(rangeZ * 1, 3000)
+      return 3000
     }
 
-    const rangeX = bounds.maxX - bounds.minX
-    const rangeY = bounds.maxY - bounds.minY
-    const rangeZ = heightFilter.max - heightFilter.min
+    const rangeX = bounds.width
+    const rangeY = bounds.height
+    const rangeZ = bounds.depth
 
     const maxRange = Math.max(rangeX, rangeY, rangeZ)
     return Math.max(maxRange * 1, 3000)

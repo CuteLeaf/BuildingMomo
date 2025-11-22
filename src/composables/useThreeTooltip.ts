@@ -93,7 +93,7 @@ export function useThreeTooltip(
       return
     }
 
-    const item = editorStore.visibleItems.find((it) => it.internalId === internalId)
+    const item = editorStore.items.find((it) => it.internalId === internalId)
 
     if (!item) {
       hideTooltip()
