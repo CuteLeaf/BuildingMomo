@@ -104,7 +104,7 @@ onMounted(async () => {
           </div>
 
           <!-- 右侧边栏：仅方案类型显示 -->
-          <div v-if="tabStore.activeTab?.type === 'scheme'" class="h-full p-2"><Sidebar /></div>
+          <div v-if="tabStore.activeTab?.type === 'scheme'" class="h-full"><Sidebar /></div>
         </div>
       </div>
 
