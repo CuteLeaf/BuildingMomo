@@ -1,6 +1,7 @@
 import { computed, ref, watchEffect, markRaw, type Ref } from 'vue'
 import { Object3D, Vector3 } from 'three'
 import type { useEditorStore } from '@/stores/editorStore'
+import { useSettingsStore } from '@/stores/settingsStore'
 import { coordinates3D } from '@/lib/coordinates'
 
 export function useThreeTransformGizmo(
@@ -20,7 +21,10 @@ export function useThreeTransformGizmo(
   // 记录上一次应用的 Three 空间位置（用于计算增量）
   const lastThreePosition = ref<Vector3 | null>(null)
 
-  const shouldShowGizmo = computed(() => editorStore.selectedItemIds.size > 0)
+  const settingsStore = useSettingsStore()
+  const shouldShowGizmo = computed(
+    () => editorStore.selectedItemIds.size > 0 && settingsStore.settings.showGizmo
+  )
 
   // 跟随选中物品中心更新 gizmo 位置（非拖拽时）
   watchEffect(() => {
@@ -44,7 +48,7 @@ export function useThreeTransformGizmo(
 
     const wrapper = orbitControlsRef.value as any
     const controls = wrapper.instance // 从测试中确认的正确路径
-    
+
     if (controls && typeof controls.enabled === 'boolean') {
       controls.enabled = enabled
     }

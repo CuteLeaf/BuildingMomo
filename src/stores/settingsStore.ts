@@ -12,6 +12,7 @@ export interface AppSettings {
 
   // 编辑辅助
   enableDuplicateDetection: boolean
+  showGizmo: boolean
 
   // 3D 视图设置
   threeDisplayMode: 'box' | 'icon' | 'simple-box' // 3D 显示模式：立方体、图标或简化方块
@@ -24,6 +25,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   showBackground: true,
   autoUpdateFurniture: true,
   enableDuplicateDetection: true,
+  showGizmo: true,
   threeDisplayMode: 'simple-box',
   threeSymbolScale: 1.0,
 }

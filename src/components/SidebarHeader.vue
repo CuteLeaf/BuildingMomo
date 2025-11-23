@@ -7,6 +7,7 @@ import { useUIStore } from '@/stores/uiStore'
 import {
   MousePointer2,
   Hand,
+  Move,
   Box,
   Image as ImageIcon,
   Cuboid,
@@ -95,6 +96,21 @@ const viewPreset = computed({
           title="拖拽工具 (H)"
         >
           <Hand class="h-4 w-4" />
+        </Toggle>
+
+        <!-- Gizmo 开关 -->
+        <Toggle
+          size="sm"
+          :model-value="settingsStore.settings.showGizmo"
+          @update:model-value="
+            (v: boolean) => {
+              settingsStore.settings.showGizmo = v
+            }
+          "
+          aria-label="显示变换轴"
+          title="显示变换轴 (G)"
+        >
+          <Move class="h-4 w-4" />
         </Toggle>
       </div>
 

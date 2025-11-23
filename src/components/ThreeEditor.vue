@@ -16,7 +16,7 @@ import { useThreeTooltip } from '@/composables/useThreeTooltip'
 import { useThreeCamera, type ViewPreset } from '@/composables/useThreeCamera'
 import { useThrottleFn, useMagicKeys, useElementSize } from '@vueuse/core'
 import { Slider } from '@/components/ui/slider'
-import { Item, ItemContent, ItemDescription, ItemTitle } from '@/components/ui/item'
+import { Item, ItemContent, ItemTitle } from '@/components/ui/item'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -46,8 +46,9 @@ const orbitControlsRef = ref<any | null>(null)
 const gizmoPivot = ref<Object3D | null>(markRaw(new Object3D()))
 
 // 监听按键状态
-const { Ctrl } = useMagicKeys()
+const { Ctrl, Space } = useMagicKeys()
 const isCtrlPressed = computed(() => Ctrl?.value ?? false)
+const isSpacePressed = computed(() => Space?.value ?? false)
 
 // 调试面板状态
 const showCameraDebug = ref(false)
@@ -135,6 +136,15 @@ const {
 
 // 计算 OrbitControls 的鼠标按钮映射
 const orbitMouseButtons = computed(() => {
+  // 如果在正交视图下按住空格键，左键临时用于平移
+  if (isOrthographic.value && isSpacePressed.value) {
+    return {
+      LEFT: MOUSE.PAN,
+      MIDDLE: MOUSE.PAN,
+      RIGHT: MOUSE.ROTATE,
+    }
+  }
+
   // 如果是手形工具，左键用于平移（正交）或旋转（透视）
   if (editorStore.currentTool === 'hand') {
     if (isOrthographic.value) {
@@ -308,8 +318,9 @@ const {
 )
 
 function handlePointerMoveWithTooltip(evt: PointerEvent) {
-  // 如果是手形工具，跳过选择逻辑
-  if (editorStore.currentTool === 'hand') {
+  // 如果是手形工具或正交视图按住空格，跳过选择逻辑
+  if (editorStore.currentTool === 'hand' || (isOrthographic.value && isSpacePressed.value)) {
+    hideTooltip()
     return
   }
 
@@ -358,8 +369,8 @@ function handleContainerPointerDown(evt: PointerEvent) {
 
   handleNavPointerDown(evt)
 
-  // 手形工具下禁用框选/点击选择
-  if (editorStore.currentTool !== 'hand') {
+  // 手形工具或正交视图按住空格下禁用框选/点击选择
+  if (editorStore.currentTool !== 'hand' && !(isOrthographic.value && isSpacePressed.value)) {
     handlePointerDown(evt)
   }
 }
@@ -373,7 +384,7 @@ function handleContainerPointerUp(evt: PointerEvent) {
   ;(evt.target as HTMLElement).releasePointerCapture(evt.pointerId)
   handleNavPointerUp(evt)
 
-  if (editorStore.currentTool !== 'hand') {
+  if (editorStore.currentTool !== 'hand' && !(isOrthographic.value && isSpacePressed.value)) {
     handlePointerUp(evt)
   }
 }
@@ -754,7 +765,7 @@ onDeactivated(() => {
       <!-- 3D Tooltip -->
       <div
         v-if="tooltipVisible && tooltipData"
-        class="pointer-events-none absolute z-50 rounded-md border border-gray-200 bg-white/80 p-1 shadow-xl backdrop-blur-sm"
+        class="pointer-events-none absolute z-50 rounded border border-gray-200 bg-white/80 p-1 shadow-xl backdrop-blur-sm"
         :style="{
           left: `${tooltipData.position.x + 12}px`,
           top: `${tooltipData.position.y - 10}px`,
@@ -778,42 +789,42 @@ onDeactivated(() => {
 
     <!-- 视图信息 -->
     <div v-if="editorStore.items.length > 0" class="absolute right-4 bottom-4 space-y-2">
-      <div class="rounded-md bg-white/90 px-3 py-2 text-xs text-gray-600 shadow-sm">
-        <div>物品数量: {{ editorStore.items.length }}</div>
-        <div v-if="editorStore.selectedItemIds.size > 0">
-          已选中: {{ editorStore.selectedItemIds.size }}
+      <div
+        class="rounded border border-gray-200 bg-white/90 px-3 py-2 text-xs text-gray-600 shadow-md backdrop-blur-sm"
+      >
+        <div class="font-medium text-gray-900">
+          {{ isOrthographic ? '正交视图' : controlMode === 'flight' ? '漫游模式' : '透视视图' }}
         </div>
-      </div>
-
-      <div class="rounded-md bg-blue-500/90 px-3 py-2 text-xs text-white shadow-sm">
-        <div class="font-medium">3D 预览模式</div>
-        <div class="mt-1 text-[10px] opacity-80">
-          <template v-if="isOrthographic"> 左键选择/框选 · 中键平移 · 滚轮缩放 </template>
-          <template v-else>
-            左键选择/框选 · 中键绕场景旋转 · 滚轮缩放 · WASD/Q/空格移动相机
+        <div class="mt-1 text-[10px] text-gray-500">
+          <template v-if="isOrthographic"> 左键选择 · 中键/空格平移 · 滚轮缩放 </template>
+          <template v-else-if="controlMode === 'orbit'">
+            左键选择 · 中键环绕 · 滚轮缩放 · WASD 漫游
           </template>
+          <template v-else> WASD 平移 · Q/Space 升降 · 按住中键转向 </template>
         </div>
       </div>
     </div>
 
     <!-- 图标/方块大小控制 (仅在图标或简化方块模式显示) -->
-    <div v-if="shouldShowIconMesh || shouldShowSimpleBoxMesh" class="absolute bottom-4 left-4 w-64">
+    <div v-if="shouldShowIconMesh || shouldShowSimpleBoxMesh" class="absolute bottom-4 left-4">
       <Item
         variant="muted"
         size="sm"
-        class="border-gray-200 bg-white/90 shadow-md backdrop-blur-sm"
+        class="rounded border-gray-200 bg-white/90 shadow-md backdrop-blur-sm"
       >
         <ItemContent>
           <div class="mb-2 flex items-center justify-between">
-            <ItemTitle class="text-xs font-medium">图标/方块大小</ItemTitle>
+            <div class="flex items-baseline gap-2 pr-4">
+              <ItemTitle class="text-xs font-medium">
+                {{ shouldShowSimpleBoxMesh ? '方块大小' : '图标大小' }}
+              </ItemTitle>
+              <span class="text-[10px] text-gray-400">Ctrl + 滚轮快速调整</span>
+            </div>
             <span class="text-xs text-gray-500"
               >{{ Math.round(settingsStore.settings.threeSymbolScale * 100) }}%</span
             >
           </div>
           <Slider v-model="symbolScaleProxy" :max="3" :min="0.1" :step="0.1" />
-          <ItemDescription class="mt-2 text-[10px] text-gray-400">
-            Ctrl + 滚轮快速调整
-          </ItemDescription>
         </ItemContent>
       </Item>
     </div>
@@ -822,13 +833,13 @@ onDeactivated(() => {
     <div v-if="isDev" class="absolute bottom-32 left-4">
       <button
         @click="showCameraDebug = !showCameraDebug"
-        class="rounded-md bg-gray-800/80 px-2 py-1 text-xs text-white hover:bg-gray-700/80"
+        class="rounded bg-gray-800/80 px-2 py-1 text-xs text-white hover:bg-gray-700/80"
       >
         {{ showCameraDebug ? '隐藏' : '显示' }}相机调试
       </button>
       <div
         v-if="showCameraDebug"
-        class="mt-2 max-h-96 overflow-y-auto rounded-md bg-gray-900/90 px-3 py-2 font-mono text-xs text-green-400 shadow-lg"
+        class="mt-2 max-h-96 overflow-y-auto rounded bg-gray-900/90 px-3 py-2 font-mono text-xs text-green-400 shadow-lg"
         style="max-width: 350px"
       >
         <div class="mb-1 font-bold text-green-300">📷 相机状态</div>

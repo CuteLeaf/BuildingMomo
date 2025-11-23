@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { useEditorStore } from './editorStore'
 import { useUIStore } from './uiStore'
+import { useSettingsStore } from './settingsStore'
 import { useClipboard } from '../composables/useClipboard'
 import { useFileOperations } from '../composables/useFileOperations'
 import { useTabStore } from './tabStore'
@@ -22,6 +23,7 @@ export type CommandCategory = 'file' | 'edit' | 'view' | 'help' | 'tool'
 export const useCommandStore = defineStore('command', () => {
   const editorStore = useEditorStore()
   const uiStore = useUIStore()
+  const settingsStore = useSettingsStore()
 
   // 缩放函数引用（需要从外部设置）
   const zoomInFn = ref<(() => void) | null>(null)
@@ -124,6 +126,17 @@ export const useCommandStore = defineStore('command', () => {
       execute: () => {
         console.log('[Command] 切换拖拽工具')
         editorStore.currentTool = 'hand'
+      },
+    },
+    {
+      id: 'tool.toggleGizmo',
+      label: '切换变换轴显示',
+      shortcut: 'G',
+      category: 'tool',
+      enabled: () => uiStore.viewMode === '3d',
+      execute: () => {
+        console.log('[Command] 切换变换轴显示')
+        settingsStore.settings.showGizmo = !settingsStore.settings.showGizmo
       },
     },
 
