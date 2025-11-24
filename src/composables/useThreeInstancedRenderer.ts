@@ -38,6 +38,8 @@ export function useThreeInstancedRenderer(
   // === Box 模式（原有） & Simple Box 模式（复用） ===
   // 基础几何体 1x1x1
   const baseGeometry = new BoxGeometry(1, 1, 1)
+  // 修正：将几何体原点从中心移动到底部 (Z: -0.5~0.5 -> 0~1)
+  baseGeometry.translate(0, 0, 0.5)
 
   // 创建带边框效果的 ShaderMaterial 辅助函数
   const createBoxMaterial = (opacity: number) => {
@@ -89,22 +91,25 @@ export function useThreeInstancedRenderer(
           
           // 根据法线判断当前渲染的是哪个面，并获取该面对应的物理尺寸
           // BoxGeometry 的 UV 映射规则:
-          // 1. 顶/底面 (y轴): u -> x轴, v -> z轴
-          // 2. 前/后面 (z轴): u -> x轴, v -> y轴
-          // 3. 左/右面 (x轴): u -> z轴, v -> y轴
+          // 1. 顶/底面 (y轴): u -> x轴, v -> z轴 (Z-Up: Normal.z > 0.5)
+          // 2. 前/后面 (z轴): u -> x轴, v -> y轴 (Z-Up: Normal.y > 0.5)
+          // 3. 左/右面 (x轴): u -> z轴, v -> y轴 (Z-Up: Normal.x > 0.5)
           
           vec3 absNormal = abs(vLocalNormal);
           vec2 faceScale = vec2(1.0);
           
-          if (absNormal.y > 0.5) {
-            // 顶面或底面
-            faceScale = vec2(vScale.x, vScale.z);
-          } else if (absNormal.z > 0.5) {
-            // 前面或后面
+          // Z-Up 修正：Z 轴是高度
+          if (absNormal.z > 0.5) {
+            // 顶面或底面 (XY Plane)
             faceScale = vec2(vScale.x, vScale.y);
+          } else if (absNormal.y > 0.5) {
+            // 前面或后面 (XZ Plane)
+            faceScale = vec2(vScale.x, vScale.z);
           } else {
-            // 左面或右面 (x轴)
-            faceScale = vec2(vScale.z, vScale.y);
+            // 左面或右面 (YZ Plane) (Normal.x)
+            faceScale = vec2(vScale.z, vScale.y); // 待验证 UV 方向
+            // Box UV: x faces have UVs mapping (z, y) usually
+            faceScale = vec2(vScale.y, vScale.z); // Swap? BoxGeometry default UVs for X faces are Z,Y
           }
           
           // 1. 计算基础边框宽度 (UV空间)
@@ -288,7 +293,8 @@ export function useThreeInstancedRenderer(
   iconInstancedMesh.value = markRaw(iconMesh)
 
   // 存储当前的图标朝向（默认朝上，适配默认视图）
-  const currentIconNormal = ref<[number, number, number]>([0, 1, 0])
+  // Z-Up: 默认朝向 +Z (0,0,1)
+  const currentIconNormal = ref<[number, number, number]>([0, 0, 1])
   // 存储当前的图标 up 向量（用于约束旋转，防止绕法线旋转）
   const currentIconUp = ref<[number, number, number] | null>(null)
 
@@ -298,9 +304,9 @@ export function useThreeInstancedRenderer(
   const scratchQuaternion = markRaw(new Quaternion())
   const scratchScale = markRaw(new Vector3())
   const scratchColor = markRaw(new Color())
-  const scratchTmpVec3 = markRaw(new Vector3(0, 0, 1))
-  const scratchDefaultNormal = markRaw(new Vector3(0, 0, 1))
-  const scratchUpVec3 = markRaw(new Vector3(0, 1, 0))
+  const scratchTmpVec3 = markRaw(new Vector3(0, 0, 1)) // Default Plane Normal (+Z)
+  const scratchDefaultNormal = markRaw(new Vector3(0, 0, 1)) // Default Plane Normal (+Z)
+  const scratchUpVec3 = markRaw(new Vector3(0, 1, 0)) // Temp Up (Y)
   const scratchLookAtTarget = markRaw(new Vector3())
 
   function convertColorToHex(colorStr: string | undefined): number {
@@ -487,17 +493,19 @@ export function useThreeInstancedRenderer(
 
       // 1. Box 模式计算
       if (mode === 'box' && meshTarget) {
+        // Z-Up Rotation: Yaw is around Z, Pitch around Y, Roll around X
         scratchEuler.set(
           (Rotation.Roll * Math.PI) / 180,
-          (Rotation.Yaw * Math.PI) / 180,
-          (Rotation.Pitch * Math.PI) / 180,
+          (Rotation.Pitch * Math.PI) / 180, // Pitch around Y
+          -(Rotation.Yaw * Math.PI) / 180, // Yaw around Z
           'XYZ'
         )
         scratchQuaternion.setFromEuler(scratchEuler)
 
         const furnitureSize = furnitureStore.getFurnitureSize(item.gameId) ?? DEFAULT_FURNITURE_SIZE
         const [sizeX, sizeY, sizeZ] = furnitureSize
-        scratchScale.set((Scale.X || 1) * sizeX, (Scale.Z || 1) * sizeZ, (Scale.Y || 1) * sizeY)
+        // Z-up: sizeX=Length, sizeY=Width, sizeZ=Height
+        scratchScale.set((Scale.X || 1) * sizeX, (Scale.Y || 1) * sizeY, (Scale.Z || 1) * sizeZ)
 
         scratchMatrix.compose(scratchPosition, scratchQuaternion, scratchScale)
         meshTarget.setMatrixAt(index, scratchMatrix)
@@ -513,6 +521,18 @@ export function useThreeInstancedRenderer(
           scratchUpVec3
             .set(currentIconUp.value[0], currentIconUp.value[1], currentIconUp.value[2])
             .normalize()
+
+          // lookAt logic similar to before but axis swapped
+          // Plane Normal is +Z.
+          // If we want Normal to face Camera, we want Plane +Z to point to Camera.
+          // Matrix4 lookAt makes -Z point to target.
+          // So if we lookAt(Camera), -Z -> Camera, so +Z -> Away.
+          // We want +Z -> Camera.
+          // So we should lookAt(2*Pos - Camera) (Away from Camera)? No.
+          // We want +Z aligned with Normal.
+          // lookAt(eye, target, up): Constructs matrix where -Z points from eye to target.
+          // If we set eye=0, target=-Normal, then -Z points to -Normal, so +Z points to Normal. Correct.
+
           scratchLookAtTarget.set(-scratchTmpVec3.x, -scratchTmpVec3.y, -scratchTmpVec3.z)
           scratchMatrix.lookAt(new Vector3(0, 0, 0), scratchLookAtTarget, scratchUpVec3)
           scratchQuaternion.setFromRotationMatrix(scratchMatrix)
@@ -533,8 +553,8 @@ export function useThreeInstancedRenderer(
         // 旋转同 Box
         scratchEuler.set(
           (Rotation.Roll * Math.PI) / 180,
-          (Rotation.Yaw * Math.PI) / 180,
           (Rotation.Pitch * Math.PI) / 180,
+          -(Rotation.Yaw * Math.PI) / 180,
           'XYZ'
         )
         scratchQuaternion.setFromEuler(scratchEuler)
@@ -631,7 +651,7 @@ export function useThreeInstancedRenderer(
     // 归一化输入向量，避免存储大数值
     const len = Math.sqrt(normal[0] ** 2 + normal[1] ** 2 + normal[2] ** 2)
     const normalized: [number, number, number] =
-      len > 0.0001 ? [normal[0] / len, normal[1] / len, normal[2] / len] : [0, 0, 1] // 默认朝向
+      len > 0.0001 ? [normal[0] / len, normal[1] / len, normal[2] / len] : [0, 0, 1] // 默认朝向 +Z
 
     // 保存归一化后的朝向和 up 向量，确保 rebuildInstances 时使用相同的旋转逻辑
     currentIconNormal.value = normalized

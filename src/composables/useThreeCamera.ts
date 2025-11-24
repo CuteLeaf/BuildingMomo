@@ -26,34 +26,35 @@ interface ViewPresetConfig {
   up: Vec3 // 相机的上方向
 }
 
+// Z-Up 坐标系下的视图预设
 export const VIEW_PRESETS: Record<ViewPreset, ViewPresetConfig> = {
   perspective: {
-    direction: [0.6, 0.8, 0.6],
-    up: [0, 1, 0],
-  },
-  top: {
-    direction: [0, 1, 0],
-    up: [0, 0, -1],
-  },
-  bottom: {
-    direction: [0, -1, 0],
+    direction: [0.6, -0.6, 0.8], // X, Y, Z (东南上方，看向西北)
     up: [0, 0, 1],
   },
+  top: {
+    direction: [0, 0, 1], // 顶视图：从 +Z 看向 -Z
+    up: [0, 1, 0], // 上方向为 +Y
+  },
+  bottom: {
+    direction: [0, 0, -1],
+    up: [0, -1, 0],
+  },
   front: {
-    direction: [0, 0, 1],
-    up: [0, 1, 0],
+    direction: [0, -1, 0], // 前视图：从 -Y 看向 +Y
+    up: [0, 0, 1],
   },
   back: {
-    direction: [0, 0, -1],
-    up: [0, 1, 0],
+    direction: [0, 1, 0], // 后视图：从 +Y 看向 -Y
+    up: [0, 0, 1],
   },
   right: {
-    direction: [1, 0, 0],
-    up: [0, 1, 0],
+    direction: [1, 0, 0], // 右视图：从 +X 看向 -X
+    up: [0, 0, 1],
   },
   left: {
-    direction: [-1, 0, 0],
-    up: [0, 1, 0],
+    direction: [-1, 0, 0], // 左视图：从 -X 看向 +X
+    up: [0, 0, 1],
   },
 }
 
@@ -167,12 +168,12 @@ export function useThreeCamera(
   const FOV = 50 // 透视相机默认 FOV
 
   const state = ref<CameraState>({
-    position: [0, 0, 3000],
+    position: [0, 3000, 3000], // Z-up: height in Z
     target: [0, 0, 0],
     yaw: 0,
     pitch: 0,
     viewPreset: 'perspective', // 仅用于初始化，后续由 UI Store 管理逻辑
-    up: [0, 1, 0],
+    up: [0, 0, 1], // Z-up default
     zoom: 1,
   })
 
@@ -201,8 +202,8 @@ export function useThreeCamera(
 
     return [
       bounds.centerX,
-      bounds.centerZ, // Z轴（高度）
-      bounds.centerY,
+      -bounds.centerY,
+      bounds.centerZ, // Z-up: Z is height
     ]
   })
 
@@ -276,22 +277,44 @@ export function useThreeCamera(
   // 📐 Geometry Helpers
   // ============================================================
 
+  // Z-Up Geometry:
+  // Up: +Z
+  // Forward (Yaw=0, Pitch=0): +Y (assuming standard math convention)
+  // Math:
+  // x = cos(pitch) * sin(yaw)
+  // y = cos(pitch) * cos(yaw)
+  // z = sin(pitch)
+
   function getForwardVector(yaw: number, pitch: number): Vec3 {
     const cosPitch = Math.cos(pitch)
-    return [Math.sin(yaw) * cosPitch, Math.sin(pitch), Math.cos(yaw) * cosPitch]
+    // Z-Up: z is up (sin pitch), xy plane is horizontal
+    // Standard math: 0 yaw = +Y? or +X?
+    // Let's assume: Yaw 0 = +Y (North), Yaw 90 = +X (East)
+    return [Math.sin(yaw) * cosPitch, Math.cos(yaw) * cosPitch, Math.sin(pitch)]
   }
 
   function getRightVector(yaw: number): Vec3 {
-    // right = forward × up (where up = [0,1,0])
+    // right = forward × up (where up = [0,0,1])
+    // Forward: [sin, cos, 0] (ignoring pitch for simple right vec)
+    // Up: [0, 0, 1]
+    // Cross:
+    // x = fy*uz - fz*uy = cos*1 - 0 = cos
+    // y = fz*ux - fx*uz = 0 - sin*1 = -sin
+    // z = fx*uy - fy*ux = 0
+    // Result: [cos(yaw), -sin(yaw), 0]
+    const fy = Math.cos(yaw)
     const fx = Math.sin(yaw)
-    const fz = Math.cos(yaw)
-    return normalize([fz, 0, -fx])
+    // Note: standard gaming controls often define right as relative to camera view
+    return normalize([fy, -fx, 0])
   }
 
   function calculateYawPitchFromDirection(dir: Vec3): { yaw: number; pitch: number } {
     const dirNorm = normalize(dir)
-    const yaw = Math.atan2(dirNorm[0], dirNorm[2])
-    const pitch = clamp(Math.asin(dirNorm[1]), pitchMinRad, pitchMaxRad)
+    // Z-up:
+    // Pitch is asin(z)
+    // Yaw is atan2(x, y) (0 at +Y)
+    const pitch = clamp(Math.asin(dirNorm[2]), pitchMinRad, pitchMaxRad)
+    const yaw = Math.atan2(dirNorm[0], dirNorm[1])
     return { yaw, pitch }
   }
 
@@ -325,7 +348,7 @@ export function useThreeCamera(
 
     const forward = getForwardVector(state.value.yaw, state.value.pitch)
     const right = getRightVector(state.value.yaw)
-    const up: Vec3 = [0, 1, 0]
+    const up: Vec3 = [0, 0, 1] // Z-up
 
     let move: Vec3 = [0, 0, 0]
 
@@ -348,9 +371,9 @@ export function useThreeCamera(
     const distance = baseSpeed * deltaSeconds * speedMultiplier
     const newPos = addScaled(state.value.position, moveNorm, distance)
 
-    // 高度限制
-    if (newPos[1] < minHeight) {
-      newPos[1] = minHeight
+    // 高度限制 (Z axis)
+    if (newPos[2] < minHeight) {
+      newPos[2] = minHeight
     }
 
     state.value.position = newPos
@@ -565,7 +588,7 @@ export function useThreeCamera(
     if (snapshot.preset && VIEW_PRESETS[snapshot.preset]) {
       state.value.up = [...VIEW_PRESETS[snapshot.preset].up]
     } else {
-      state.value.up = [0, 1, 0]
+      state.value.up = [0, 0, 1] // Z-up default
     }
 
     // 恢复模式
@@ -686,9 +709,9 @@ export function useThreeCamera(
     let minX = Infinity,
       maxX = -Infinity
     let minY = Infinity,
-      maxY = -Infinity // Store Y (对应 World Z)
+      maxY = -Infinity
     let minZ = Infinity,
-      maxZ = -Infinity // Store Z (对应 World Y)
+      maxZ = -Infinity
 
     selectedItems.forEach((item) => {
       minX = Math.min(minX, item.x)
@@ -703,12 +726,12 @@ export function useThreeCamera(
     const centerY = (minY + maxY) / 2
     const centerZ = (minZ + maxZ) / 2
 
-    // 转换为世界坐标: X->X, Z->Y, Y->Z
-    const target: Vec3 = [centerX, centerZ, centerY]
+    // Z-up: Y 取反适配 Three.js 坐标系
+    const target: Vec3 = [centerX, -centerY, centerZ]
 
     const sizeX = maxX - minX
-    const sizeY = maxZ - minZ // World Y
-    const sizeZ = maxY - minY // World Z
+    const sizeY = maxY - minY
+    const sizeZ = maxZ - minZ
     const maxDim = Math.max(sizeX, sizeY, sizeZ)
 
     // 确保切换到 Orbit 模式

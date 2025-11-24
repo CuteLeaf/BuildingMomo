@@ -193,6 +193,11 @@ export function useThreeSelection(
 
       // 使用游戏坐标转换为 Three.js 世界坐标，再投影到屏幕空间
       coordinates3D.setThreeFromGame(tempVec3, { x: item.x, y: item.y, z: item.z })
+
+      // 修正：由于 ThreeEditor 中对整个场景进行了 Scale Y = -1 的翻转以模拟左手坐标系
+      // 这里在计算投影前也需要手动应用这个翻转，否则框选区域会与视觉位置（Y轴）相反
+      tempVec3.y = -tempVec3.y
+
       tempVec3.project(camera)
 
       const sx = (tempVec3.x + 1) * 0.5 * containerRect.width

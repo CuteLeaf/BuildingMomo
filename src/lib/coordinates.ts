@@ -16,23 +16,23 @@ export interface Position3D {
  * 处理游戏坐标与 Three.js 世界坐标之间的转换
  *
  * 坐标系映射：
- * 游戏坐标 (x, y, z) -> Three.js 世界坐标 (x, z, y)
- * - 游戏的 Y 轴（前后）-> Three.js 的 Z 轴
- * - 游戏的 Z 轴（高度）-> Three.js 的 Y 轴
+ * 游戏坐标 (x, y, z) = Three.js 世界坐标 (x, y, z)
+ * - 现已将 Three.js 全局设置为 Z-up 坐标系，与游戏坐标完全一致
+ * - 无需再进行轴交换
  */
 export const coordinates3D = {
   /**
    * 游戏坐标转 Three.js 世界坐标
    */
   gameToThree(gamePos: Position3D): Vector3 {
-    return new Vector3(gamePos.x, gamePos.z, gamePos.y)
+    return new Vector3(gamePos.x, gamePos.y, gamePos.z)
   },
 
   /**
    * 游戏坐标转 Three.js 世界坐标（原地修改 Vector3）
    */
   gameToThreeMut(gamePos: Position3D, target: Vector3): Vector3 {
-    return target.set(gamePos.x, gamePos.z, gamePos.y)
+    return target.set(gamePos.x, gamePos.y, gamePos.z)
   },
 
   /**
@@ -41,8 +41,8 @@ export const coordinates3D = {
   threeToGame(threePos: Vector3): Position3D {
     return {
       x: threePos.x,
-      y: threePos.z,
-      z: threePos.y,
+      y: threePos.y,
+      z: threePos.z,
     }
   },
 
@@ -51,9 +51,9 @@ export const coordinates3D = {
    */
   gameDeltaToThreeDelta(gameDelta: Position3D): Position3D {
     return {
-      x: gameDelta.x, // X 轴不变
-      y: gameDelta.z, // 游戏的 Z 增量 -> Three.js 的 Y 增量
-      z: gameDelta.y, // 游戏的 Y 增量 -> Three.js 的 Z 增量
+      x: gameDelta.x,
+      y: gameDelta.y,
+      z: gameDelta.z,
     }
   },
 
@@ -62,9 +62,9 @@ export const coordinates3D = {
    */
   threeDeltaToGameDelta(threeDelta: Position3D): Position3D {
     return {
-      x: threeDelta.x, // X 轴不变
-      y: threeDelta.z, // Three.js 的 Z 增量 -> 游戏的 Y 增量
-      z: threeDelta.y, // Three.js 的 Y 增量 -> 游戏的 Z 增量
+      x: threeDelta.x,
+      y: threeDelta.y,
+      z: threeDelta.z,
     }
   },
 
@@ -72,6 +72,6 @@ export const coordinates3D = {
    * 设置 Three.js Vector3 为游戏坐标值
    */
   setThreeFromGame(target: Vector3, gamePos: Position3D): Vector3 {
-    return target.set(gamePos.x, gamePos.z, gamePos.y)
+    return target.set(gamePos.x, gamePos.y, gamePos.z)
   },
 }

@@ -26,6 +26,9 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 
+// 设置 Three.js 全局 Z 轴向上
+Object3D.DEFAULT_UP.set(0, 0, 1)
+
 const editorStore = useEditorStore()
 const commandStore = useCommandStore()
 const furnitureStore = useFurnitureStore()
@@ -56,7 +59,7 @@ const showCameraDebug = ref(false)
 // 背景图相关
 const backgroundTexture = ref<any>(null)
 const backgroundSize = ref<{ width: number; height: number }>({ width: 100, height: 100 })
-const backgroundPosition = ref<[number, number, number]>([0, -50, 0])
+const backgroundPosition = ref<[number, number, number]>([0, 0, -50]) // Z轴位置调整
 
 // 加载背景图
 onMounted(() => {
@@ -68,7 +71,7 @@ onMounted(() => {
     const img = texture.image
     const scale = 11.2
     const xOffset = -20000
-    const yOffset = -18000 // Canvas Y -> Three Z
+    const yOffset = -28000 // Canvas Y -> Game Y
 
     const width = img.width * scale
     const height = img.height * scale
@@ -79,8 +82,8 @@ onMounted(() => {
     // Three Plane: position 是中心点
     backgroundPosition.value = [
       xOffset + width / 2,
-      -1, // 微下移避免与网格 Z-fighting
-      yOffset + height / 2,
+      -(yOffset + height / 2), // 对应 Game Y (Y轴取反)
+      -1, // 微下移避免与网格 Z-fighting (Z-up)
     ]
   })
 })
@@ -232,16 +235,16 @@ watch(
     if (preset && preset !== 'perspective') {
       switch (preset) {
         case 'top':
-          normal = [0, 1, 0]
+          normal = [0, 0, 1] // 顶视图看 XY 平面
           break
         case 'bottom':
-          normal = [0, -1, 0]
+          normal = [0, 0, -1]
           break
         case 'front':
-          normal = [0, 0, 1]
+          normal = [0, -1, 0]
           break
         case 'back':
-          normal = [0, 0, -1]
+          normal = [0, 1, 0]
           break
         case 'right':
           normal = [1, 0, 0]
@@ -467,31 +470,19 @@ const orthoFrustum = computed(() => {
 const gridRotation = computed<[number, number, number]>(() => {
   const preset = currentViewPreset.value
 
-  switch (preset) {
-    case 'front':
-      // 前视图: XY 平面，法线朝 +Z
-      return [Math.PI / 2, 0, 0]
-    case 'back':
-      // 后视图: XY 平面，法线朝 -Z
-      return [-Math.PI / 2, 0, 0]
+  // 1. 前/后视图：显示 XZ 平面
+  if (preset === 'front') return [0, 0, 0]
+  if (preset === 'back') return [Math.PI, 0, 0] // 翻转 180 度以面向后视图
 
-    case 'left':
-      // 左视图: YZ 平面，法线朝 -X
-      return [0, 0, Math.PI / 2]
-    case 'right':
-      // 右视图: YZ 平面，法线朝 +X
-      return [0, 0, -Math.PI / 2]
+  // 2. 左/右视图：显示 YZ 平面
+  if (preset === 'left') return [0, 0, Math.PI / 2]
+  if (preset === 'right') return [0, 0, -Math.PI / 2] // 反向旋转 90 度以面向右视图
 
-    case 'bottom':
-      // 底视图: XZ 平面，法线朝 -Y
-      return [Math.PI, 0, 0]
+  // 3. 底视图：显示 XY 平面 (反向)
+  if (preset === 'bottom') return [-Math.PI / 2, 0, 0]
 
-    case 'top':
-    case 'perspective':
-    default:
-      // 顶/透视视图: XZ 平面，法线朝 +Y
-      return [0, 0, 0]
-  }
+  // 4. 默认 (透视/顶)：显示 XY 平面 (地面，需绕 X 轴转 90 度)
+  return [Math.PI / 2, 0, 0]
 })
 
 // 聚焦到整个场景 (别名，兼容 CommandStore 命名)
@@ -688,48 +679,64 @@ onDeactivated(() => {
           @change="handleOrbitChange"
         />
 
-        <!-- 光照 -->
+        <!-- 光照: 调整位置为 Z-up -->
         <TresAmbientLight :intensity="0.6" />
-        <TresDirectionalLight :position="[1000, 2000, 1000]" :intensity="0.8" :cast-shadow="true" />
+        <TresDirectionalLight :position="[1000, 1000, 2000]" :intensity="0.8" :cast-shadow="true" />
 
-        <!-- 背景地图 -->
-        <TresMesh
-          v-if="backgroundTexture && shouldShowBackground"
-          :position="backgroundPosition"
-          :rotation="[-Math.PI / 2, 0, 0]"
-        >
-          <TresPlaneGeometry :args="[backgroundSize.width, backgroundSize.height]" />
-          <TresMeshBasicMaterial :map="backgroundTexture" :tone-mapped="false" />
-        </TresMesh>
+        <!-- 场景内容容器：Y轴翻转以实现左手坐标系视觉（Y轴朝南） -->
+        <TresGroup :scale="[1, -1, 1]">
+          <!-- 背景地图 -->
+          <!-- 由于父级 Group 翻转了 Y 轴，这里再次翻转 Y 轴以保持地图图片方向正确（北朝上） -->
+          <TresMesh
+            v-if="backgroundTexture && shouldShowBackground"
+            :position="backgroundPosition"
+            :scale="[1, -1, 1]"
+          >
+            <TresPlaneGeometry :args="[backgroundSize.width, backgroundSize.height]" />
+            <TresMeshBasicMaterial :map="backgroundTexture" :tone-mapped="false" :side="2" />
+          </TresMesh>
 
-        <!-- 辅助元素 - 适配大场景 -->
-        <TresGroup :rotation="gridRotation">
-          <!-- 使用 Grid 组件替换 TresGridHelper -->
-          <Grid
+          <!-- 辅助元素 - 适配大场景 -->
+          <TresGroup
             v-if="backgroundTexture"
-            :args="[backgroundSize.width, backgroundSize.height]"
-            :position="[backgroundPosition[0], 0, backgroundPosition[2]]"
-            :cell-size="1000"
-            :section-size="1000"
-            :cell-color="'#cccccc'"
-            :section-color="'#cccccc'"
-            :fade-distance="50000"
-            :fade-strength="0.5"
-            :infinite-grid="false"
+            :rotation="gridRotation"
+            :position="[backgroundPosition[0], backgroundPosition[1], 0]"
+          >
+            <!-- Grid 组件 -->
+            <Grid
+              :args="[backgroundSize.width, backgroundSize.height]"
+              :cell-size="1000"
+              :section-size="1000"
+              :cell-color="'#cccccc'"
+              :section-color="'#cccccc'"
+              :fade-distance="50000"
+              :fade-strength="0.5"
+              :infinite-grid="false"
+            />
+          </TresGroup>
+          <TresAxesHelper :args="[5000]" />
+
+          <!-- 原点标记 - 放大以适应大场景 -->
+          <TresGroup :position="[0, 0, 0]">
+            <TresMesh>
+              <TresSphereGeometry :args="[200, 16, 16]" />
+              <TresMeshBasicMaterial :color="0xef4444" />
+            </TresMesh>
+          </TresGroup>
+
+          <!-- 选中物品的 Transform Gizmo 的锚点 -->
+          <primitive v-if="shouldShowGizmo && gizmoPivot" :object="gizmoPivot" />
+
+          <!-- Instanced 渲染：按显示模式切换 -->
+          <primitive v-if="shouldShowBoxMesh && instancedMesh" :object="instancedMesh" />
+          <primitive v-if="shouldShowIconMesh && iconInstancedMesh" :object="iconInstancedMesh" />
+          <primitive
+            v-if="shouldShowSimpleBoxMesh && simpleBoxInstancedMesh"
+            :object="simpleBoxInstancedMesh"
           />
         </TresGroup>
-        <TresAxesHelper :args="[5000]" />
 
-        <!-- 原点标记 - 放大以适应大场景 -->
-        <TresGroup :position="[0, 0, 0]">
-          <TresMesh>
-            <TresSphereGeometry :args="[200, 16, 16]" />
-            <TresMeshBasicMaterial :color="0xef4444" />
-          </TresMesh>
-        </TresGroup>
-
-        <!-- 选中物品的 Transform Gizmo -->
-        <primitive v-if="shouldShowGizmo && gizmoPivot" :object="gizmoPivot" />
+        <!-- TransformControls 放在世界空间，避免被父级翻转影响操作手柄的显示 -->
         <TransformControls
           v-if="shouldShowGizmo && gizmoPivot"
           :object="gizmoPivot"
@@ -739,14 +746,6 @@ onDeactivated(() => {
           @mouseDown="handleGizmoMouseDown"
           @mouseUp="handleGizmoMouseUp"
           @change="handleGizmoChange"
-        />
-
-        <!-- Instanced 渲染：按显示模式切换 -->
-        <primitive v-if="shouldShowBoxMesh && instancedMesh" :object="instancedMesh" />
-        <primitive v-if="shouldShowIconMesh && iconInstancedMesh" :object="iconInstancedMesh" />
-        <primitive
-          v-if="shouldShowSimpleBoxMesh && simpleBoxInstancedMesh"
-          :object="simpleBoxInstancedMesh"
         />
       </TresCanvas>
 
