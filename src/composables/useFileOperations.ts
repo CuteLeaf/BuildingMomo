@@ -144,6 +144,69 @@ export function useFileOperations(editorStore: ReturnType<typeof useEditorStore>
     return true
   }
 
+  // 准备保存数据（处理限制）
+  async function prepareDataForSave(): Promise<GameItem[] | null> {
+    // 1. 检查重复物品
+    const canProceed = await checkDuplicateItems()
+    if (!canProceed) {
+      return null
+    }
+
+    // 2. 检查限制问题
+    if (editorStore.hasLimitIssues) {
+      const { outOfBoundsItems, oversizedGroups } = editorStore.limitIssues
+      const issues: string[] = []
+
+      if (outOfBoundsItems.length > 0) {
+        issues.push(`- ${outOfBoundsItems.length} 个物品超出可建造区域 (将被移除)`)
+      }
+      if (oversizedGroups.length > 0) {
+        issues.push(`- ${oversizedGroups.length} 个组合超过50个物品上限 (将被解组)`)
+      }
+
+      const confirmed = await notification.confirm({
+        title: '存在限制问题',
+        description: `检测到以下问题，保存时将自动处理：\n\n${issues.join('\n')}\n\n是否继续保存？`,
+        confirmText: '继续保存',
+        cancelText: '取消',
+      })
+
+      if (!confirmed) {
+        return null
+      }
+    }
+
+    // 3. 处理数据
+    const outOfBoundsIds = new Set(
+      editorStore.limitIssues.outOfBoundsItems.map((i) => i.internalId)
+    )
+    const oversizedGroupIds = new Set(editorStore.limitIssues.oversizedGroups)
+
+    const gameItems: GameItem[] = editorStore.items
+      .filter((item) => !outOfBoundsIds.has(item.internalId)) // 移除越界物品
+      .map((item) => {
+        const originalGroupId = item.originalData.GroupID
+        let newGroupId = originalGroupId
+
+        // 解组超大组
+        if (originalGroupId > 0 && oversizedGroupIds.has(originalGroupId)) {
+          newGroupId = 0
+        }
+
+        return {
+          ...item.originalData,
+          GroupID: newGroupId,
+          Location: {
+            X: item.x,
+            Y: item.y,
+            Z: item.z,
+          },
+        }
+      })
+
+    return gameItems
+  }
+
   // 导入 JSON 文件
   async function importJSON(): Promise<void> {
     return new Promise((resolve) => {
@@ -165,11 +228,7 @@ export function useFileOperations(editorStore: ReturnType<typeof useEditorStore>
         reader.onload = async (e) => {
           const content = e.target?.result as string
           // 使用多方案导入API
-          const result = await editorStore.importJSONAsScheme(
-            content,
-            file.name,
-            file.lastModified
-          )
+          const result = await editorStore.importJSONAsScheme(content, file.name, file.lastModified)
 
           if (result.success) {
             console.log(`[FileOps] Successfully imported scheme: ${file.name}`)
@@ -201,21 +260,9 @@ export function useFileOperations(editorStore: ReturnType<typeof useEditorStore>
       return
     }
 
-    // 检查重复物品
-    const canProceed = await checkDuplicateItems()
-    if (!canProceed) {
-      return
-    }
-
-    // 将 AppItem[] 转换回 GameItem[]
-    const gameItems: GameItem[] = editorStore.items.map((item) => ({
-      ...item.originalData,
-      Location: {
-        X: item.x,
-        Y: item.y,
-        Z: item.z,
-      },
-    }))
+    // 准备数据
+    const gameItems = await prepareDataForSave()
+    if (!gameItems) return
 
     // 构造导出数据
     const exportData: GameDataFile = {
@@ -254,23 +301,11 @@ export function useFileOperations(editorStore: ReturnType<typeof useEditorStore>
       return
     }
 
-    // 检查重复物品
-    const canProceed = await checkDuplicateItems()
-    if (!canProceed) {
-      return
-    }
+    // 准备数据
+    const gameItems = await prepareDataForSave()
+    if (!gameItems) return
 
     try {
-      // 1. 构造导出数据
-      const gameItems: GameItem[] = editorStore.items.map((item) => ({
-        ...item.originalData,
-        Location: {
-          X: item.x,
-          Y: item.y,
-          Z: item.z,
-        },
-      }))
-
       const exportData: GameDataFile = {
         NeedRestore: true,
         PlaceInfo: gameItems,

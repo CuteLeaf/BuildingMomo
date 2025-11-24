@@ -12,6 +12,27 @@ import type {
 import { useTabStore } from './tabStore'
 import { useSettingsStore } from './settingsStore'
 
+// 射线法判断点是否在多边形内
+function isPointInPolygon(point: { x: number; y: number }, polygon: number[][]): boolean {
+  let inside = false
+  for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+    const pi = polygon[i]
+    const pj = polygon[j]
+
+    if (!pi || !pj || pi.length < 2 || pj.length < 2) continue
+
+    const xi = pi[0]!
+    const yi = pi[1]!
+    const xj = pj[0]!
+    const yj = pj[1]!
+
+    const intersect =
+      yi > point.y !== yj > point.y && point.x < ((xj - xi) * (point.y - yi)) / (yj - yi) + xi
+    if (intersect) inside = !inside
+  }
+  return inside
+}
+
 // 生成简单的UUID
 function generateUUID(): string {
   return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
@@ -84,6 +105,29 @@ export const useEditorStore = defineStore('editor', () => {
 
   // 当前工具状态
   const currentTool = ref<'select' | 'hand'>('select')
+
+  // 可建造区域数据
+  const buildableAreas = ref<Record<string, number[][]> | null>(null)
+  const isBuildableAreaLoaded = ref(false)
+
+  // 加载可建造区域数据
+  async function loadBuildableAreaData() {
+    if (isBuildableAreaLoaded.value) return
+
+    try {
+      const response = await fetch('/assets/data/home-buildable-area.json')
+      if (!response.ok) throw new Error('Failed to load buildable area data')
+      const data = await response.json()
+      buildableAreas.value = data.polygons
+      isBuildableAreaLoaded.value = true
+      console.log('[EditorStore] Buildable area data loaded')
+    } catch (error) {
+      console.error('[EditorStore] Failed to load buildable area data:', error)
+    }
+  }
+
+  // 初始化时加载数据
+  loadBuildableAreaData()
 
   // 计算属性：当前激活的方案
   const activeScheme = computed(
@@ -250,6 +294,96 @@ export const useEditorStore = defineStore('editor', () => {
     console.log(
       `[Duplicate Detection] Selected ${duplicateItemCount.value} duplicate items (excluding first of each group)`
     )
+  }
+
+  // ========== 限制检查 (坐标 & 组大小) ==========
+
+  // 计算属性：超出限制的问题
+  const limitIssues = computed(() => {
+    if (!activeScheme.value) {
+      return { outOfBoundsItems: [], oversizedGroups: [] }
+    }
+
+    const outOfBoundsItems: AppItem[] = []
+    const oversizedGroups: number[] = []
+
+    // 1. 检查组大小限制 ( > 50 )
+    const groupCounts = new Map<number, number>()
+    activeScheme.value.items.forEach((item) => {
+      const gid = item.originalData.GroupID
+      if (gid > 0) {
+        groupCounts.set(gid, (groupCounts.get(gid) || 0) + 1)
+      }
+    })
+
+    groupCounts.forEach((count, gid) => {
+      if (count > 50) {
+        oversizedGroups.push(gid)
+      }
+    })
+
+    // 2. 检查坐标限制 (如果在可建造区域外)
+    if (isBuildableAreaLoaded.value && buildableAreas.value) {
+      // 获取所有多边形
+      const polygons = Object.values(buildableAreas.value)
+
+      activeScheme.value.items.forEach((item) => {
+        // 简单的点判定，不考虑物品体积
+        const point = { x: item.x, y: item.y }
+        let isInside = false
+
+        // 只要在任意一个多边形内就算合法
+        for (const polygon of polygons) {
+          if (isPointInPolygon(point, polygon)) {
+            isInside = true
+            break
+          }
+        }
+
+        if (!isInside) {
+          outOfBoundsItems.push(item)
+        }
+      })
+    }
+
+    return {
+      outOfBoundsItems,
+      oversizedGroups,
+    }
+  })
+
+  // 是否存在限制问题
+  const hasLimitIssues = computed(() => {
+    return (
+      limitIssues.value.outOfBoundsItems.length > 0 || limitIssues.value.oversizedGroups.length > 0
+    )
+  })
+
+  // 选择超出坐标限制的物品
+  function selectOutOfBoundsItems() {
+    if (!activeScheme.value || limitIssues.value.outOfBoundsItems.length === 0) return
+
+    saveHistory('selection')
+    activeScheme.value.selectedItemIds.clear()
+
+    limitIssues.value.outOfBoundsItems.forEach((item) => {
+      activeScheme.value!.selectedItemIds.add(item.internalId)
+    })
+  }
+
+  // 选择超大组的物品
+  function selectOversizedGroupItems() {
+    if (!activeScheme.value || limitIssues.value.oversizedGroups.length === 0) return
+
+    saveHistory('selection')
+    activeScheme.value.selectedItemIds.clear()
+
+    const targetGroups = new Set(limitIssues.value.oversizedGroups)
+    activeScheme.value.items.forEach((item) => {
+      if (targetGroups.has(item.originalData.GroupID)) {
+        activeScheme.value!.selectedItemIds.add(item.internalId)
+      }
+    })
   }
 
   // ========== 历史记录管理 ==========
@@ -1186,6 +1320,12 @@ export const useEditorStore = defineStore('editor', () => {
     hasDuplicate,
     duplicateItemCount,
     selectDuplicateItems,
+
+    // Limitation Detection
+    limitIssues,
+    hasLimitIssues,
+    selectOutOfBoundsItems,
+    selectOversizedGroupItems,
 
     // 方案管理
     createScheme,

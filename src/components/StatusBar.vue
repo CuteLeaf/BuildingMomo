@@ -6,7 +6,7 @@ import { useUIStore } from '../stores/uiStore'
 import { useCommandStore } from '../stores/commandStore'
 import { useSettingsStore } from '../stores/settingsStore'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-import { Copy } from 'lucide-vue-next'
+import { Copy, AlertTriangle, Layers } from 'lucide-vue-next'
 
 const editorStore = useEditorStore()
 const uiStore = useUIStore()
@@ -74,6 +74,9 @@ const duplicateDetectionEnabled = computed(() => settingsStore.settings.enableDu
 const hasDuplicate = computed(() => editorStore.hasDuplicate)
 const duplicateItemCount = computed(() => editorStore.duplicateItemCount)
 
+// 限制检查
+const limitIssues = computed(() => editorStore.limitIssues)
+
 const duplicateTooltip = computed(() => {
   if (!duplicateDetectionEnabled.value) return ''
   if (!hasDuplicate.value) return ''
@@ -118,6 +121,38 @@ const handleDuplicateClick = () => {
 
       <!-- 右: 统计信息、组信息、工作坐标系 -->
       <div class="flex shrink-0 items-center gap-4">
+        <!-- 限制警告：坐标超限 -->
+        <Tooltip v-if="limitIssues.outOfBoundsItems.length > 0">
+          <TooltipTrigger as-child>
+            <div
+              class="flex shrink-0 cursor-pointer items-center gap-1 rounded px-2 py-0.5 font-medium text-red-600 transition-colors hover:bg-red-50"
+              @click="editorStore.selectOutOfBoundsItems()"
+            >
+              <AlertTriangle :size="14" />
+              <span class="text-xs">{{ limitIssues.outOfBoundsItems.length }} 超出区域</span>
+            </div>
+          </TooltipTrigger>
+          <TooltipContent>
+            {{ limitIssues.outOfBoundsItems.length }} 个物品超出可建造区域 - 点击选中
+          </TooltipContent>
+        </Tooltip>
+
+        <!-- 限制警告：组超限 -->
+        <Tooltip v-if="limitIssues.oversizedGroups.length > 0">
+          <TooltipTrigger as-child>
+            <div
+              class="flex shrink-0 cursor-pointer items-center gap-1 rounded px-2 py-0.5 font-medium text-orange-600 transition-colors hover:bg-orange-50"
+              @click="editorStore.selectOversizedGroupItems()"
+            >
+              <Layers :size="14" />
+              <span class="text-xs">{{ limitIssues.oversizedGroups.length }} 组过大</span>
+            </div>
+          </TooltipTrigger>
+          <TooltipContent>
+            {{ limitIssues.oversizedGroups.length }} 个组合超过50个物品上限 - 点击选中
+          </TooltipContent>
+        </Tooltip>
+
         <!-- 重复物品检测 -->
         <Tooltip v-if="duplicateDetectionEnabled && hasDuplicate">
           <TooltipTrigger as-child>

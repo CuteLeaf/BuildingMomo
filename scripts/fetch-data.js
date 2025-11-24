@@ -6,6 +6,8 @@ const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 
 const DATA_URL = 'https://nuan5.pro/assets/data/building-momo-furniture.json'
+const BUILDABLE_AREA_URL =
+  'https://gist.githubusercontent.com/ChanIok/e95d6e0947eb6010fe6c4205090252f8/raw/cee94ba720811bfdf1353d8db3e46646e3e67067/home-buildable-area.json'
 const ICON_BASE_URL = 'https://nuan5.pro/assets/furniture-icon/'
 
 const PUBLIC_DIR = path.resolve(__dirname, '../public')
@@ -85,6 +87,13 @@ async function main() {
     const dataDest = path.join(DATA_DIR, 'building-momo-furniture.json')
     fs.writeFileSync(dataDest, JSON.stringify(jsonData, null, 2))
     console.log(`✅ Data saved to ${dataDest}`)
+
+    // Fetch Buildable Area Data
+    console.log('Fetching buildable area data...')
+    await downloadFile(BUILDABLE_AREA_URL, path.join(DATA_DIR, 'home-buildable-area.json'), 3)
+    console.log(
+      `✅ Buildable area data saved to ${path.join(DATA_DIR, 'home-buildable-area.json')}`
+    )
 
     // Extract icon IDs
     // Structure: { v: string, d: [ [id, [name_zh, name_en, icon_id, dim]], ... ] }
