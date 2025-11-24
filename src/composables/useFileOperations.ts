@@ -166,7 +166,7 @@ export function useFileOperations(editorStore: ReturnType<typeof useEditorStore>
         issues.push(`- ${outOfBoundsItemIds.length} 个物品超出可建造区域 (将被移除)`)
       }
       if (oversizedGroups.length > 0) {
-        issues.push(`- ${oversizedGroups.length} 个组合超过50个物品上限 (将被解组)`)
+        issues.push(`- ${oversizedGroups.length} 个组合超过 50 个物品上限 (将被解组)`)
       }
 
       const confirmed = await notification.confirm({

@@ -64,12 +64,19 @@ export const useValidationStore = defineStore('validation', () => {
       const areas =
         isBuildableAreaLoaded.value && buildableAreas.value ? deepToRaw(buildableAreas.value) : null
       const enableDup = settings.value.enableDuplicateDetection
+      const enableLimit = settings.value.enableLimitDetection
 
-      // 并行执行两个任务
-      const [duplicates, limits] = await Promise.all([
-        workerApi.detectDuplicates(items, enableDup),
-        workerApi.checkLimits(items, isBuildableAreaLoaded.value ? areas : null),
-      ])
+      // 并行执行任务
+      const promises: Promise<any>[] = [workerApi.detectDuplicates(items, enableDup)]
+
+      // 只有开启了限制检测才执行检查
+      if (enableLimit) {
+        promises.push(workerApi.checkLimits(items, isBuildableAreaLoaded.value ? areas : null))
+      } else {
+        promises.push(Promise.resolve({ outOfBoundsItemIds: [], oversizedGroups: [] }))
+      }
+
+      const [duplicates, limits] = await Promise.all(promises)
 
       duplicateGroups.value = duplicates
       limitIssues.value = limits
@@ -90,6 +97,7 @@ export const useValidationStore = defineStore('validation', () => {
     [
       () => activeScheme.value?.items, // 监听物品变化
       () => settings.value.enableDuplicateDetection,
+      () => settings.value.enableLimitDetection,
       isBuildableAreaLoaded,
     ],
     () => {

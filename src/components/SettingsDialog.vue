@@ -70,6 +70,17 @@ const settingsStore = useSettingsStore()
           <Switch v-model="settingsStore.settings.enableDuplicateDetection" />
         </div>
 
+        <!-- 限制检测开关 -->
+        <div class="flex items-center justify-between">
+          <div class="space-y-0.5">
+            <Label>启用方案合规性检测</Label>
+            <p class="text-xs text-muted-foreground">
+              自动检测越界物品和过大的组合。关闭后将解除限制，允许强制保存。
+            </p>
+          </div>
+          <Switch v-model="settingsStore.settings.enableLimitDetection" />
+        </div>
+
         <!-- 3D 视图设置分组 -->
         <!-- 3D 视图显示模式选择已移至侧边栏顶部工具栏 -->
       </div>

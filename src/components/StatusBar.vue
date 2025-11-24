@@ -150,7 +150,7 @@ const handleDuplicateClick = () => {
             </div>
           </TooltipTrigger>
           <TooltipContent>
-            {{ limitIssues.oversizedGroups.length }} 个组合超过50个物品上限 - 点击选中
+            {{ limitIssues.oversizedGroups.length }} 个组合超过 50 个物品上限 - 点击选中
           </TooltipContent>
         </Tooltip>
 
