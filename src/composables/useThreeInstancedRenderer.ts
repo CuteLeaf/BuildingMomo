@@ -13,6 +13,7 @@ import {
   Vector3,
   GLSL3,
   Sphere,
+  DoubleSide,
 } from 'three'
 import type { useEditorStore } from '@/stores/editorStore'
 import type { AppItem } from '@/types/editor'
@@ -274,7 +275,7 @@ export function useThreeInstancedRenderer(
     depthWrite: true,
     depthTest: true,
     glslVersion: GLSL3, // 启用 GLSL 3.0 （WebGL2）
-    // side: DoubleSide, // 双面渲染，确保 Raycaster 即使从背面射入也能检测到
+    side: DoubleSide, // 双面渲染，确保 Raycaster 即使从背面射入也能检测到，且防止因镜像缩放导致的背面剔除
   })
 
   const iconInstancedMesh = ref<InstancedMesh | null>(null)
@@ -513,6 +514,7 @@ export function useThreeInstancedRenderer(
 
       // 2. Icon 模式计算
       if (mode === 'icon' && iconMeshTarget) {
+        // 1. 计算基础旋转矩阵 (World Space LookAt)
         scratchTmpVec3
           .set(currentIconNormal.value[0], currentIconNormal.value[1], currentIconNormal.value[2])
           .normalize()
@@ -524,13 +526,26 @@ export function useThreeInstancedRenderer(
 
           scratchLookAtTarget.set(-scratchTmpVec3.x, -scratchTmpVec3.y, -scratchTmpVec3.z)
           scratchMatrix.lookAt(new Vector3(0, 0, 0), scratchLookAtTarget, scratchUpVec3)
-          scratchQuaternion.setFromRotationMatrix(scratchMatrix)
         } else {
           scratchQuaternion.setFromUnitVectors(scratchDefaultNormal, scratchTmpVec3)
+          scratchMatrix.makeRotationFromQuaternion(scratchQuaternion)
         }
 
+        // 2. 修正父级 Y 轴翻转 (Parent Scale: 1, -1, 1)
+        // 将矩阵的第二行 (Row 1) 取反
+        const el = scratchMatrix.elements
+        el[1] = -el[1]
+        el[5] = -el[5]
+        el[9] = -el[9]
+        // 注意：不翻转位移部分 (el[13])，因为 scratchPosition 已经是基于游戏坐标（即 Flip 后的坐标）
+
+        // 3. 应用缩放
         scratchScale.set(symbolScale, symbolScale, symbolScale)
-        scratchMatrix.compose(scratchPosition, scratchQuaternion, scratchScale)
+        scratchMatrix.scale(scratchScale)
+
+        // 4. 应用位置
+        scratchMatrix.setPosition(scratchPosition)
+
         iconMeshTarget.setMatrixAt(index, scratchMatrix)
 
         const texIndex = iconManager.getTextureIndex(item.gameId)
@@ -649,40 +664,50 @@ export function useThreeInstancedRenderer(
     const iconMeshTarget = iconInstancedMesh.value
     if (!iconMeshTarget) return
 
-    const targetQuaternion = markRaw(new Quaternion())
-
+    // 1. 计算目标旋转矩阵 (World Space LookAt)
     if (up) {
-      // 如果提供了 up 向量，使用 lookAt 方法计算旋转（确保图标边缘平行于屏幕）
-      // 构建一个临时的旋转矩阵：Z轴指向法线方向，Y轴尽量对齐up向量
       scratchTmpVec3.set(normalized[0], normalized[1], normalized[2])
       scratchUpVec3.set(up[0], up[1], up[2]).normalize()
 
-      // 使用 Matrix4 的 lookAt 方法：从原点看向法线方向，up 向量约束旋转
-      // 注意：lookAt 会让物体的 -Z 轴指向目标，但我们的平面默认法线是 +Z
-      // 所以需要先 lookAt 反方向，然后旋转 180 度
       scratchLookAtTarget.set(-normalized[0], -normalized[1], -normalized[2])
       scratchMatrix.lookAt(new Vector3(0, 0, 0), scratchLookAtTarget, scratchUpVec3)
-
-      // 提取旋转四元数
-      targetQuaternion.setFromRotationMatrix(scratchMatrix)
     } else {
-      // 如果没有提供 up 向量，使用原有的 setFromUnitVectors 方法（可能产生旋转）
       scratchTmpVec3.set(normalized[0], normalized[1], normalized[2])
-      targetQuaternion.setFromUnitVectors(scratchDefaultNormal, scratchTmpVec3)
+      const quat = markRaw(new Quaternion())
+      quat.setFromUnitVectors(scratchDefaultNormal, scratchTmpVec3)
+      scratchMatrix.makeRotationFromQuaternion(quat)
     }
 
+    // 2. 修正父级 Y 轴翻转
+    const el = scratchMatrix.elements
+    el[1] = -el[1]
+    el[5] = -el[5]
+    el[9] = -el[9]
+
+    // 3. 预应用缩放
     const scale = settingsStore.settings.threeSymbolScale
     scratchScale.set(scale, scale, scale)
+    scratchMatrix.scale(scratchScale)
+
+    // 准备好纯旋转+缩放矩阵 (Target Matrix)
+    // 我们将其拷贝到临时变量以供循环中使用
+    const targetMatrix = scratchMatrix.clone()
 
     const count = iconMeshTarget.count
 
     for (let index = 0; index < count; index++) {
-      // 读取现有矩阵，保留位置和缩放
+      // 获取当前矩阵以提取位置
       iconMeshTarget.getMatrixAt(index, scratchMatrix)
-      scratchMatrix.decompose(scratchPosition, scratchQuaternion, scratchTmpVec3) // 使用临时变量接收旧缩放
 
-      // 应用新朝向和当前设置的缩放
-      scratchMatrix.compose(scratchPosition, targetQuaternion, scratchScale)
+      // 提取位置 (Column 3: elements 12, 13, 14)
+      scratchPosition.setFromMatrixPosition(scratchMatrix)
+
+      // 使用预计算的旋转缩放矩阵
+      scratchMatrix.copy(targetMatrix)
+
+      // 恢复位置
+      scratchMatrix.setPosition(scratchPosition)
+
       iconMeshTarget.setMatrixAt(index, scratchMatrix)
     }
 
@@ -697,15 +722,9 @@ export function useThreeInstancedRenderer(
     const scale = settingsStore.settings.threeSymbolScale
 
     if (mode === 'icon' && iconMeshTarget) {
-      scratchScale.set(scale, scale, scale)
-      const count = iconMeshTarget.count
-      for (let index = 0; index < count; index++) {
-        iconMeshTarget.getMatrixAt(index, scratchMatrix)
-        scratchMatrix.decompose(scratchPosition, scratchQuaternion, scratchTmpVec3)
-        scratchMatrix.compose(scratchPosition, scratchQuaternion, scratchScale)
-        iconMeshTarget.setMatrixAt(index, scratchMatrix)
-      }
-      iconMeshTarget.instanceMatrix.needsUpdate = true
+      // Icon 模式下，直接调用 updateIconFacing 重新应用当前的朝向和新的缩放
+      // 这样可以复用修正后的矩阵计算逻辑，避免 decompose/compose 导致的翻转丢失
+      updateIconFacing(currentIconNormal.value, currentIconUp.value || undefined)
     } else if (mode === 'simple-box' && simpleBoxMeshTarget) {
       // Simple Box 缩放需要 * 100
       const s = 100 * scale
