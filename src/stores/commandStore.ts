@@ -57,6 +57,17 @@ export const useCommandStore = defineStore('command', () => {
   const commands = computed<Command[]>(() => [
     // ===== 文件菜单 =====
     {
+      id: 'file.new',
+      label: '新建空白方案',
+      shortcut: 'Ctrl+N',
+      category: 'file',
+      enabled: () => true,
+      execute: () => {
+        console.log('[Command] 新建空白方案')
+        editorStore.createScheme()
+      },
+    },
+    {
       id: 'file.startWatchMode',
       label: '选择游戏目录',
       shortcut: 'Ctrl+O',
@@ -326,7 +337,7 @@ export const useCommandStore = defineStore('command', () => {
       id: 'view.fitToView',
       label: '重置视图',
       category: 'view',
-      enabled: () => editorStore.items.length > 0 && fitToViewFn.value !== null,
+      enabled: () => fitToViewFn.value !== null,
       execute: () => {
         console.log('[Command] 重置视图（适配到视图）')
         fitToViewFn.value?.()
@@ -360,8 +371,7 @@ export const useCommandStore = defineStore('command', () => {
       label: '透视视图',
       shortcut: '0',
       category: 'view',
-      enabled: () =>
-        editorStore.items.length > 0 && uiStore.viewMode === '3d' && setViewPresetFn.value !== null,
+      enabled: () => uiStore.viewMode === '3d' && setViewPresetFn.value !== null,
       execute: () => {
         console.log('[Command] 切换到透视视图')
         setViewPresetFn.value?.('perspective')
@@ -372,8 +382,7 @@ export const useCommandStore = defineStore('command', () => {
       label: '顶视图',
       shortcut: '7',
       category: 'view',
-      enabled: () =>
-        editorStore.items.length > 0 && uiStore.viewMode === '3d' && setViewPresetFn.value !== null,
+      enabled: () => uiStore.viewMode === '3d' && setViewPresetFn.value !== null,
       execute: () => {
         console.log('[Command] 切换到顶视图')
         setViewPresetFn.value?.('top')
@@ -384,8 +393,7 @@ export const useCommandStore = defineStore('command', () => {
       label: '底视图',
       shortcut: '9',
       category: 'view',
-      enabled: () =>
-        editorStore.items.length > 0 && uiStore.viewMode === '3d' && setViewPresetFn.value !== null,
+      enabled: () => uiStore.viewMode === '3d' && setViewPresetFn.value !== null,
       execute: () => {
         console.log('[Command] 切换到底视图')
         setViewPresetFn.value?.('bottom')
@@ -396,8 +404,7 @@ export const useCommandStore = defineStore('command', () => {
       label: '前视图',
       shortcut: '1',
       category: 'view',
-      enabled: () =>
-        editorStore.items.length > 0 && uiStore.viewMode === '3d' && setViewPresetFn.value !== null,
+      enabled: () => uiStore.viewMode === '3d' && setViewPresetFn.value !== null,
       execute: () => {
         console.log('[Command] 切换到前视图')
         setViewPresetFn.value?.('front')
@@ -407,8 +414,7 @@ export const useCommandStore = defineStore('command', () => {
       id: 'view.setViewBack',
       label: '后视图',
       category: 'view',
-      enabled: () =>
-        editorStore.items.length > 0 && uiStore.viewMode === '3d' && setViewPresetFn.value !== null,
+      enabled: () => uiStore.viewMode === '3d' && setViewPresetFn.value !== null,
       execute: () => {
         console.log('[Command] 切换到后视图')
         setViewPresetFn.value?.('back')
@@ -419,8 +425,7 @@ export const useCommandStore = defineStore('command', () => {
       label: '右侧视图',
       shortcut: '3',
       category: 'view',
-      enabled: () =>
-        editorStore.items.length > 0 && uiStore.viewMode === '3d' && setViewPresetFn.value !== null,
+      enabled: () => uiStore.viewMode === '3d' && setViewPresetFn.value !== null,
       execute: () => {
         console.log('[Command] 切换到右侧视图')
         setViewPresetFn.value?.('right')
@@ -430,8 +435,7 @@ export const useCommandStore = defineStore('command', () => {
       id: 'view.setViewLeft',
       label: '左侧视图',
       category: 'view',
-      enabled: () =>
-        editorStore.items.length > 0 && uiStore.viewMode === '3d' && setViewPresetFn.value !== null,
+      enabled: () => uiStore.viewMode === '3d' && setViewPresetFn.value !== null,
       execute: () => {
         console.log('[Command] 切换到左侧视图')
         setViewPresetFn.value?.('left')

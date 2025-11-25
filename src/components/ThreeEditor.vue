@@ -60,6 +60,7 @@ const showCameraDebug = ref(false)
 const backgroundTexture = ref<any>(null)
 const backgroundSize = ref<{ width: number; height: number }>({ width: 100, height: 100 })
 const backgroundPosition = ref<[number, number, number]>([0, 0, -50]) // Z轴位置调整
+const mapCenter = ref<[number, number, number]>([0, 0, 0]) // 地图中心(世界坐标)
 
 // 加载背景图
 onMounted(() => {
@@ -77,6 +78,9 @@ onMounted(() => {
     const height = img.height * scale
 
     backgroundSize.value = { width, height }
+
+    // 计算地图中心的世界坐标
+    mapCenter.value = [xOffset + width / 2, yOffset + height / 2, 0]
 
     // ThreeEditor: x,y 是左上角
     // Three Plane: position 是中心点
@@ -134,6 +138,7 @@ const {
     onOrbitTargetUpdate: (target) => {
       orbitTarget.value = target
     },
+    defaultCenter: mapCenter,
   }
 )
 
@@ -523,31 +528,6 @@ onDeactivated(() => {
 
 <template>
   <div class="absolute inset-0 bg-gray-100">
-    <!-- 空状态提示 -->
-    <div
-      v-if="editorStore.items.length === 0"
-      class="absolute inset-0 flex items-center justify-center text-lg text-gray-400"
-    >
-      <div class="text-center">
-        <svg
-          class="mx-auto mb-4 h-24 w-24 text-gray-300"
-          fill="none"
-          stroke="currentColor"
-          viewBox="0 0 24 24"
-        >
-          <path
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            stroke-width="2"
-            d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-          ></path>
-        </svg>
-        <p>请导入 JSON 文件以查看物品</p>
-        <p class="mt-2 text-sm text-gray-300">使用中键拖拽绕场景旋转视角</p>
-        <p class="text-sm text-gray-300">滚轮缩放，WASD/Q/空格移动相机</p>
-      </div>
-    </div>
-
     <!-- 右键菜单 -->
     <DropdownMenu v-model:open="contextMenuOpen" :modal="false">
       <!-- 虚拟触发器：不可见但存在于 DOM 中，动态定位到鼠标位置 -->
@@ -597,13 +577,6 @@ onDeactivated(() => {
         </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem
-          :disabled="!commandStore.isCommandEnabled('edit.move')"
-          @select="commandStore.executeCommand('edit.move')"
-        >
-          <span>移动和旋转</span>
-          <DropdownMenuShortcut>Ctrl+M</DropdownMenuShortcut>
-        </DropdownMenuItem>
-        <DropdownMenuItem
           :disabled="!commandStore.isCommandEnabled('view.focusSelection')"
           @select="commandStore.executeCommand('view.focusSelection')"
         >
@@ -624,7 +597,6 @@ onDeactivated(() => {
 
     <!-- Three.js 场景 + 选择层 -->
     <div
-      v-if="editorStore.items.length > 0"
       ref="threeContainerRef"
       class="absolute inset-0 overflow-hidden"
       @pointerdown="handleContainerPointerDown"
@@ -787,7 +759,7 @@ onDeactivated(() => {
     </div>
 
     <!-- 视图信息 -->
-    <div v-if="editorStore.items.length > 0" class="absolute right-4 bottom-4 space-y-2">
+    <div class="absolute right-4 bottom-4 space-y-2">
       <div
         class="rounded border border-gray-200 bg-white/90 px-3 py-2 text-xs text-gray-600 shadow-md backdrop-blur-sm"
       >

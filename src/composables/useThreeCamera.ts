@@ -87,6 +87,7 @@ export interface CameraControllerOptions {
 export interface CameraControllerDeps {
   isTransformDragging?: Ref<boolean>
   onOrbitTargetUpdate?: (target: Vec3) => void
+  defaultCenter?: Ref<Vec3>
 }
 
 // 对外接口
@@ -187,10 +188,10 @@ export function useThreeCamera(
   const isMiddleButtonDown = ref(false)
   let isActive = false
 
-  // === 场景中心与距离计算 (Computed from Store) ===
+  // === 场景中心与距离计算 ===
   const sceneCenter = computed<Vec3>(() => {
     if (editorStore.items.length === 0) {
-      return [0, 0, 0]
+      return deps.defaultCenter?.value ?? [0, 0, 0]
     }
 
     const bounds = editorStore.bounds
@@ -207,25 +208,24 @@ export function useThreeCamera(
     ]
   })
 
-  const cameraDistance = computed(() => {
+  // 默认基准距离 (用于正交视锥体计算等)
+  const cameraDistance = ref(40000)
+
+  function updateCameraDistance() {
     if (editorStore.items.length === 0) {
-      return 5000
+      cameraDistance.value = 40000
+      return
     }
 
     const bounds = editorStore.bounds
-
-    // 安全检查：bounds 可能为 null
     if (!bounds) {
-      return 3000
+      cameraDistance.value = 3000
+      return
     }
 
-    const rangeX = bounds.width
-    const rangeY = bounds.height
-    const rangeZ = bounds.depth
-
-    const maxRange = Math.max(rangeX, rangeY, rangeZ)
-    return Math.max(maxRange * 1, 3000)
-  })
+    const maxRange = Math.max(bounds.width, bounds.height, bounds.depth)
+    cameraDistance.value = Math.max(maxRange * 1, 3000)
+  }
 
   // === 响应式绑定 (Reactive Binding with Store) ===
 
@@ -236,6 +236,9 @@ export function useThreeCamera(
       if (!newId) return
 
       const scheme = editorStore.activeScheme
+      // 更新一次基准距离
+      updateCameraDistance()
+
       if (scheme?.viewState) {
         // 恢复状态
         restoreSnapshot(scheme.viewState)
@@ -695,6 +698,8 @@ export function useThreeCamera(
   )
 
   function fitCameraToScene() {
+    // 更新基准距离以适配当前场景
+    updateCameraDistance()
     // 使用当前视图预设重置；若没有预设则按透视视图处理
     const preset = uiStore.currentViewPreset ?? 'perspective'
     // 强制使用全局场景中心和全景距离，并重置缩放为 1

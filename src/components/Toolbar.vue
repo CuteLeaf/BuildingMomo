@@ -150,8 +150,14 @@ onMounted(() => {
         <MenubarTrigger class="text-sm font-medium">文件</MenubarTrigger>
         <MenubarContent :sideOffset="10">
           <template v-for="cmd in fileCommands" :key="cmd.id">
-            <!-- 在"保存到游戏"、"选择游戏目录"之前添加分隔线 -->
-            <MenubarSeparator v-if="cmd.id === 'file.import' || cmd.id === 'file.saveToGame'" />
+            <!-- 在"保存到游戏"、"选择游戏目录"、"导入"之前添加分隔线 -->
+            <MenubarSeparator
+              v-if="
+                cmd.id === 'file.import' ||
+                cmd.id === 'file.saveToGame' ||
+                cmd.id === 'file.startWatchMode'
+              "
+            />
             <MenubarItem :disabled="!isEnabled(cmd.id)" @click="handleCommand(cmd.id)">
               {{ cmd.label }}
               <MenubarShortcut v-if="cmd.shortcut">{{ cmd.shortcut }}</MenubarShortcut>
