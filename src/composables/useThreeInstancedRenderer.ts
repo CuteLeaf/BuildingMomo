@@ -495,10 +495,12 @@ export function useThreeInstancedRenderer(
       // 1. Box 模式计算
       if (mode === 'box' && meshTarget) {
         // Z-Up Rotation: Yaw is around Z, Pitch around Y, Roll around X
+        // 由于场景父级在 Y 轴上做了镜像缩放 ([1, -1, 1])，
+        // 为了让编辑器中的 Roll / Pitch 与游戏中的方向一致，这里对 Roll 和 Pitch 取反
         scratchEuler.set(
-          (Rotation.Roll * Math.PI) / 180,
-          (Rotation.Pitch * Math.PI) / 180, // Pitch around Y
-          (Rotation.Yaw * Math.PI) / 180, // Yaw around Z
+          (-Rotation.Roll * Math.PI) / 180,
+          (-Rotation.Pitch * Math.PI) / 180, // Pitch around Y (取反修正镜像)
+          (Rotation.Yaw * Math.PI) / 180, // Yaw around Z 保持不变
           'ZYX'
         )
         scratchQuaternion.setFromEuler(scratchEuler)
@@ -554,10 +556,10 @@ export function useThreeInstancedRenderer(
 
       // 3. Simple Box 模式计算
       if (mode === 'simple-box' && simpleBoxMeshTarget) {
-        // 旋转同 Box
+        // 旋转同 Box：同样需要对 Roll / Pitch 取反以抵消父级 Y 轴镜像
         scratchEuler.set(
-          (Rotation.Roll * Math.PI) / 180,
-          (Rotation.Pitch * Math.PI) / 180,
+          (-Rotation.Roll * Math.PI) / 180,
+          (-Rotation.Pitch * Math.PI) / 180,
           (Rotation.Yaw * Math.PI) / 180,
           'ZYX'
         )

@@ -1,5 +1,5 @@
 import { storeToRefs } from 'pinia'
-import { Vector3, Quaternion, Euler, MathUtils } from 'three'
+import { Vector3, Quaternion, Euler, MathUtils, Matrix4 } from 'three'
 import { useEditorStore } from '../../stores/editorStore'
 import { useEditorHistory } from './useEditorHistory'
 import type { TransformParams } from '../../types/editor'
@@ -7,12 +7,20 @@ import type { AppItem } from '../../types/editor'
 
 /**
  * 计算物品在群组旋转后的新位置和姿态
- * 使用四元数确保旋转在世界坐标系下正确应用
+ * 核心原则：模拟渲染管线进行正向构建，应用变换后再逆向还原。
  *
- * @param item - 要变换的物品
- * @param center - 旋转中心点
- * @param rotationDelta - 旋转增量 (度数: x=Roll, y=Pitch, z=Yaw)
- * @param positionOffset - 位置偏移
+ * 渲染管线:
+ * 1. Data Space: (x, y, z, Roll, Pitch, Yaw)
+ * 2. Visual Euler: (-Roll, -Pitch, Yaw)  // 关键修正
+ * 3. Render Matrix: compose(Visual Pos, Visual Euler, Scale)
+ * 4. World Matrix: Scale(1, -1, 1) * Render Matrix
+ *
+ * 变换操作: World Matrix' = Delta Rotation * World Matrix
+ *
+ * 逆向还原:
+ * 1. Render Matrix' = Scale(1, -1, 1) * World Matrix'
+ * 2. 提取 Visual Euler
+ * 3. Data Rotation: (-ex, -ey, ez) // 关键还原
  */
 function calculateNewTransform(
   item: AppItem,
@@ -20,52 +28,77 @@ function calculateNewTransform(
   rotationDelta: { x?: number; y?: number; z?: number },
   positionOffset: { x: number; y: number; z: number }
 ) {
-  // 1. 准备基础数据
-  const currentPos = new Vector3(item.x, item.y, item.z)
-  const centerPos = new Vector3(center.x, center.y, center.z)
+  // 1. 定义父级镜像变换矩阵 S (Scale 1, -1, 1)
+  const S = new Matrix4().makeScale(1, -1, 1)
 
-  // 构建当前姿态四元数 (注意顺序 ZYX，单位转弧度)
-  const currentEuler = new Euler(
-    MathUtils.degToRad(item.originalData.Rotation.Roll),
-    MathUtils.degToRad(item.originalData.Rotation.Pitch),
-    MathUtils.degToRad(item.originalData.Rotation.Yaw),
+  // 2. 构建"渲染矩阵" (模拟 useThreeInstancedRenderer.ts 逻辑)
+  const localPos = new Vector3(item.x, item.y, item.z)
+
+  // 关键：渲染器使用了 Roll/Pitch 取反
+  const localEuler = new Euler(
+    MathUtils.degToRad(-(item.originalData.Rotation.Roll ?? 0)),
+    MathUtils.degToRad(-(item.originalData.Rotation.Pitch ?? 0)),
+    MathUtils.degToRad(item.originalData.Rotation.Yaw ?? 0),
     'ZYX'
   )
-  const qCurrent = new Quaternion().setFromEuler(currentEuler)
+  const localQuat = new Quaternion().setFromEuler(localEuler)
+  const localScale = new Vector3(1, 1, 1)
 
-  // 构建增量旋转四元数 (同样使用 ZYX 顺序)
+  const mRendered = new Matrix4().compose(localPos, localQuat, localScale)
+
+  // 3. 构建世界矩阵: M_world = S * M_rendered
+  const mWorld = S.clone().multiply(mRendered)
+
+  // 4. 构建旋转增量矩阵
   const deltaEuler = new Euler(
     MathUtils.degToRad(rotationDelta.x ?? 0),
     MathUtils.degToRad(rotationDelta.y ?? 0),
     MathUtils.degToRad(rotationDelta.z ?? 0),
     'ZYX'
   )
-  const qDelta = new Quaternion().setFromEuler(deltaEuler)
+  const deltaQuat = new Quaternion().setFromEuler(deltaEuler)
+  const mDeltaRot = new Matrix4().makeRotationFromQuaternion(deltaQuat)
 
-  // 2. 计算新位置 (公转 + 平移)
-  // 向量：中心 -> 物体
-  const relativePos = currentPos.clone().sub(centerPos)
-  // 应用旋转
-  relativePos.applyQuaternion(qDelta)
-  // 加回中心 + 加绝对偏移
-  const newPos = centerPos
-    .clone()
-    .add(relativePos)
-    .add(new Vector3(positionOffset.x, positionOffset.y, positionOffset.z))
+  // 5. 计算新的世界位置 (Orbit 公转)
+  const centerData = new Vector3(center.x, center.y, center.z)
+  const centerWorld = centerData.clone().applyMatrix4(S) // (x, -y, z)
 
-  // 3. 计算新姿态 (自转)
-  // 左乘 qDelta 表示基于世界坐标系的旋转叠加
-  const qNew = qDelta.clone().multiply(qCurrent)
+  const posWorld = new Vector3().setFromMatrixPosition(mWorld)
 
-  // 转回欧拉角
-  const newEuler = new Euler().setFromQuaternion(qNew, 'ZYX')
+  const relativeVec = posWorld.clone().sub(centerWorld)
+  relativeVec.applyQuaternion(deltaQuat)
+
+  // 处理位置偏移 (positionOffset 是 Data Space 的增量，需应用 S 变换)
+  const offsetVisual = new Vector3(
+    positionOffset.x,
+    positionOffset.y,
+    positionOffset.z
+  ).applyMatrix4(S)
+
+  const newPosWorld = centerWorld.clone().add(relativeVec).add(offsetVisual)
+
+  // 6. 计算新的世界姿态 (自转): M_new_world = M_delta_rot * M_world
+  const mNewWorldRot = mDeltaRot.multiply(mWorld)
+  mNewWorldRot.setPosition(newPosWorld)
+
+  // 7. 还原回"渲染矩阵": M'_rendered = S * M'_world
+  const mNewRendered = S.multiply(mNewWorldRot)
+
+  // 8. 提取并逆向还原数据
+  const newPos = new Vector3()
+  const newQuat = new Quaternion()
+  const newScale = new Vector3()
+  mNewRendered.decompose(newPos, newQuat, newScale)
+
+  const newEuler = new Euler().setFromQuaternion(newQuat, 'ZYX')
 
   return {
     x: newPos.x,
     y: newPos.y,
     z: newPos.z,
-    Roll: MathUtils.radToDeg(newEuler.x),
-    Pitch: MathUtils.radToDeg(newEuler.y),
+    // 关键：数据还原需再次取反 Roll/Pitch
+    Roll: -MathUtils.radToDeg(newEuler.x),
+    Pitch: -MathUtils.radToDeg(newEuler.y),
     Yaw: MathUtils.radToDeg(newEuler.z),
   }
 }
@@ -80,7 +113,6 @@ export function useEditorManipulation() {
   function deleteSelected() {
     if (!activeScheme.value) return
 
-    // 保存历史（编辑操作）
     saveHistory('edit')
 
     activeScheme.value.items = activeScheme.value.items.filter(
@@ -93,7 +125,6 @@ export function useEditorManipulation() {
   function updateSelectedItemsTransform(params: TransformParams) {
     if (!activeScheme.value) return
 
-    // 保存历史（编辑操作）
     saveHistory('edit')
 
     const { mode, position, rotation } = params
