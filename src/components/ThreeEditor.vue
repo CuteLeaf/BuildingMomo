@@ -2,7 +2,7 @@
 import { ref, computed, markRaw, watch, onActivated, onDeactivated, onMounted, toRef } from 'vue'
 import { TresCanvas } from '@tresjs/core'
 import { OrbitControls, TransformControls, Grid } from '@tresjs/cientos'
-import { Object3D, MOUSE, TextureLoader, SRGBColorSpace } from 'three'
+import { Object3D, MOUSE, TextureLoader, SRGBColorSpace, Color } from 'three'
 import backgroundUrl from '@/assets/home.webp'
 import { useEditorStore } from '@/stores/editorStore'
 import { useCommandStore } from '@/stores/commandStore'
@@ -46,6 +46,8 @@ const { width: containerWidth, height: containerHeight } = useElementSize(threeC
 const cameraRef = ref<any | null>(null) // 透视相机
 const orthoCameraRef = ref<any | null>(null) // 正交相机
 const orbitControlsRef = ref<any | null>(null)
+const transformRef = ref()
+const axesRef = ref()
 const gizmoPivot = ref<Object3D | null>(markRaw(new Object3D()))
 
 // 监听按键状态
@@ -101,9 +103,6 @@ const currentViewPreset = computed(() => uiStore.currentViewPreset)
 // Orbit 模式下的中心点：用于中键绕场景/选中物品旋转
 const orbitTarget = ref<[number, number, number]>([0, 0, 0])
 
-// 响应式绑定当前方案的视图状态
-// 已移至 useThreeCamera 内部处理
-
 // 相机导航（WASD/Q/Space）
 const {
   cameraPosition,
@@ -111,7 +110,6 @@ const {
   cameraUp,
   cameraZoom,
   controlMode,
-  // currentViewPreset, // 移至 UI Store
   isOrthographic,
   isViewFocused,
   isNavKeyPressed,
@@ -206,7 +204,6 @@ const shouldShowIconMesh = computed(() => currentDisplayMode.value === 'icon')
 const shouldShowSimpleBoxMesh = computed(() => currentDisplayMode.value === 'simple-box')
 
 // 当前用于拾取/选择的 InstancedMesh（根据显示模式切换）
-// 当前用于拾取/选择的 InstancedMesh（根据显示模式切换）
 const pickInstancedMesh = computed(() => {
   if (shouldShowIconMesh.value) return iconInstancedMesh.value
   if (shouldShowSimpleBoxMesh.value) return simpleBoxInstancedMesh.value
@@ -294,6 +291,49 @@ const {
   isTransformDragging,
   orbitControlsRef
 )
+
+// 现代配色方案
+const axisColors = {
+  x: 0xef4444, // red-500
+  y: 0x84cc16, // lime-500
+  z: 0x3b82f6, // blue-500
+}
+
+// 自定义 TransformControls (Gizmo) 颜色
+watch(transformRef, (v) => {
+  const controls = v?.instance || v?.value
+  if (!controls) return
+
+  const updateGizmo = () => {
+    const gizmo = controls.gizmo || controls.children?.[0]
+    gizmo?.traverse((obj: any) => {
+      if (!obj.material || !obj.name) return
+
+      let color
+      if (/^(X|XYZX)$/.test(obj.name)) color = axisColors.x
+      else if (/^(Y|XYZY)$/.test(obj.name)) color = axisColors.y
+      else if (/^(Z|XYZZ)$/.test(obj.name)) color = axisColors.z
+
+      if (color) {
+        obj.material.color.set(color)
+        // 关键：覆盖 tempColor 防止颜色被重置
+        obj.material.tempColor = obj.material.tempColor || new Color()
+        obj.material.tempColor.set(color)
+      }
+    })
+  }
+
+  updateGizmo()
+})
+
+// 自定义 AxesHelper (坐标轴) 颜色
+watch(axesRef, (v) => {
+  const axes = v?.instance || v?.value || v
+  // AxesHelper.setColors available since r133
+  if (axes && typeof axes.setColors === 'function') {
+    axes.setColors(new Color(axisColors.x), new Color(axisColors.y), new Color(axisColors.z))
+  }
+})
 
 const { selectionRect, handlePointerDown, handlePointerMove, handlePointerUp } = useThreeSelection(
   editorStore,
@@ -491,8 +531,6 @@ const gridRotation = computed<[number, number, number]>(() => {
   return [Math.PI / 2, 0, 0]
 })
 
-// 聚焦到整个场景 (别名，兼容 CommandStore 命名)
-
 // 背景显示条件
 const shouldShowBackground = computed(() => {
   if (!settingsStore.settings.showBackground) return false
@@ -504,9 +542,6 @@ const shouldShowBackground = computed(() => {
   return true
 })
 
-// 智能更新视图：方案切换或首次加载时重置视角
-// 已移至 useThreeCamera 内部处理，通过监听 activeSchemeId 自动恢复快照或设置默认视图
-
 // 视图切换函数（供命令系统调用）
 function switchToView(preset: ViewPreset) {
   switchToViewPreset(preset)
@@ -514,9 +549,7 @@ function switchToView(preset: ViewPreset) {
 
 // 当 3D 视图激活时，注册视图函数
 onActivated(() => {
-  // 3D视图不需要缩放功能，但需要重置视图和聚焦选中功能
   commandStore.setZoomFunctions(null, null, fitCameraToScene, focusOnSelection)
-  // 注册视图切换函数
   commandStore.setViewPresetFunction(switchToView)
 })
 
@@ -669,7 +702,7 @@ onDeactivated(() => {
             <TresMeshBasicMaterial :map="backgroundTexture" :tone-mapped="false" :side="2" />
           </TresMesh>
 
-          <TresAxesHelper :args="[5000]" />
+          <TresAxesHelper ref="axesRef" :args="[5000]" />
 
           <!-- 原点标记 - 放大以适应大场景 -->
           <TresGroup :position="[0, 0, 0]">
@@ -723,6 +756,7 @@ onDeactivated(() => {
         <!-- TransformControls 放在世界空间 -->
         <TransformControls
           v-if="shouldShowGizmo && gizmoPivot"
+          ref="transformRef"
           :object="gizmoPivot"
           :camera="activeCameraRef"
           :mode="'translate'"
