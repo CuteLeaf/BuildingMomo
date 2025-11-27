@@ -2,11 +2,13 @@
 import { computed, ref, watch } from 'vue'
 import { useEditorStore } from '../stores/editorStore'
 import { useEditorManipulation } from '../composables/editor/useEditorManipulation'
+import { useUIStore } from '../stores/uiStore'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Item } from '@/components/ui/item'
 
 const editorStore = useEditorStore()
+const uiStore = useUIStore()
 const { updateSelectedItemsTransform } = useEditorManipulation()
 
 // 两个独立的开关，默认都开启绝对模式 (false)
@@ -55,7 +57,12 @@ const selectionInfo = computed(() => {
   if (selected.length === 0) return null
 
   // 位置中心点（用于绝对模式显示）
-  const center = editorStore.getSelectedItemsCenter() || { x: 0, y: 0, z: 0 }
+  let center = editorStore.getSelectedItemsCenter() || { x: 0, y: 0, z: 0 }
+
+  // 如果启用了工作坐标系，将中心点转换到工作坐标系
+  if (uiStore.workingCoordinateSystem.enabled) {
+    center = uiStore.globalToWorking(center)
+  }
 
   // 旋转角度（用于绝对模式显示）
   let rotation = { x: 0, y: 0, z: 0 }
@@ -66,6 +73,10 @@ const selectionInfo = computed(() => {
         x: item.originalData.Rotation.Roll,
         y: item.originalData.Rotation.Pitch,
         z: item.originalData.Rotation.Yaw,
+      }
+      // 工作坐标系下，Z轴旋转需要减去坐标系角度
+      if (uiStore.workingCoordinateSystem.enabled) {
+        rotation.z -= uiStore.workingCoordinateSystem.rotationAngle
       }
     }
   } else {
@@ -107,8 +118,24 @@ function updatePosition(axis: 'x' | 'y' | 'z', value: number) {
     const delta = value
     if (delta === 0) return
 
-    const posArgs: any = { x: 0, y: 0, z: 0 }
+    let posArgs: any = { x: 0, y: 0, z: 0 }
     posArgs[axis] = delta
+
+    // 工作坐标系下的相对移动：需要旋转增量向量
+    if (uiStore.workingCoordinateSystem.enabled) {
+      // 这里不需要平移，只需要旋转向量
+      // workingToGlobal 包含平移逻辑吗？uiStore 中的实现是纯旋转变换（看起来是 2D 旋转 + Z 不变）
+      // 让我们检查 uiStore.workingToGlobal 的实现
+      // 实现是: x' = x*cos - y*sin ... 这是一个纯线性变换（旋转），所以对向量也适用
+      posArgs = uiStore.workingToGlobal(posArgs)
+    }
+
+    // updateSelectedItemsTransform 接受的是全局增量
+    // 但注意：这个函数签名的 posArgs 是 Partial<{x,y,z}>
+    // 如果旋转后 x,y 都有值，我们需要正确传递
+    // 为了安全，我们需要构造一个完整的 delta 对象传递给 updateSelectedItemsTransform
+    // 但是 updateSelectedItemsTransform 在 relative 模式下接受的是 Partial
+    // 我们传递旋转后的完整对象即可
 
     updateSelectedItemsTransform({
       mode: 'relative',
@@ -119,12 +146,21 @@ function updatePosition(axis: 'x' | 'y' | 'z', value: number) {
     positionState.value[axis] = 0
   } else {
     // 绝对模式
-    const current = selectionInfo.value.center
-    const newPos = { ...current, [axis]: value }
+    // 用户输入的是工作坐标系下的目标值
+    // 我们需要结合其他两个轴的当前值（工作坐标系下），构造完整的工作坐标点，然后转回全局
+
+    const currentWorking = selectionInfo.value.center // 这是已经在 computed 中转换过的
+    const newWorkingPos = { ...currentWorking, [axis]: value }
+
+    // 转换回全局
+    let newGlobalPos = newWorkingPos
+    if (uiStore.workingCoordinateSystem.enabled) {
+      newGlobalPos = uiStore.workingToGlobal(newWorkingPos)
+    }
 
     updateSelectedItemsTransform({
       mode: 'absolute',
-      position: newPos,
+      position: newGlobalPos,
     })
   }
 }
@@ -150,6 +186,7 @@ function updateRotation(axis: 'x' | 'y' | 'z', value: number) {
   } else {
     // 绝对模式
     if (selectionInfo.value.count === 1) {
+      // 单选绝对模式：计算增量
       const currentRotation = selectionInfo.value.rotation[axis]
       const delta = value - currentRotation
 
@@ -185,7 +222,20 @@ const fmt = (n: number) => Math.round(n * 100) / 100
     <!-- 位置 -->
     <div class="space-y-2">
       <div class="flex items-center justify-between">
-        <label class="text-xs font-bold text-gray-700">位置</label>
+        <div class="flex items-center gap-1">
+          <label class="text-xs font-bold text-gray-700">位置</label>
+          <TooltipProvider v-if="uiStore.workingCoordinateSystem.enabled">
+            <Tooltip :delay-duration="300">
+              <TooltipTrigger as-child>
+                <span class="cursor-help text-[10px] font-medium text-blue-600">(工作坐标系)</span>
+              </TooltipTrigger>
+              <TooltipContent class="text-xs" variant="light">
+                当前数值已转换为工作坐标系<br />
+                旋转角度: {{ uiStore.workingCoordinateSystem.rotationAngle }}°
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        </div>
         <Tabs v-model="positionMode" class="w-auto">
           <TabsList class="h-6 p-0.5">
             <TabsTrigger
@@ -271,32 +321,15 @@ const fmt = (n: number) => Math.round(n * 100) / 100
     <div class="space-y-2">
       <div class="flex items-center justify-between">
         <div class="flex items-center gap-1">
-          <TooltipProvider>
+          <label class="text-xs font-bold text-gray-700">旋转 (°)</label>
+          <TooltipProvider v-if="uiStore.workingCoordinateSystem.enabled">
             <Tooltip :delay-duration="300">
               <TooltipTrigger as-child>
-                <div class="flex cursor-help items-center gap-1">
-                  <label
-                    class="border-b border-dashed border-gray-300 text-xs font-bold text-gray-700"
-                    >旋转 (°)</label
-                  >
-                </div>
+                <span class="cursor-help text-[10px] font-medium text-blue-600">(校正)</span>
               </TooltipTrigger>
-              <TooltipContent side="right" class="text-xs" variant="light">
-                <p class="mb-1 font-semibold">旋转轴说明:</p>
-                <ul class="space-y-1">
-                  <li>
-                    <span class="font-bold text-red-500">R</span> (Roll) 翻滚角 &rarr; 绕
-                    <span class="font-bold text-red-500">X</span> 轴
-                  </li>
-                  <li>
-                    <span class="font-bold text-green-500">P</span> (Pitch) 俯仰角 &rarr; 绕
-                    <span class="font-bold text-green-500">Y</span> 轴
-                  </li>
-                  <li>
-                    <span class="font-bold text-blue-500">Y</span> (Yaw) 偏航角 &rarr; 绕
-                    <span class="font-bold text-blue-500">Z</span> 轴
-                  </li>
-                </ul>
+              <TooltipContent class="text-xs" variant="light">
+                Z轴旋转显示已校正<br />
+                实际旋转 = 显示值 + {{ uiStore.workingCoordinateSystem.rotationAngle }}°
               </TooltipContent>
             </Tooltip>
           </TooltipProvider>
@@ -327,7 +360,7 @@ const fmt = (n: number) => Math.round(n * 100) / 100
           <div
             class="mr-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-red-100 text-[10px] font-bold text-red-600 select-none"
           >
-            R
+            X
           </div>
           <input
             type="number"
@@ -350,7 +383,7 @@ const fmt = (n: number) => Math.round(n * 100) / 100
           <div
             class="mr-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-green-100 text-[10px] font-bold text-green-600 select-none"
           >
-            P
+            Y
           </div>
           <input
             type="number"
@@ -373,7 +406,7 @@ const fmt = (n: number) => Math.round(n * 100) / 100
           <div
             class="mr-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-blue-100 text-[10px] font-bold text-blue-600 select-none"
           >
-            Y
+            Z
           </div>
           <input
             type="number"

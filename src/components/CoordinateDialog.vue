@@ -12,7 +12,6 @@ import {
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 
 const props = defineProps<{
   open: boolean
@@ -24,9 +23,8 @@ const emit = defineEmits<{
 
 const uiStore = useUIStore()
 
-// 坐标系选择
-const coordinateMode = ref<'global' | 'working'>('global')
-const workingAngle = ref<number>(45)
+// 坐标系角度（默认为 0）
+const workingAngle = ref<number>(0)
 
 // 当对话框打开时，填充当前状态
 watch(
@@ -34,11 +32,9 @@ watch(
   (isOpen) => {
     if (isOpen) {
       if (uiStore.workingCoordinateSystem.enabled) {
-        coordinateMode.value = 'working'
         workingAngle.value = uiStore.workingCoordinateSystem.rotationAngle
       } else {
-        coordinateMode.value = 'global'
-        workingAngle.value = 45
+        workingAngle.value = 0
       }
     }
   }
@@ -46,7 +42,7 @@ watch(
 
 // 计算坐标轴显示角度
 const displayAngle = computed(() => {
-  return coordinateMode.value === 'working' ? workingAngle.value : 0
+  return workingAngle.value
 })
 
 const angleRad = computed(() => (displayAngle.value * Math.PI) / 180)
@@ -75,7 +71,7 @@ const yLabelPos = computed(() => ({
 
 // 确认按钮处理
 function handleConfirm() {
-  if (coordinateMode.value === 'global') {
+  if (workingAngle.value === 0) {
     uiStore.setWorkingCoordinateSystem(false, 0)
   } else {
     uiStore.setWorkingCoordinateSystem(true, workingAngle.value)
@@ -94,7 +90,7 @@ function handleCancel() {
     <DialogContent class="sm:max-w-[450px]">
       <DialogHeader>
         <DialogTitle>工作坐标系设置</DialogTitle>
-        <DialogDescription> 选择使用全局坐标系或自定义旋转角度的工作坐标系。 </DialogDescription>
+        <DialogDescription> 设置工作坐标系的旋转角度，0° 即为全局坐标系。 </DialogDescription>
       </DialogHeader>
 
       <div class="grid gap-6 py-4">
@@ -102,7 +98,7 @@ function handleCancel() {
         <div class="flex justify-center">
           <div class="rounded-lg bg-gray-50 p-4">
             <div class="mb-2 text-center text-sm font-medium text-gray-700">
-              {{ coordinateMode === 'working' ? `工作坐标系 ${workingAngle}°` : '全局坐标系' }}
+              {{ workingAngle === 0 ? '全局坐标系 0°' : `工作坐标系 ${workingAngle}°` }}
             </div>
             <svg width="120" height="120" viewBox="-60 -60 120 120" class="mx-auto">
               <!-- 背景圆 -->
@@ -184,25 +180,8 @@ function handleCancel() {
           </div>
         </div>
 
-        <!-- 坐标系选择 -->
-        <div class="grid gap-3">
-          <Label class="text-base font-medium">坐标系类型</Label>
-          <RadioGroup v-model="coordinateMode">
-            <div class="flex items-center space-x-2">
-              <RadioGroupItem id="global" value="global" />
-              <Label for="global" class="cursor-pointer font-normal">全局坐标系（0°）</Label>
-            </div>
-            <div class="flex items-center space-x-2">
-              <RadioGroupItem id="working" value="working" />
-              <Label for="working" class="cursor-pointer font-normal"
-                >工作坐标系（自定义角度）</Label
-              >
-            </div>
-          </RadioGroup>
-        </div>
-
         <!-- 工作坐标系角度调整 -->
-        <div v-if="coordinateMode === 'working'" class="grid gap-3">
+        <div class="grid gap-3">
           <Label class="text-sm font-medium">旋转角度</Label>
           <div class="flex items-center gap-2">
             <Input v-model.number="workingAngle" type="number" class="h-9 w-24" />
@@ -210,7 +189,23 @@ function handleCancel() {
           </div>
 
           <!-- 快捷角度按钮 -->
-          <div class="grid grid-cols-4 gap-2">
+          <div class="grid grid-cols-5 gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              :class="{ 'border-blue-500 bg-blue-50': workingAngle === -45 }"
+              @click="workingAngle = -45"
+            >
+              -45°
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              :class="{ 'border-blue-500 bg-blue-50': workingAngle === -30 }"
+              @click="workingAngle = -30"
+            >
+              -30°
+            </Button>
             <Button
               size="sm"
               variant="outline"
@@ -222,26 +217,18 @@ function handleCancel() {
             <Button
               size="sm"
               variant="outline"
+              :class="{ 'border-blue-500 bg-blue-50': workingAngle === 30 }"
+              @click="workingAngle = 30"
+            >
+              30°
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
               :class="{ 'border-blue-500 bg-blue-50': workingAngle === 45 }"
               @click="workingAngle = 45"
             >
               45°
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              :class="{ 'border-blue-500 bg-blue-50': workingAngle === 90 }"
-              @click="workingAngle = 90"
-            >
-              90°
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              :class="{ 'border-blue-500 bg-blue-50': workingAngle === 135 }"
-              @click="workingAngle = 135"
-            >
-              135°
             </Button>
           </div>
         </div>

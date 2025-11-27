@@ -1,8 +1,8 @@
 import { computed, ref, watchEffect, markRaw, type Ref } from 'vue'
-import { Object3D, Vector3 } from 'three'
+import { Object3D, Vector3, Euler } from 'three'
 import type { useEditorStore } from '@/stores/editorStore'
 import { useSettingsStore } from '@/stores/settingsStore'
-import { coordinates3D } from '@/lib/coordinates'
+import { useUIStore } from '@/stores/uiStore'
 import { useEditorHistory } from '@/composables/editor/useEditorHistory'
 import { useEditorManipulation } from '@/composables/editor/useEditorManipulation'
 
@@ -24,10 +24,16 @@ export function useThreeTransformGizmo(
   const lastThreePosition = ref<Vector3 | null>(null)
 
   const settingsStore = useSettingsStore()
+  const uiStore = useUIStore()
   const { saveHistory } = useEditorHistory()
   const { moveSelectedItems } = useEditorManipulation()
   const shouldShowGizmo = computed(
     () => editorStore.selectedItemIds.size > 0 && settingsStore.settings.showGizmo
+  )
+
+  // Gizmo 空间模式：如果启用了工作坐标系，则使用 local 模式
+  const transformSpace = computed(() =>
+    uiStore.workingCoordinateSystem.enabled ? 'local' : 'world'
   )
 
   // 跟随选中物品中心更新 gizmo 位置（非拖拽时）
@@ -43,8 +49,20 @@ export function useThreeTransformGizmo(
       return
     }
 
-    // 使用坐标转换工具
-    coordinates3D.setThreeFromGame(pivot.position, center)
+    // 修复：由于 Gizmo 移到了 World Space (Z-up, Right-handed)，
+    // 而 Game Logic 的可视化层在一个 Scale(1, -1, 1) 的组里。
+    // 视觉上 items 在 (x, -y, z)，所以 Gizmo 也应该在这里。
+    pivot.position.set(center.x, -center.y, center.z)
+
+    // 更新 Gizmo 旋转以匹配工作坐标系
+    if (uiStore.workingCoordinateSystem.enabled) {
+      const angleRad = (uiStore.workingCoordinateSystem.rotationAngle * Math.PI) / 180
+      // Z-up 系统，绕 Z 轴旋转
+      // 注意：由于世界空间 Y 轴被翻转 (Scale 1, -1, 1)，旋转方向也需要取反
+      pivot.setRotationFromEuler(new Euler(0, 0, -angleRad))
+    } else {
+      pivot.setRotationFromEuler(new Euler(0, 0, 0))
+    }
   })
 
   function setOrbitControlsEnabled(enabled: boolean) {
@@ -135,6 +153,7 @@ export function useThreeTransformGizmo(
     const current = pivot.position
 
     // 计算 Three 空间的增量（相对于上一帧）
+    // 这里的 deltaThree 是 World Space 的增量
     const deltaThree = markRaw(
       new Vector3(current.x - lastThree.x, current.y - lastThree.y, current.z - lastThree.z)
     )
@@ -150,8 +169,14 @@ export function useThreeTransformGizmo(
       hasStartedTransform.value = true
     }
 
+    // 关键修正：将 World Space 的增量转换为 Item Visual Space 的增量
+    // Item Visual Space 的 Y 轴是翻转的 (Scale Y = -1)
+    // World dy = +10 -> Item Visual y change = -10
+    const deltaItemVisual = deltaThree.clone()
+    deltaItemVisual.y = -deltaItemVisual.y
+
     // 直接更新实例矩阵（视觉变换，不触发 store）
-    updateSelectedInstancesMatrix(editorStore.selectedItemIds, deltaThree)
+    updateSelectedInstancesMatrix(editorStore.selectedItemIds, deltaItemVisual)
 
     // 更新记录位置
     lastThreePosition.value = markRaw(current.clone())
@@ -164,7 +189,12 @@ export function useThreeTransformGizmo(
         y: current.y - start.y,
         z: current.z - start.z,
       }
-      const gameDelta = coordinates3D.threeDeltaToGameDelta(totalThreeDelta)
+      // 同样需要修正 Y 轴翻转
+      const gameDelta = {
+        x: totalThreeDelta.x,
+        y: -totalThreeDelta.y, // World dy -> Game dy (negated)
+        z: totalThreeDelta.z,
+      }
       lastApplied.value = { x: gameDelta.x, y: gameDelta.y, z: gameDelta.z }
     }
   }
@@ -172,6 +202,7 @@ export function useThreeTransformGizmo(
   return {
     shouldShowGizmo,
     isTransformDragging: _isTransformDragging,
+    transformSpace,
     handleGizmoDragging,
     handleGizmoMouseDown,
     handleGizmoMouseUp,

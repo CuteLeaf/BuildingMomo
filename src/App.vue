@@ -10,7 +10,6 @@ import Sidebar from './components/Sidebar.vue'
 import StatusBar from './components/StatusBar.vue'
 import ThreeEditor from './components/ThreeEditor.vue'
 import WelcomeScreen from './components/WelcomeScreen.vue'
-import MoveDialog from './components/MoveDialog.vue'
 import CoordinateDialog from './components/CoordinateDialog.vue'
 import DocsViewer from './components/DocsViewer.vue'
 import { Toaster } from '@/components/ui/sonner'
@@ -115,9 +114,6 @@ onMounted(async () => {
 
   <!-- 全局 Toast 通知 -->
   <Toaster position="top-center" :duration="3000" richColors />
-
-  <!-- 移动对话框 -->
-  <MoveDialog v-model:open="commandStore.showMoveDialog" />
 
   <!-- 工作坐标系设置对话框 -->
   <CoordinateDialog v-model:open="commandStore.showCoordinateDialog" />

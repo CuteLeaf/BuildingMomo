@@ -464,7 +464,40 @@ export function useThreeCamera(
 
   function setViewPreset(preset: ViewPreset, target: Vec3, distance: number, newZoom?: number) {
     const config = VIEW_PRESETS[preset]
-    const direction = normalize(config.direction)
+    let direction = normalize(config.direction)
+    let up = [...config.up] as Vec3
+
+    // 如果启用了工作坐标系，对方向进行旋转
+    // 只有非透视视图（正交视图）需要遵循工作坐标系旋转
+    // Front/Back/Left/Right 应该相对于工作坐标系
+    // Top/Bottom 应该旋转相机的 Up 向量
+    if (
+      uiStore.workingCoordinateSystem.enabled &&
+      uiStore.workingCoordinateSystem.rotationAngle !== 0 &&
+      preset !== 'perspective'
+    ) {
+      const angleRad = (uiStore.workingCoordinateSystem.rotationAngle * Math.PI) / 180
+      const cos = Math.cos(angleRad)
+      const sin = Math.sin(angleRad)
+
+      // 旋转逻辑:
+      // 对于 Top/Bottom: 视线方向(Z轴)不变，但 Up 向量需要旋转
+      if (preset === 'top' || preset === 'bottom') {
+        // 原始 Up 通常是 [0, 1, 0] (+Y)
+        // 旋转后 Up 应该是 [ -sin, cos, 0 ] (假设逆时针旋转)
+        // X' = x*cos - y*sin
+        // Y' = x*sin + y*cos
+        up = [up[0] * cos - up[1] * sin, up[0] * sin + up[1] * cos, up[2]]
+      } else {
+        // 对于 Front/Back/Left/Right: 视线方向在 XY 平面上，需要旋转方向
+        // Z 分量不变
+        direction = [
+          direction[0] * cos - direction[1] * sin,
+          direction[0] * sin + direction[1] * cos,
+          direction[2],
+        ]
+      }
+    }
 
     const newPosition = addScaled(target, direction, distance)
     const { yaw, pitch } = calculateYawPitchFromDirection(scaleVec3(direction, -1))
@@ -476,7 +509,7 @@ export function useThreeCamera(
       yaw,
       pitch,
       viewPreset: preset,
-      up: [...config.up],
+      up: up,
       zoom: newZoom ?? (preset === 'perspective' ? 1 : state.value.zoom),
     }
 
@@ -589,7 +622,22 @@ export function useThreeCamera(
 
     // 恢复 up 向量
     if (snapshot.preset && VIEW_PRESETS[snapshot.preset]) {
-      state.value.up = [...VIEW_PRESETS[snapshot.preset].up]
+      // 同样需要考虑工作坐标系的旋转
+      let up = [...VIEW_PRESETS[snapshot.preset].up] as Vec3
+
+      if (
+        uiStore.workingCoordinateSystem.enabled &&
+        uiStore.workingCoordinateSystem.rotationAngle !== 0 &&
+        snapshot.preset !== 'perspective' &&
+        (snapshot.preset === 'top' || snapshot.preset === 'bottom')
+      ) {
+        const angleRad = (uiStore.workingCoordinateSystem.rotationAngle * Math.PI) / 180
+        const cos = Math.cos(angleRad)
+        const sin = Math.sin(angleRad)
+        up = [up[0] * cos - up[1] * sin, up[0] * sin + up[1] * cos, up[2]]
+      }
+
+      state.value.up = up
     } else {
       state.value.up = [0, 0, 1] // Z-up default
     }
@@ -632,7 +680,20 @@ export function useThreeCamera(
         currentPreset !== 'perspective'
       ) {
         const config = VIEW_PRESETS[currentPreset]
-        state.value.up = [...config.up]
+        let up = [...config.up] as Vec3
+
+        if (
+          uiStore.workingCoordinateSystem.enabled &&
+          uiStore.workingCoordinateSystem.rotationAngle !== 0 &&
+          (currentPreset === 'top' || currentPreset === 'bottom')
+        ) {
+          const angleRad = (uiStore.workingCoordinateSystem.rotationAngle * Math.PI) / 180
+          const cos = Math.cos(angleRad)
+          const sin = Math.sin(angleRad)
+          up = [up[0] * cos - up[1] * sin, up[0] * sin + up[1] * cos, up[2]]
+        }
+
+        state.value.up = up
       }
 
       // 2. Flight 模式下更新移动

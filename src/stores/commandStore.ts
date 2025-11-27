@@ -44,9 +44,6 @@ export const useCommandStore = defineStore('command', () => {
   // 视图切换函数引用（3D视图专用）
   const setViewPresetFn = ref<((preset: ViewPreset) => void) | null>(null)
 
-  // 移动对话框状态
-  const showMoveDialog = ref(false)
-
   // 工作坐标系对话框状态
   const showCoordinateDialog = ref(false)
 
@@ -214,17 +211,6 @@ export const useCommandStore = defineStore('command', () => {
       execute: () => {
         console.log('[Command] 粘贴')
         pasteItems(clipboard.value, 0, 0)
-      },
-    },
-    {
-      id: 'edit.move',
-      label: '移动和旋转',
-      shortcut: 'Ctrl+M',
-      category: 'edit',
-      enabled: () => editorStore.selectedItemIds.size > 0,
-      execute: () => {
-        console.log('[Command] 移动和旋转')
-        showMoveDialog.value = true
       },
     },
     {
@@ -519,7 +505,6 @@ export const useCommandStore = defineStore('command', () => {
     isCommandEnabled,
     setZoomFunctions,
     setViewPresetFunction,
-    showMoveDialog,
     showCoordinateDialog,
   }
 })

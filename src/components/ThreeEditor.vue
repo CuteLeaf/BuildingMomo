@@ -286,6 +286,7 @@ const {
   handleGizmoMouseDown,
   handleGizmoMouseUp,
   handleGizmoChange,
+  transformSpace,
 } = useThreeTransformGizmo(
   editorStore,
   gizmoPivot,
@@ -668,11 +669,39 @@ onDeactivated(() => {
             <TresMeshBasicMaterial :map="backgroundTexture" :tone-mapped="false" :side="2" />
           </TresMesh>
 
-          <!-- 辅助元素 - 适配大场景 -->
+          <TresAxesHelper :args="[5000]" />
+
+          <!-- 原点标记 - 放大以适应大场景 -->
+          <TresGroup :position="[0, 0, 0]">
+            <TresMesh>
+              <TresSphereGeometry :args="[200, 16, 16]" />
+              <TresMeshBasicMaterial :color="0xef4444" />
+            </TresMesh>
+          </TresGroup>
+
+          <!-- Instanced 渲染：按显示模式切换 -->
+          <primitive v-if="shouldShowBoxMesh && instancedMesh" :object="instancedMesh" />
+          <primitive v-if="shouldShowIconMesh && iconInstancedMesh" :object="iconInstancedMesh" />
+          <primitive
+            v-if="shouldShowSimpleBoxMesh && simpleBoxInstancedMesh"
+            :object="simpleBoxInstancedMesh"
+          />
+        </TresGroup>
+
+        <!-- 辅助元素 - 适配大场景 - 移至世界空间 -->
+        <TresGroup
+          v-if="backgroundTexture"
+          :rotation="gridRotation"
+          :position="[backgroundPosition[0], -backgroundPosition[1], 0]"
+        >
           <TresGroup
-            v-if="backgroundTexture"
-            :rotation="gridRotation"
-            :position="[backgroundPosition[0], backgroundPosition[1], 0]"
+            :rotation="[
+              0,
+              uiStore.workingCoordinateSystem.enabled
+                ? (uiStore.workingCoordinateSystem.rotationAngle * Math.PI) / 180
+                : 0,
+              0,
+            ]"
           >
             <!-- Grid 组件 -->
             <Grid
@@ -686,34 +715,18 @@ onDeactivated(() => {
               :infinite-grid="false"
             />
           </TresGroup>
-          <TresAxesHelper :args="[5000]" />
-
-          <!-- 原点标记 - 放大以适应大场景 -->
-          <TresGroup :position="[0, 0, 0]">
-            <TresMesh>
-              <TresSphereGeometry :args="[200, 16, 16]" />
-              <TresMeshBasicMaterial :color="0xef4444" />
-            </TresMesh>
-          </TresGroup>
-
-          <!-- 选中物品的 Transform Gizmo 的锚点 -->
-          <primitive v-if="shouldShowGizmo && gizmoPivot" :object="gizmoPivot" />
-
-          <!-- Instanced 渲染：按显示模式切换 -->
-          <primitive v-if="shouldShowBoxMesh && instancedMesh" :object="instancedMesh" />
-          <primitive v-if="shouldShowIconMesh && iconInstancedMesh" :object="iconInstancedMesh" />
-          <primitive
-            v-if="shouldShowSimpleBoxMesh && simpleBoxInstancedMesh"
-            :object="simpleBoxInstancedMesh"
-          />
         </TresGroup>
 
-        <!-- TransformControls 放在世界空间，避免被父级翻转影响操作手柄的显示 -->
+        <!-- 选中物品的 Transform Gizmo 的锚点 - 移至世界空间 -->
+        <primitive v-if="shouldShowGizmo && gizmoPivot" :object="gizmoPivot" />
+
+        <!-- TransformControls 放在世界空间 -->
         <TransformControls
           v-if="shouldShowGizmo && gizmoPivot"
           :object="gizmoPivot"
           :camera="activeCameraRef"
-          mode="translate"
+          :mode="'translate'"
+          :space="transformSpace"
           @dragging="handleGizmoDragging"
           @mouseDown="handleGizmoMouseDown"
           @mouseUp="handleGizmoMouseUp"
