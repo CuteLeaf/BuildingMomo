@@ -335,16 +335,17 @@ watch(axesRef, (v) => {
   }
 })
 
-const { selectionRect, handlePointerDown, handlePointerMove, handlePointerUp } = useThreeSelection(
-  editorStore,
-  activeCameraRef,
-  {
-    instancedMesh: pickInstancedMesh,
-    indexToIdMap,
-  },
-  threeContainerRef,
-  isTransformDragging
-)
+const { selectionRect, lassoPoints, handlePointerDown, handlePointerMove, handlePointerUp } =
+  useThreeSelection(
+    editorStore,
+    activeCameraRef,
+    {
+      instancedMesh: pickInstancedMesh,
+      indexToIdMap,
+    },
+    threeContainerRef,
+    isTransformDragging
+  )
 
 // 3D Tooltip 系统（与 2D 复用同一开关）
 const {
@@ -375,7 +376,7 @@ function handlePointerMoveWithTooltip(evt: PointerEvent) {
 
   handlePointerMove(evt)
   // 3D 中没有拖动选框以外的拖拽逻辑，这里直接用 selectionRect 是否存在来判断是否在框选
-  const isSelecting = !!selectionRect.value
+  const isSelecting = !!selectionRect.value || lassoPoints.value.length > 0
   handleTooltipPointerMove(evt, isSelecting)
 }
 
@@ -779,6 +780,22 @@ onDeactivated(() => {
           height: selectionRect.height + 'px',
         }"
       ></div>
+
+      <!-- 3D 套索路径 -->
+      <svg
+        v-if="lassoPoints && lassoPoints.length > 0"
+        class="pointer-events-none absolute inset-0 z-10 overflow-visible"
+        style="width: 100%; height: 100%"
+      >
+        <polygon
+          :points="lassoPoints.map((p) => `${p.x},${p.y}`).join(' ')"
+          fill="rgba(59, 130, 246, 0.1)"
+          stroke="rgba(96, 165, 250, 0.8)"
+          stroke-width="1"
+          stroke-linejoin="round"
+          fill-rule="evenodd"
+        />
+      </svg>
 
       <!-- 3D Tooltip -->
       <div

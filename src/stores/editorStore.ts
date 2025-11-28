@@ -22,6 +22,8 @@ export const useEditorStore = defineStore('editor', () => {
 
   // 当前工具状态
   const currentTool = ref<'select' | 'hand'>('select')
+  // 选择模式
+  const selectionMode = ref<'box' | 'lasso'>('box')
 
   // 可建造区域数据
   const buildableAreas = ref<Record<string, number[][]> | null>(null)
@@ -331,6 +333,7 @@ export const useEditorStore = defineStore('editor', () => {
     isBuildableAreaLoaded,
     clipboardList: clipboardRef, // 导出给 useClipboard 使用
     currentTool,
+    selectionMode,
 
     // 向后兼容的计算属性
     items,

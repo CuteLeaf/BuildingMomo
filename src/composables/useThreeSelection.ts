@@ -28,6 +28,7 @@ export function useThreeSelection(
 
   const selectionRect = ref<SelectionRect | null>(null)
   const isSelecting = ref(false)
+  const lassoPoints = ref<{ x: number; y: number }[]>([])
   const mouseDownPos = ref<{ x: number; y: number } | null>(null)
   const tempVec3 = markRaw(new Vector3())
 
@@ -56,6 +57,7 @@ export function useThreeSelection(
     if (!pos) return
     mouseDownPos.value = { x: pos.x, y: pos.y }
     selectionRect.value = null
+    lassoPoints.value = []
     isSelecting.value = false
   }
 
@@ -76,11 +78,25 @@ export function useThreeSelection(
     }
 
     if (isSelecting.value) {
-      selectionRect.value = {
-        x: Math.min(mouseDownPos.value.x, pos.x),
-        y: Math.min(mouseDownPos.value.y, pos.y),
-        width: Math.abs(dx),
-        height: Math.abs(dy),
+      if (editorStore.selectionMode === 'lasso') {
+        // 优化 1：采样优化，减少点数
+        const lastPoint = lassoPoints.value[lassoPoints.value.length - 1]
+        if (!lastPoint) {
+          lassoPoints.value.push({ x: pos.x, y: pos.y })
+        } else {
+          const dist = Math.hypot(pos.x - lastPoint.x, pos.y - lastPoint.y)
+          // 仅当移动距离超过 10px 时才记录新点
+          if (dist > 1) {
+            lassoPoints.value.push({ x: pos.x, y: pos.y })
+          }
+        }
+      } else {
+        selectionRect.value = {
+          x: Math.min(mouseDownPos.value.x, pos.x),
+          y: Math.min(mouseDownPos.value.y, pos.y),
+          width: Math.abs(dx),
+          height: Math.abs(dy),
+        }
       }
     }
   }
@@ -90,11 +106,13 @@ export function useThreeSelection(
       mouseDownPos.value = null
       isSelecting.value = false
       selectionRect.value = null
+      lassoPoints.value = []
       return
     }
 
     const start = mouseDownPos.value
     const rectInfo = selectionRect.value
+    const lasso = lassoPoints.value
 
     mouseDownPos.value = null
 
@@ -102,6 +120,7 @@ export function useThreeSelection(
     if (!start || !pos) {
       isSelecting.value = false
       selectionRect.value = null
+      lassoPoints.value = []
       return
     }
 
@@ -109,14 +128,17 @@ export function useThreeSelection(
     const dy = pos.y - start.y
     const distance = Math.hypot(dx, dy)
 
-    if (!isSelecting.value || distance < 3 || !rectInfo) {
+    if (!isSelecting.value || distance < 3) {
       performClickSelection(evt)
-    } else {
+    } else if (editorStore.selectionMode === 'lasso') {
+      performLassoSelection(evt, lasso)
+    } else if (rectInfo) {
       performBoxSelection(evt, rectInfo)
     }
 
     isSelecting.value = false
     selectionRect.value = null
+    lassoPoints.value = []
   }
 
   function performClickSelection(evt: any) {
@@ -222,8 +244,95 @@ export function useThreeSelection(
     }
   }
 
+  function performLassoSelection(evt: any, points: { x: number; y: number }[]) {
+    const camera = cameraRef.value
+    const container = containerRef.value
+    if (!camera || !container || points.length < 3) return
+
+    const containerRect = container.getBoundingClientRect()
+
+    const idMap = selectionSources.indexToIdMap.value
+    if (!idMap) return
+
+    const visibleItems = editorStore.items
+
+    // 先构建一个 id -> item 的映射
+    const itemById = new Map<string, any>()
+    for (const item of visibleItems) {
+      itemById.set(item.internalId, item)
+    }
+
+    const selectedIds: string[] = []
+
+    // 优化 2：包围盒预筛选
+    let minX = Infinity,
+      maxX = -Infinity,
+      minY = Infinity,
+      maxY = -Infinity
+    for (const p of points) {
+      if (p.x < minX) minX = p.x
+      if (p.x > maxX) maxX = p.x
+      if (p.y < minY) minY = p.y
+      if (p.y > maxY) maxY = p.y
+    }
+
+    for (const id of idMap.values()) {
+      const item = itemById.get(id)
+      if (!item) continue
+
+      coordinates3D.setThreeFromGame(tempVec3, { x: item.x, y: item.y, z: item.z })
+      tempVec3.y = -tempVec3.y
+      tempVec3.project(camera)
+
+      const sx = (tempVec3.x + 1) * 0.5 * containerRect.width
+      const sy = (-tempVec3.y + 1) * 0.5 * containerRect.height
+
+      // 如果点不在包围盒内，直接跳过昂贵的多边形检测
+      if (sx < minX || sx > maxX || sy < minY || sy > maxY) {
+        continue
+      }
+
+      if (isPointInPolygon({ x: sx, y: sy }, points)) {
+        selectedIds.push(id)
+      }
+    }
+
+    const alt = evt.altKey
+    const shift = evt.shiftKey
+
+    if (alt) {
+      if (selectedIds.length > 0) {
+        deselectItems(selectedIds)
+      }
+    } else {
+      updateSelection(selectedIds, shift)
+    }
+  }
+
+  function isPointInPolygon(point: { x: number; y: number }, vs: { x: number; y: number }[]) {
+    let x = point.x,
+      y = point.y
+    let inside = false
+    for (let i = 0, j = vs.length - 1; i < vs.length; j = i++) {
+      const pi = vs[i]
+      const pj = vs[j]
+
+      if (!pi || !pj) continue
+
+      let xi = pi.x,
+        yi = pi.y
+      let xj = pj.x,
+        yj = pj.y
+
+      let intersect = yi > y !== yj > y && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi
+      if (intersect) inside = !inside
+    }
+    return inside
+  }
+
   return {
     selectionRect,
+    lassoPoints,
     handlePointerDown,
     handlePointerMove,
     handlePointerUp,

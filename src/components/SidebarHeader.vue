@@ -5,7 +5,6 @@ import { useSettingsStore } from '@/stores/settingsStore'
 import { useCommandStore } from '@/stores/commandStore'
 import { useUIStore } from '@/stores/uiStore'
 import {
-  MousePointer2,
   Hand,
   Move,
   Box,
@@ -18,6 +17,8 @@ import {
   ChevronsLeft,
   ChevronRight,
   ChevronLeft,
+  BoxSelect,
+  Lasso,
 } from 'lucide-vue-next'
 import { Toggle } from '@/components/ui/toggle'
 
@@ -31,6 +32,14 @@ const currentTool = computed({
   get: () => editorStore.currentTool,
   set: (val) => {
     if (val) editorStore.currentTool = val as 'select' | 'hand'
+  },
+})
+
+// 选择模式切换
+const selectionMode = computed({
+  get: () => editorStore.selectionMode,
+  set: (val) => {
+    if (val) editorStore.selectionMode = val as 'box' | 'lasso'
   },
 })
 
@@ -75,16 +84,35 @@ const viewPreset = computed({
         <div class="flex items-center gap-0.5">
           <Toggle
             size="sm"
-            :model-value="currentTool === 'select'"
+            :model-value="currentTool === 'select' && selectionMode === 'box'"
             @update:model-value="
               (v: boolean) => {
-                if (v) currentTool = 'select'
+                if (v) {
+                  currentTool = 'select'
+                  selectionMode = 'box'
+                }
               }
             "
-            aria-label="选择工具"
-            title="选择工具 (V)"
+            aria-label="方形选框"
+            title="方形选框"
           >
-            <MousePointer2 class="h-4 w-4" />
+            <BoxSelect class="h-4 w-4" />
+          </Toggle>
+          <Toggle
+            size="sm"
+            :model-value="currentTool === 'select' && selectionMode === 'lasso'"
+            @update:model-value="
+              (v: boolean) => {
+                if (v) {
+                  currentTool = 'select'
+                  selectionMode = 'lasso'
+                }
+              }
+            "
+            aria-label="套索工具"
+            title="套索工具"
+          >
+            <Lasso class="h-4 w-4" />
           </Toggle>
           <Toggle
             size="sm"
