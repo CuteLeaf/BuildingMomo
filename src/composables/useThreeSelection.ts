@@ -3,6 +3,7 @@ import { Raycaster, Vector2, Vector3, type Camera, type InstancedMesh } from 'th
 import { coordinates3D } from '@/lib/coordinates'
 import type { useEditorStore } from '@/stores/editorStore'
 import { useEditorSelection } from './editor/useEditorSelection'
+import { useEditorSelectionAction } from './useEditorSelectionAction'
 
 interface SelectionRect {
   x: number
@@ -32,7 +33,11 @@ export function useThreeSelection(
   const mouseDownPos = ref<{ x: number; y: number } | null>(null)
   const tempVec3 = markRaw(new Vector3())
 
-  const { deselectItems, toggleSelection, clearSelection, updateSelection } = useEditorSelection()
+  const { deselectItems, updateSelection, intersectSelection, clearSelection } =
+    useEditorSelection()
+
+  // 计算当前有效的选择行为（结合 Store 设置和键盘修饰键）
+  const { activeAction: effectiveAction } = useEditorSelectionAction()
 
   function getRelativePosition(evt: any) {
     const el = containerRef.value
@@ -131,9 +136,9 @@ export function useThreeSelection(
     if (!isSelecting.value || distance < 3) {
       performClickSelection(evt)
     } else if (editorStore.selectionMode === 'lasso') {
-      performLassoSelection(evt, lasso)
+      performLassoSelection(lasso)
     } else if (rectInfo) {
-      performBoxSelection(evt, rectInfo)
+      performBoxSelection(rectInfo)
     }
 
     isSelecting.value = false
@@ -171,20 +176,43 @@ export function useThreeSelection(
     }
 
     if (internalId) {
-      const shift = evt.shiftKey
-      const alt = evt.altKey
+      const action = effectiveAction.value
 
-      if (alt) {
-        deselectItems([internalId])
-      } else {
-        toggleSelection(internalId, shift)
+      switch (action) {
+        case 'add':
+          // 加选：如果已选中则不变（符合多选习惯），或者 toggle？
+          // 通常多选模式下，点击未选中的是加选，点击已选中的可能是不变或减选
+          // 这里使用 updateSelection(..., true) 是加选逻辑（Set.add）
+          updateSelection([internalId], true)
+          break
+        case 'subtract':
+          deselectItems([internalId])
+          break
+        case 'intersect':
+          // 点击单个物品做交叉选区：
+          // 如果该物品在当前选区中，则结果只剩该物品
+          // 如果不在，则结果为空
+          intersectSelection([internalId])
+          break
+        case 'new':
+        default:
+          // 新选区：清空其他，选中当前
+          // 优化：如果点击的是当前已选中的，且没有拖拽，是否保持选中？
+          // updateSelection(..., false) 会先 clear 再 add
+          updateSelection([internalId], false)
+          break
       }
-    } else if (!evt.shiftKey) {
-      clearSelection()
+    } else {
+      // 点击空白处
+      // 仅在 'new' 模式下清空选择，其他模式下点击空白通常不产生副作用（或者看具体软件习惯）
+      // PS/Blender 中，加选/减选模式点击空白通常不会清空现有选择
+      if (effectiveAction.value === 'new') {
+        clearSelection()
+      }
     }
   }
 
-  function performBoxSelection(evt: any, rect: SelectionRect) {
+  function performBoxSelection(rect: SelectionRect) {
     const camera = cameraRef.value
     const container = containerRef.value
     if (!camera || !container) return
@@ -232,19 +260,35 @@ export function useThreeSelection(
       }
     }
 
-    const alt = evt.altKey
-    const shift = evt.shiftKey
+    const action = effectiveAction.value
 
-    if (alt) {
-      if (selectedIds.length > 0) {
-        deselectItems(selectedIds)
+    if (selectedIds.length === 0 && action === 'new') {
+      clearSelection()
+      return
+    }
+
+    if (selectedIds.length > 0 || action === 'intersect') {
+      switch (action) {
+        case 'add':
+          updateSelection(selectedIds, true)
+          break
+        case 'subtract':
+          if (selectedIds.length > 0) {
+            deselectItems(selectedIds)
+          }
+          break
+        case 'intersect':
+          intersectSelection(selectedIds)
+          break
+        case 'new':
+        default:
+          updateSelection(selectedIds, false)
+          break
       }
-    } else {
-      updateSelection(selectedIds, shift)
     }
   }
 
-  function performLassoSelection(evt: any, points: { x: number; y: number }[]) {
+  function performLassoSelection(points: { x: number; y: number }[]) {
     const camera = cameraRef.value
     const container = containerRef.value
     if (!camera || !container || points.length < 3) return
@@ -297,15 +341,31 @@ export function useThreeSelection(
       }
     }
 
-    const alt = evt.altKey
-    const shift = evt.shiftKey
+    const action = effectiveAction.value
 
-    if (alt) {
-      if (selectedIds.length > 0) {
-        deselectItems(selectedIds)
+    if (selectedIds.length === 0 && action === 'new') {
+      clearSelection()
+      return
+    }
+
+    if (selectedIds.length > 0 || action === 'intersect') {
+      switch (action) {
+        case 'add':
+          updateSelection(selectedIds, true)
+          break
+        case 'subtract':
+          if (selectedIds.length > 0) {
+            deselectItems(selectedIds)
+          }
+          break
+        case 'intersect':
+          intersectSelection(selectedIds)
+          break
+        case 'new':
+        default:
+          updateSelection(selectedIds, false)
+          break
       }
-    } else {
-      updateSelection(selectedIds, shift)
     }
   }
 

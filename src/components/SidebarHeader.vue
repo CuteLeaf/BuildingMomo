@@ -17,21 +17,36 @@ import {
   ChevronsLeft,
   ChevronRight,
   ChevronLeft,
-  BoxSelect,
+  SquareMousePointer,
   Lasso,
 } from 'lucide-vue-next'
 import { Toggle } from '@/components/ui/toggle'
+import { useEditorSelectionAction } from '@/composables/useEditorSelectionAction'
+import IconSelectionNew from '@/components/icons/IconSelectionNew.vue'
+import IconSelectionAdd from '@/components/icons/IconSelectionAdd.vue'
+import IconSelectionSubtract from '@/components/icons/IconSelectionSubtract.vue'
+import IconSelectionIntersect from '@/components/icons/IconSelectionIntersect.vue'
 
 const editorStore = useEditorStore()
 const settingsStore = useSettingsStore()
 const commandStore = useCommandStore()
 const uiStore = useUIStore()
 
+const { activeAction } = useEditorSelectionAction()
+
 // 工具切换
 const currentTool = computed({
   get: () => editorStore.currentTool,
   set: (val) => {
     if (val) editorStore.currentTool = val as 'select' | 'hand'
+  },
+})
+
+// 选择行为切换
+const selectionAction = computed({
+  get: () => editorStore.selectionAction,
+  set: (val) => {
+    if (val) editorStore.selectionAction = val
   },
 })
 
@@ -96,7 +111,7 @@ const viewPreset = computed({
             aria-label="方形选框"
             title="方形选框"
           >
-            <BoxSelect class="h-4 w-4" />
+            <SquareMousePointer class="h-4 w-4" />
           </Toggle>
           <Toggle
             size="sm"
@@ -144,55 +159,110 @@ const viewPreset = computed({
           </Toggle>
         </div>
       </div>
+    </div>
 
-      <!-- 右侧：显示模式 -->
-      <div class="flex flex-col items-start gap-1">
-        <span class="text-[10px] font-medium text-gray-400 select-none">显示</span>
-        <div class="flex items-center gap-0.25">
-          <Toggle
-            size="sm"
-            :model-value="displayMode === 'box'"
-            @update:model-value="
-              (v: boolean) => {
-                if (v) displayMode = 'box'
-              }
-            "
-            aria-label="完整体积"
-            title="完整体积"
-          >
-            <Cuboid class="h-4 w-4" />
-          </Toggle>
-          <Toggle
-            size="sm"
-            :model-value="displayMode === 'simple-box'"
-            @update:model-value="
-              (v: boolean) => {
-                if (v) displayMode = 'simple-box'
-              }
-            "
-            aria-label="简化方块"
-            title="简化方块"
-          >
-            <Box class="h-4 w-4" />
-          </Toggle>
-          <Toggle
-            size="sm"
-            :model-value="displayMode === 'icon'"
-            @update:model-value="
-              (v: boolean) => {
-                if (v) displayMode = 'icon'
-              }
-            "
-            aria-label="图标模式"
-            title="图标模式"
-          >
-            <ImageIcon class="h-4 w-4" />
-          </Toggle>
-        </div>
+    <!-- 工具栏第二行：选择行为模式 -->
+    <div class="flex flex-col items-start gap-1">
+      <span class="text-[10px] font-medium text-gray-400 select-none">选择模式</span>
+      <div class="flex items-center gap-0.5">
+        <Toggle
+          size="sm"
+          :model-value="activeAction === 'new'"
+          @update:model-value="
+            (v: boolean) => {
+              if (v) selectionAction = 'new'
+            }
+          "
+          title="新选区 (默认)"
+        >
+          <IconSelectionNew class="h-4 w-4" />
+        </Toggle>
+        <Toggle
+          size="sm"
+          :model-value="activeAction === 'add'"
+          @update:model-value="
+            (v: boolean) => {
+              if (v) selectionAction = 'add'
+            }
+          "
+          title="加选 (Shift)"
+        >
+          <IconSelectionAdd class="h-4 w-4" />
+        </Toggle>
+        <Toggle
+          size="sm"
+          :model-value="activeAction === 'subtract'"
+          @update:model-value="
+            (v: boolean) => {
+              if (v) selectionAction = 'subtract'
+            }
+          "
+          title="减选 (Alt)"
+        >
+          <IconSelectionSubtract class="h-4 w-4" />
+        </Toggle>
+        <Toggle
+          size="sm"
+          :model-value="activeAction === 'intersect'"
+          @update:model-value="
+            (v: boolean) => {
+              if (v) selectionAction = 'intersect'
+            }
+          "
+          title="交叉选区 (Shift+Alt)"
+        >
+          <IconSelectionIntersect class="h-4 w-4" />
+        </Toggle>
       </div>
     </div>
 
-    <!-- 工具栏第二行：视图控制 -->
+    <!-- 工具栏第三行：显示模式 -->
+    <div class="flex flex-col items-start gap-1">
+      <span class="text-[10px] font-medium text-gray-400 select-none">显示</span>
+      <div class="flex items-center gap-0.25">
+        <Toggle
+          size="sm"
+          :model-value="displayMode === 'box'"
+          @update:model-value="
+            (v: boolean) => {
+              if (v) displayMode = 'box'
+            }
+          "
+          aria-label="完整体积"
+          title="完整体积"
+        >
+          <Cuboid class="h-4 w-4" />
+        </Toggle>
+        <Toggle
+          size="sm"
+          :model-value="displayMode === 'simple-box'"
+          @update:model-value="
+            (v: boolean) => {
+              if (v) displayMode = 'simple-box'
+            }
+          "
+          aria-label="简化方块"
+          title="简化方块"
+        >
+          <Box class="h-4 w-4" />
+        </Toggle>
+        <Toggle
+          size="sm"
+          :model-value="displayMode === 'icon'"
+          @update:model-value="
+            (v: boolean) => {
+              if (v) displayMode = 'icon'
+            }
+          "
+          aria-label="图标模式"
+          title="图标模式"
+        >
+          <ImageIcon class="h-4 w-4" />
+        </Toggle>
+      </div>
+    </div>
+
+    <!-- 工具栏第四行：视图控制 -->
     <div class="flex flex-col items-start gap-1">
       <span class="text-[10px] font-medium text-gray-400 select-none">视图</span>
       <div class="flex w-full items-center justify-between">

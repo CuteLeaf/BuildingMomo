@@ -22,8 +22,10 @@ export const useEditorStore = defineStore('editor', () => {
 
   // 当前工具状态
   const currentTool = ref<'select' | 'hand'>('select')
-  // 选择模式
+  // 选择模式：方块/套索
   const selectionMode = ref<'box' | 'lasso'>('box')
+  // 选择行为：新选区/加选/减选/交叉
+  const selectionAction = ref<'new' | 'add' | 'subtract' | 'intersect'>('new')
 
   // 可建造区域数据
   const buildableAreas = ref<Record<string, number[][]> | null>(null)
@@ -334,6 +336,7 @@ export const useEditorStore = defineStore('editor', () => {
     clipboardList: clipboardRef, // 导出给 useClipboard 使用
     currentTool,
     selectionMode,
+    selectionAction,
 
     // 向后兼容的计算属性
     items,

@@ -162,10 +162,35 @@ export function useEditorSelection() {
     activeScheme.value.selectedItemIds = newSelection
   }
 
+  // 交叉选择：只保留当前选择与新选择的重叠部分
+  function intersectSelection(itemIds: string[]) {
+    if (!activeScheme.value) return
+
+    // 保存历史（选择操作，会合并）
+    saveHistory('selection')
+
+    // 扩展选择到整组
+    const initialSelection = new Set(itemIds)
+    const expandedSelection = expandSelectionToGroups(initialSelection)
+
+    const currentSelection = activeScheme.value.selectedItemIds
+    const newSelection = new Set<string>()
+
+    // 计算交集
+    currentSelection.forEach((id) => {
+      if (expandedSelection.has(id)) {
+        newSelection.add(id)
+      }
+    })
+
+    activeScheme.value.selectedItemIds = newSelection
+  }
+
   return {
     toggleSelection,
     updateSelection,
     deselectItems,
+    intersectSelection,
     clearSelection,
     selectAll,
     invertSelection,
