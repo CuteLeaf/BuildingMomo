@@ -6,6 +6,8 @@ import { useSettingsStore } from '../stores/settingsStore'
 import type { AlertDetailItem } from '../stores/notificationStore'
 import { storeToRefs } from 'pinia'
 import { useValidationStore } from '../stores/validationStore'
+import { getIconLoader } from './useIconLoader'
+import backgroundUrl from '@/assets/home.webp'
 
 // 检查浏览器是否支持 File System Access API
 const isFileSystemAccessSupported = 'showDirectoryPicker' in window
@@ -106,6 +108,20 @@ async function findLatestBuildSaveData(
 export function useFileOperations(editorStore: ReturnType<typeof useEditorStore>) {
   const notification = useNotification()
   const fileInputRef = ref<HTMLInputElement | null>(null)
+
+  // 辅助函数：预加载图片
+  function preloadImage(url: string) {
+    const img = new Image()
+    img.src = url
+  }
+
+  // 辅助函数：预加载当前方案的图标
+  function preloadActiveSchemeIcons() {
+    if (editorStore.activeScheme) {
+      const uniqueIds = [...new Set(editorStore.activeScheme.items.map((i) => i.gameId))]
+      getIconLoader().preloadIcons(uniqueIds)
+    }
+  }
 
   const settingsStore = useSettingsStore()
   const validationStore = useValidationStore()
@@ -215,6 +231,9 @@ export function useFileOperations(editorStore: ReturnType<typeof useEditorStore>
   // 导入 JSON 文件
   async function importJSON(): Promise<void> {
     return new Promise((resolve) => {
+      // 触发背景图预加载
+      preloadImage(backgroundUrl)
+
       // 创建临时的文件选择器
       const input = document.createElement('input')
       input.type = 'file'
@@ -238,6 +257,8 @@ export function useFileOperations(editorStore: ReturnType<typeof useEditorStore>
           if (result.success) {
             console.log(`[FileOps] Successfully imported scheme: ${file.name}`)
             notification.success('导入成功')
+            // 预加载图标
+            preloadActiveSchemeIcons()
           } else {
             notification.error(`导入失败: ${result.error}`)
           }
@@ -461,6 +482,9 @@ export function useFileOperations(editorStore: ReturnType<typeof useEditorStore>
     }
 
     try {
+      // 触发背景图预加载
+      preloadImage(backgroundUrl)
+
       // 1. 让用户选择目录
       const dirHandle = await (window as any).showDirectoryPicker({
         mode: 'readwrite',
@@ -603,6 +627,8 @@ export function useFileOperations(editorStore: ReturnType<typeof useEditorStore>
         watchState.value.lastModifiedTime = file.lastModified
 
         notification.success('导入成功')
+        // 预加载图标
+        preloadActiveSchemeIcons()
       } else {
         notification.error(`导入失败: ${importResult.error}`)
       }
