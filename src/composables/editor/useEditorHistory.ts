@@ -1,4 +1,5 @@
 import { storeToRefs } from 'pinia'
+import { markRaw } from 'vue'
 import { useEditorStore } from '../../stores/editorStore'
 import { deepToRaw } from '../../lib/deepToRaw'
 import type { AppItem, HistorySnapshot, HistoryStack } from '../../types/editor'
@@ -17,12 +18,18 @@ export function useEditorHistory() {
     }
   }
 
-  // 深拷贝物品数组
+  // 深拷贝物品数组（优化版：共享 originalData 引用以减少内存占用）
   function cloneItems(items: AppItem[]): AppItem[] {
-    // 使用 structuredClone + deepToRaw 替代 JSON 序列化
-    // 1. deepToRaw 彻底去除 Proxy，避免 DataCloneError
-    // 2. structuredClone 比 JSON.parse(JSON.stringify) 性能更好且支持更多类型
-    return structuredClone(deepToRaw(items))
+    // 性能优化策略：
+    // 1. 使用 deepToRaw 去除 Vue 响应式代理
+    // 2. 浅拷贝 AppItem 对象本身（x, y, z, internalId 等）
+    // 3. 保持 originalData 的引用共享（因为代码中所有修改都是不可变更新，会创建新对象）
+    //    这样 50 个历史快照不会重复存储 originalData，大幅减少内存占用
+    const rawItems = deepToRaw(items)
+    return rawItems.map((item) => ({
+      ...item, // 浅拷贝基础属性
+      originalData: item.originalData, // 保持引用！不深拷贝 originalData
+    }))
   }
 
   // 深拷贝选择集合
@@ -74,7 +81,9 @@ export function useEditorHistory() {
     }
 
     // 推入撤销栈
-    history.undoStack.push(snapshot)
+    // 使用 markRaw 标记快照，阻止 Vue 将其转换为响应式 Proxy
+    // 历史记录是只读数据，不需要响应式追踪，这样可以显著减少内存占用和 GC 压力
+    history.undoStack.push(markRaw(snapshot))
 
     // 限制栈大小
     if (history.undoStack.length > history.maxSize) {
@@ -102,7 +111,8 @@ export function useEditorHistory() {
       timestamp: Date.now(),
       type: 'edit', // 重做栈不区分类型
     }
-    history.redoStack.push(currentSnapshot)
+    // 同样使用 markRaw 阻止响应式包裹
+    history.redoStack.push(markRaw(currentSnapshot))
 
     // 从撤销栈弹出并恢复状态
     const snapshot = history.undoStack.pop()!
@@ -138,7 +148,8 @@ export function useEditorHistory() {
       timestamp: Date.now(),
       type: 'edit',
     }
-    history.undoStack.push(currentSnapshot)
+    // 同样使用 markRaw 阻止响应式包裹
+    history.undoStack.push(markRaw(currentSnapshot))
 
     // 从重做栈弹出并恢复状态
     const snapshot = history.redoStack.pop()!
