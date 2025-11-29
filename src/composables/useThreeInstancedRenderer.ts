@@ -23,7 +23,7 @@ import { useSettingsStore } from '@/stores/settingsStore'
 import { getThreeIconManager, releaseThreeIconManager } from './useThreeIconManager'
 import { useEditorGroups } from './editor/useEditorGroups'
 
-const MAX_INSTANCES = 10000
+import { MAX_RENDER_INSTANCES as MAX_INSTANCES } from '@/types/constants'
 
 // 当缺少尺寸信息时使用的默认尺寸（游戏坐标：X=长, Y=宽, Z=高）
 const DEFAULT_FURNITURE_SIZE: [number, number, number] = [100, 100, 150]

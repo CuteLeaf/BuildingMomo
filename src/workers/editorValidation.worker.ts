@@ -1,5 +1,5 @@
 import * as Comlink from 'comlink'
-import type { AppItem } from '../types/editor'
+import type { ValidationItem } from '../types/editor'
 
 // 射线法判断点是否在多边形内
 function isPointInPolygon(point: { x: number; y: number }, polygon: number[][]): boolean {
@@ -23,25 +23,26 @@ function isPointInPolygon(point: { x: number; y: number }, polygon: number[][]):
 }
 
 // 重复物品检测
-function detectDuplicates(items: AppItem[], enableDetection: boolean): AppItem[][] {
+function detectDuplicates(items: ValidationItem[], enableDetection: boolean): string[][] {
   if (!enableDetection || items.length === 0) {
     return []
   }
 
-  // Map索引：key = "gameId,x,y,z,pitch,yaw,roll,scaleX,scaleY,scaleZ", value = AppItem[]
-  const itemMap = new Map<string, AppItem[]>()
+  // Map索引：key = "gameId,x,y,z,pitch,yaw,roll,scaleX,scaleY,scaleZ", value = internalIds[]
+  const itemMap = new Map<string, string[]>()
 
   items.forEach((item) => {
-    const rot = item.originalData.Rotation
-    const scale = item.originalData.Scale
+    const rot = item.rotation
+    const scale = item.scale
     const key = `${item.gameId},${item.x},${item.y},${item.z},${rot.Pitch},${rot.Yaw},${rot.Roll},${scale.X},${scale.Y},${scale.Z}`
     if (!itemMap.has(key)) {
       itemMap.set(key, [])
     }
-    itemMap.get(key)!.push(item)
+    itemMap.get(key)!.push(item.internalId)
   })
 
   // 过滤出重复的组（count > 1）
+  // 这里只返回 ID 列表，减少数据回传量
   const duplicates = Array.from(itemMap.values()).filter((group) => group.length > 1)
 
   return duplicates
@@ -55,8 +56,9 @@ interface LimitCheckResult {
 
 // 限制检查 (坐标 & 组大小)
 function checkLimits(
-  items: AppItem[],
-  buildableAreas: Record<string, number[][]> | null
+  items: ValidationItem[],
+  buildableAreas: Record<string, number[][]> | null,
+  zRange: { min: number; max: number } | null = null
 ): LimitCheckResult {
   const outOfBoundsItemIds: string[] = []
   const oversizedGroups: number[] = []
@@ -64,7 +66,7 @@ function checkLimits(
   // 1. 检查组大小限制 ( > 50 )
   const groupCounts = new Map<number, number>()
   items.forEach((item) => {
-    const gid = item.originalData.GroupID
+    const gid = item.groupId
     if (gid > 0) {
       groupCounts.set(gid, (groupCounts.get(gid) || 0) + 1)
     }
@@ -76,25 +78,40 @@ function checkLimits(
     }
   })
 
-  // 2. 检查坐标限制 (如果在可建造区域外)
-  if (buildableAreas) {
-    // 获取所有多边形
-    const polygons = Object.values(buildableAreas)
+  // 2. 检查坐标限制 (Z轴高度 & XY平面区域)
+  if (buildableAreas || zRange) {
+    // 获取所有多边形（如果有）
+    const polygons = buildableAreas ? Object.values(buildableAreas) : []
 
     items.forEach((item) => {
-      // 简单的点判定，不考虑物品体积
-      const point = { x: item.x, y: item.y }
-      let isInside = false
+      let isInvalid = false
 
-      // 只要在任意一个多边形内就算合法
-      for (const polygon of polygons) {
-        if (isPointInPolygon(point, polygon)) {
-          isInside = true
-          break
+      // 检查 Z 轴
+      if (zRange) {
+        if (item.z < zRange.min || item.z > zRange.max) {
+          isInvalid = true
         }
       }
 
-      if (!isInside) {
+      // 检查 XY 轴
+      if (!isInvalid && polygons.length > 0) {
+        const point = { x: item.x, y: item.y }
+        let isInside = false
+
+        // 只要在任意一个多边形内就算合法
+        for (const polygon of polygons) {
+          if (isPointInPolygon(point, polygon)) {
+            isInside = true
+            break
+          }
+        }
+
+        if (!isInside) {
+          isInvalid = true
+        }
+      }
+
+      if (isInvalid) {
         outOfBoundsItemIds.push(item.internalId)
       }
     })

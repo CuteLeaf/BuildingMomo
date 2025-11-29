@@ -2,7 +2,7 @@ import { defineStore, storeToRefs } from 'pinia'
 import { ref, computed, watch } from 'vue'
 import * as Comlink from 'comlink'
 import { useDebounceFn } from '@vueuse/core'
-import type { AppItem } from '../types/editor'
+import type { ValidationItem } from '../types/editor'
 import type { ValidationWorkerApi } from '../workers/editorValidation.worker'
 import Worker from '../workers/editorValidation.worker?worker'
 import { useEditorStore } from './editorStore'
@@ -23,7 +23,7 @@ export const useValidationStore = defineStore('validation', () => {
   const workerApi = Comlink.wrap<ValidationWorkerApi>(worker)
 
   // 响应式状态
-  const duplicateGroups = ref<AppItem[][]>([])
+  const duplicateGroups = ref<string[][]>([])
   const limitIssues = ref<{ outOfBoundsItemIds: string[]; oversizedGroups: number[] }>({
     outOfBoundsItemIds: [],
     oversizedGroups: [],
@@ -58,9 +58,28 @@ export const useValidationStore = defineStore('validation', () => {
     const startTime = performance.now()
 
     try {
-      // 准备数据 (使用 deepToRaw 彻底去除 Proxy，避免 DataCloneError)
-      // 注意：postMessage 会自动执行结构化克隆，所以这里只需去除 Proxy 即可，无需手动 structuredClone
-      const items = deepToRaw(activeScheme.value.items)
+      // 准备数据: 构造轻量级的 ValidationItem 数组
+      // 避免使用 deepToRaw 递归去代理，避免 Worker 结构化克隆大量无用数据
+      // 这里的 map 操作虽然在主线程，但对于 10k items 也是毫秒级的
+      const items: ValidationItem[] = activeScheme.value.items.map((item) => ({
+        internalId: item.internalId,
+        gameId: item.gameId,
+        x: item.x,
+        y: item.y,
+        z: item.z,
+        groupId: item.originalData.GroupID,
+        scale: {
+          X: item.originalData.Scale.X,
+          Y: item.originalData.Scale.Y,
+          Z: item.originalData.Scale.Z,
+        },
+        rotation: {
+          Pitch: item.originalData.Rotation.Pitch,
+          Yaw: item.originalData.Rotation.Yaw,
+          Roll: item.originalData.Rotation.Roll,
+        },
+      }))
+
       const areas =
         isBuildableAreaLoaded.value && buildableAreas.value ? deepToRaw(buildableAreas.value) : null
       const enableDup = settings.value.enableDuplicateDetection
@@ -71,7 +90,11 @@ export const useValidationStore = defineStore('validation', () => {
 
       // 只有开启了限制检测才执行检查
       if (enableLimit) {
-        promises.push(workerApi.checkLimits(items, isBuildableAreaLoaded.value ? areas : null))
+        // Z 轴范围限制
+        const zRange = { min: -3500, max: 10200 }
+        promises.push(
+          workerApi.checkLimits(items, isBuildableAreaLoaded.value ? areas : null, zRange)
+        )
       } else {
         promises.push(Promise.resolve({ outOfBoundsItemIds: [], oversizedGroups: [] }))
       }
@@ -115,9 +138,8 @@ export const useValidationStore = defineStore('validation', () => {
 
     duplicateGroups.value.forEach((group) => {
       // Skip the first one, select the rest
-      group.slice(1).forEach((item) => {
-        // item.internalId 来自 Worker 的 copy，但这 ID 是唯一的，可以用来选中 Store 里的 item
-        activeScheme.value!.selectedItemIds.add(item.internalId)
+      group.slice(1).forEach((internalId) => {
+        activeScheme.value!.selectedItemIds.add(internalId)
       })
     })
 

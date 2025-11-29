@@ -37,6 +37,18 @@ export interface AppItem {
   originalData: GameItem
 }
 
+// 验证所需的轻量级物品数据
+export interface ValidationItem {
+  internalId: string
+  gameId: number
+  x: number
+  y: number
+  z: number
+  groupId: number
+  scale: { X: number; Y: number; Z: number }
+  rotation: { Pitch: number; Yaw: number; Roll: number }
+}
+
 // JSON文件根结构
 export interface GameDataFile {
   NeedRestore?: boolean

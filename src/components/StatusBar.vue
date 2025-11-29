@@ -8,7 +8,8 @@ import { useUIStore } from '../stores/uiStore'
 import { useCommandStore } from '../stores/commandStore'
 import { useSettingsStore } from '../stores/settingsStore'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-import { Copy, AlertTriangle, Layers } from 'lucide-vue-next'
+import { Copy, AlertTriangle, Layers, EyeOff } from 'lucide-vue-next'
+import { MAX_RENDER_INSTANCES } from '@/types/constants'
 
 const editorStore = useEditorStore()
 const validationStore = useValidationStore()
@@ -52,6 +53,8 @@ const stats = computed(() => ({
   total: editorStore.stats.totalItems,
   selected: editorStore.stats.selectedItems,
 }))
+
+const isRenderLimitExceeded = computed(() => stats.value.total > MAX_RENDER_INSTANCES)
 
 // 组信息
 const groupStats = computed(() => ({
@@ -174,6 +177,21 @@ const handleDuplicateClick = () => {
           </TooltipTrigger>
           <TooltipContent>
             {{ duplicateTooltip }}
+          </TooltipContent>
+        </Tooltip>
+
+        <!-- 渲染限制警告 -->
+        <Tooltip v-if="isRenderLimitExceeded">
+          <TooltipTrigger as-child>
+            <div
+              class="flex shrink-0 cursor-pointer items-center gap-1 rounded px-2 py-0.5 font-medium text-red-600 transition-colors hover:bg-red-50"
+            >
+              <EyeOff :size="14" />
+              <span class="text-xs">渲染受限</span>
+            </div>
+          </TooltipTrigger>
+          <TooltipContent>
+            渲染数量超限：当前物品 {{ stats.total }} 个，仅显示前 {{ MAX_RENDER_INSTANCES }} 个
           </TooltipContent>
         </Tooltip>
 
