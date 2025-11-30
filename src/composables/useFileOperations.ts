@@ -137,6 +137,7 @@ export function useFileOperations(editorStore: ReturnType<typeof useEditorStore>
     lastModifiedTime: 0,
     fileHandle: null,
     fileName: '',
+    lastContent: undefined,
   })
 
   // 轮询定时器
@@ -364,6 +365,7 @@ export function useFileOperations(editorStore: ReturnType<typeof useEditorStore>
 
       // 4. 更新监控状态，避免触发文件更新通知
       watchState.value.lastModifiedTime = Date.now()
+      watchState.value.lastContent = jsonString
 
       console.log(`[FileOps] Successfully saved to game: ${watchState.value.fileName}`)
       notification.success('保存成功！')
@@ -418,6 +420,17 @@ export function useFileOperations(editorStore: ReturnType<typeof useEditorStore>
         // 读取文件内容检查 NeedRestore
         try {
           const content = await file.text()
+
+          // 内容比对：如果内容未变，仅更新时间戳，不进行后续处理
+          if (content === watchState.value.lastContent) {
+            console.log('[FileWatch] File touched but content identical, skipping notification')
+            watchState.value.lastModifiedTime = file.lastModified
+            return true
+          }
+
+          // 更新已知内容
+          watchState.value.lastContent = content
+
           const jsonData = JSON.parse(content)
 
           // 只有 NeedRestore 为 true 时才提示导入
@@ -528,6 +541,7 @@ export function useFileOperations(editorStore: ReturnType<typeof useEditorStore>
         lastModifiedTime: lastModified,
         fileHandle: fileHandle,
         fileName: fileName,
+        lastContent: undefined,
       }
 
       // 5. 启动轮询
@@ -537,6 +551,8 @@ export function useFileOperations(editorStore: ReturnType<typeof useEditorStore>
       if (result) {
         try {
           const content = await result.file.text()
+          watchState.value.lastContent = content // 初始化内容缓存
+
           const jsonData = JSON.parse(content)
 
           // 只有 NeedRestore 为 true 时才提示导入
@@ -584,6 +600,7 @@ export function useFileOperations(editorStore: ReturnType<typeof useEditorStore>
       lastModifiedTime: 0,
       fileHandle: null,
       fileName: '',
+      lastContent: undefined,
     }
     console.log('[FileWatch] Watch mode stopped')
   }
@@ -610,6 +627,9 @@ export function useFileOperations(editorStore: ReturnType<typeof useEditorStore>
 
       // 读取文件内容
       const content = await file.text()
+
+      // 更新最后一次已知内容
+      watchState.value.lastContent = content
 
       // 使用 editorStore 的导入方法
       const importResult = await editorStore.importJSONAsScheme(

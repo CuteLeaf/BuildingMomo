@@ -89,6 +89,7 @@ export interface FileWatchState {
   lastModifiedTime: number // 文件的最后修改时间
   fileHandle: FileSystemFileHandle | null // 当前监控的文件句柄
   fileName: string // 文件名
+  lastContent?: string // 上一次的文件内容（用于去重）
 }
 
 // 精确变换参数
