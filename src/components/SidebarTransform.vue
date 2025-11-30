@@ -185,15 +185,19 @@ function updateRotation(axis: 'x' | 'y' | 'z', value: number) {
   } else {
     // 绝对模式
     if (selectionInfo.value.count === 1) {
-      // 单选绝对模式：计算增量
-      const currentRotation = selectionInfo.value.rotation[axis]
-      const delta = value - currentRotation
-
+      // 单选绝对模式：直接应用目标值
       const rotationArgs: any = {}
-      rotationArgs[axis] = delta
+      let targetValue = value
+
+      // 如果启用了工作坐标系，且修改的是 Z 轴，需要还原回全局角度
+      if (axis === 'z' && uiStore.workingCoordinateSystem.enabled) {
+        targetValue += uiStore.workingCoordinateSystem.rotationAngle
+      }
+
+      rotationArgs[axis] = targetValue
 
       updateSelectedItemsTransform({
-        mode: 'relative', // 计算增量并相对应用以达到绝对结果
+        mode: 'absolute',
         rotation: rotationArgs,
       })
     } else {

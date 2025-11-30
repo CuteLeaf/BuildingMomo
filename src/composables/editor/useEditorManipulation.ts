@@ -161,7 +161,49 @@ export function useEditorManipulation() {
         return item
       }
 
-      // 使用新算法计算变换
+      // 处理绝对旋转模式 (仅更新旋转，位置不变)
+      if (mode === 'absolute' && rotation) {
+        const newRotation = {
+          Roll: rotation.x ?? item.originalData.Rotation.Roll ?? 0,
+          Pitch: rotation.y ?? item.originalData.Rotation.Pitch ?? 0,
+          Yaw: rotation.z ?? item.originalData.Rotation.Yaw ?? 0,
+        }
+
+        // 如果同时也传入了绝对位置更新
+        let newX = item.x
+        let newY = item.y
+        let newZ = item.z
+
+        if (position) {
+          // 如果是绝对位置模式，直接应用位置偏移
+          newX += positionOffset.x
+          newY += positionOffset.y
+          newZ += positionOffset.z
+        }
+
+        return {
+          ...item,
+          x: newX,
+          y: newY,
+          z: newZ,
+          originalData: {
+            ...item.originalData,
+            Location: {
+              ...item.originalData.Location,
+              X: newX,
+              Y: newY,
+              Z: newZ,
+            },
+            Rotation: {
+              Roll: newRotation.Roll,
+              Pitch: newRotation.Pitch,
+              Yaw: newRotation.Yaw,
+            },
+          },
+        }
+      }
+
+      // 相对模式或无旋转指定：使用矩阵算法计算变换 (支持群组旋转)
       const result = calculateNewTransform(item, center, rotation || {}, positionOffset)
 
       return {
