@@ -36,9 +36,9 @@ function calculateNewTransform(
 
   // 关键：渲染器使用了 Roll/Pitch 取反
   const localEuler = new Euler(
-    MathUtils.degToRad(-(item.originalData.Rotation.Roll ?? 0)),
-    MathUtils.degToRad(-(item.originalData.Rotation.Pitch ?? 0)),
-    MathUtils.degToRad(item.originalData.Rotation.Yaw ?? 0),
+    MathUtils.degToRad(-(item.rotation.x ?? 0)),
+    MathUtils.degToRad(-(item.rotation.y ?? 0)),
+    MathUtils.degToRad(item.rotation.z ?? 0),
     'ZYX'
   )
   const localQuat = new Quaternion().setFromEuler(localEuler)
@@ -164,9 +164,9 @@ export function useEditorManipulation() {
       // 处理绝对旋转模式 (仅更新旋转，位置不变)
       if (mode === 'absolute' && rotation) {
         const newRotation = {
-          Roll: rotation.x ?? item.originalData.Rotation.Roll ?? 0,
-          Pitch: rotation.y ?? item.originalData.Rotation.Pitch ?? 0,
-          Yaw: rotation.z ?? item.originalData.Rotation.Yaw ?? 0,
+          x: rotation.x ?? item.rotation.x ?? 0,
+          y: rotation.y ?? item.rotation.y ?? 0,
+          z: rotation.z ?? item.rotation.z ?? 0,
         }
 
         // 如果同时也传入了绝对位置更新
@@ -186,20 +186,7 @@ export function useEditorManipulation() {
           x: newX,
           y: newY,
           z: newZ,
-          originalData: {
-            ...item.originalData,
-            Location: {
-              ...item.originalData.Location,
-              X: newX,
-              Y: newY,
-              Z: newZ,
-            },
-            Rotation: {
-              Roll: newRotation.Roll,
-              Pitch: newRotation.Pitch,
-              Yaw: newRotation.Yaw,
-            },
-          },
+          rotation: newRotation,
         }
       }
 
@@ -211,19 +198,10 @@ export function useEditorManipulation() {
         x: result.x,
         y: result.y,
         z: result.z,
-        originalData: {
-          ...item.originalData,
-          Location: {
-            ...item.originalData.Location,
-            X: result.x,
-            Y: result.y,
-            Z: result.z,
-          },
-          Rotation: {
-            Roll: result.Roll,
-            Pitch: result.Pitch,
-            Yaw: result.Yaw,
-          },
+        rotation: {
+          x: result.Roll,
+          y: result.Pitch,
+          z: result.Yaw,
         },
       }
     })
@@ -258,15 +236,6 @@ export function useEditorManipulation() {
         x: newX,
         y: newY,
         z: newZ,
-        originalData: {
-          ...item.originalData,
-          Location: {
-            ...item.originalData.Location,
-            X: newX,
-            Y: newY,
-            Z: newZ,
-          },
-        },
       }
     })
   }

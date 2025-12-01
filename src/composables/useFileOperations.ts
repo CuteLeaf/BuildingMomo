@@ -207,7 +207,7 @@ export function useFileOperations(editorStore: ReturnType<typeof useEditorStore>
     const gameItems: GameItem[] = editorStore.items
       .filter((item) => !outOfBoundsIds.has(item.internalId)) // 移除越界物品
       .map((item) => {
-        const originalGroupId = item.originalData.GroupID
+        const originalGroupId = item.groupId
         let newGroupId = originalGroupId
 
         // 解组超大组
@@ -216,12 +216,19 @@ export function useFileOperations(editorStore: ReturnType<typeof useEditorStore>
         }
 
         return {
-          ...item.originalData,
+          ...item.extra,
+          ItemID: item.gameId,
+          InstanceID: item.instanceId,
           GroupID: newGroupId,
           Location: {
             X: item.x,
             Y: item.y,
             Z: item.z,
+          },
+          Rotation: {
+            Roll: item.rotation.x,
+            Pitch: item.rotation.y,
+            Yaw: item.rotation.z,
           },
         }
       })

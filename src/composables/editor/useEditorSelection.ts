@@ -13,7 +13,7 @@ export function useEditorSelection() {
   function getItemGroupIdLocal(itemId: string): number {
     if (!activeScheme.value) return 0
     const item = itemsMap.value.get(itemId)
-    return item?.originalData.GroupID ?? 0
+    return item?.groupId ?? 0
   }
 
   // 扩展选择到整组（内部辅助函数）

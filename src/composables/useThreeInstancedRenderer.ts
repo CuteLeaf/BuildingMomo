@@ -331,7 +331,7 @@ export function useThreeInstancedRenderer(
       return type === 'icon' ? 0x60a5fa : 0x60a5fa // Icon & Box/SimpleBox: blue-400
     }
 
-    const groupId = item.originalData.GroupID
+    const groupId = item.groupId
     if (groupId > 0) {
       return convertColorToHex(getGroupColor(groupId))
     }
@@ -490,7 +490,8 @@ export function useThreeInstancedRenderer(
       map.set(index, item.internalId)
 
       coordinates3D.setThreeFromGame(scratchPosition, { x: item.x, y: item.y, z: item.z })
-      const { Rotation, Scale } = item.originalData
+      const Rotation = item.rotation
+      const Scale = item.extra.Scale
 
       // 1. Box 模式计算
       if (mode === 'box' && meshTarget) {
@@ -498,9 +499,9 @@ export function useThreeInstancedRenderer(
         // 由于场景父级在 Y 轴上做了镜像缩放 ([1, -1, 1])，
         // 为了让编辑器中的 Roll / Pitch 与游戏中的方向一致，这里对 Roll 和 Pitch 取反
         scratchEuler.set(
-          (-Rotation.Roll * Math.PI) / 180,
-          (-Rotation.Pitch * Math.PI) / 180, // Pitch around Y (取反修正镜像)
-          (Rotation.Yaw * Math.PI) / 180, // Yaw around Z 保持不变
+          (-Rotation.x * Math.PI) / 180,
+          (-Rotation.y * Math.PI) / 180, // Pitch around Y (取反修正镜像)
+          (Rotation.z * Math.PI) / 180, // Yaw around Z 保持不变
           'ZYX'
         )
         scratchQuaternion.setFromEuler(scratchEuler)
@@ -558,9 +559,9 @@ export function useThreeInstancedRenderer(
       if (mode === 'simple-box' && simpleBoxMeshTarget) {
         // 旋转同 Box：同样需要对 Roll / Pitch 取反以抵消父级 Y 轴镜像
         scratchEuler.set(
-          (-Rotation.Roll * Math.PI) / 180,
-          (-Rotation.Pitch * Math.PI) / 180,
-          (Rotation.Yaw * Math.PI) / 180,
+          (-Rotation.x * Math.PI) / 180,
+          (-Rotation.y * Math.PI) / 180,
+          (Rotation.z * Math.PI) / 180,
           'ZYX'
         )
         scratchQuaternion.setFromEuler(scratchEuler)

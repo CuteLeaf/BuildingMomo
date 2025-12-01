@@ -67,16 +67,16 @@ export const useValidationStore = defineStore('validation', () => {
         x: item.x,
         y: item.y,
         z: item.z,
-        groupId: item.originalData.GroupID,
+        groupId: item.groupId,
         scale: {
-          X: item.originalData.Scale.X,
-          Y: item.originalData.Scale.Y,
-          Z: item.originalData.Scale.Z,
+          X: item.extra.Scale.X,
+          Y: item.extra.Scale.Y,
+          Z: item.extra.Scale.Z,
         },
         rotation: {
-          Pitch: item.originalData.Rotation.Pitch,
-          Yaw: item.originalData.Rotation.Yaw,
-          Roll: item.originalData.Rotation.Roll,
+          Pitch: item.rotation.y,
+          Yaw: item.rotation.z,
+          Roll: item.rotation.x,
         },
       }))
 
@@ -169,7 +169,7 @@ export const useValidationStore = defineStore('validation', () => {
 
     const targetGroups = new Set(limitIssues.value.oversizedGroups)
     activeScheme.value.items.forEach((item) => {
-      if (targetGroups.has(item.originalData.GroupID)) {
+      if (targetGroups.has(item.groupId)) {
         activeScheme.value!.selectedItemIds.add(item.internalId)
       }
     })

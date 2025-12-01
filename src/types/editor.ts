@@ -30,11 +30,19 @@ export interface AppItem {
   internalId: string // 内部唯一ID（用于Vue key）
   gameId: number // 原始游戏ItemID
   instanceId: number // 原始InstanceID
+
+  // 核心变换数据 (扁平化)
   x: number // 平面X坐标
   y: number // 平面Y坐标
   z: number // 高度Z坐标
-  // 保留原始数据用于导出
-  originalData: GameItem
+  rotation: { x: number; y: number; z: number } // 旋转 (x=Roll, y=Pitch, z=Yaw)
+
+  // 逻辑数据
+  groupId: number // 组ID
+
+  // 保留原始数据中的其他字段 (Scale, AttachID, ColorMap, TempInfo 等)
+  // 注意：Location, Rotation, GroupID 已提升到顶层，此处不再保留以避免冗余
+  extra: Omit<GameItem, 'Location' | 'Rotation' | 'GroupID' | 'ItemID' | 'InstanceID'>
 }
 
 // 验证所需的轻量级物品数据

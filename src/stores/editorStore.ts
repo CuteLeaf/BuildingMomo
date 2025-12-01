@@ -75,7 +75,7 @@ export const useEditorStore = defineStore('editor', () => {
     if (!activeScheme.value) return map
 
     activeScheme.value.items.forEach((item) => {
-      const gid = item.originalData.GroupID
+      const gid = item.groupId
       if (gid > 0) {
         if (!map.has(gid)) {
           map.set(gid, new Set())
@@ -124,7 +124,7 @@ export const useEditorStore = defineStore('editor', () => {
     // 统计组信息
     const groups = new Map<number, number>() // groupId -> count
     items.value.forEach((item) => {
-      const gid = item.originalData.GroupID
+      const gid = item.groupId
       if (gid > 0) {
         groups.set(gid, (groups.get(gid) || 0) + 1)
       }
@@ -204,15 +204,24 @@ export const useEditorStore = defineStore('editor', () => {
       }
 
       // 转换为内部数据格式（允许空数组，创建空白方案）
-      const newItems: AppItem[] = placeInfoArray.map((gameItem: GameItem) => ({
-        internalId: generateUUID(),
-        gameId: gameItem.ItemID,
-        instanceId: gameItem.InstanceID,
-        x: gameItem.Location.X,
-        y: gameItem.Location.Y,
-        z: gameItem.Location.Z,
-        originalData: gameItem,
-      }))
+      const newItems: AppItem[] = placeInfoArray.map((gameItem: GameItem) => {
+        const { Location, Rotation, GroupID, ItemID, InstanceID, ...others } = gameItem
+        return {
+          internalId: generateUUID(),
+          gameId: ItemID,
+          instanceId: InstanceID,
+          x: Location.X,
+          y: Location.Y,
+          z: Location.Z,
+          rotation: {
+            x: Rotation.Roll,
+            y: Rotation.Pitch,
+            z: Rotation.Yaw,
+          },
+          groupId: GroupID,
+          extra: others,
+        }
+      })
 
       // 从文件名提取方案名称（默认使用“方案 N”形式，避免重复）
       const schemeName = `方案 ${schemes.value.length + 1}`

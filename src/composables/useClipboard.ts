@@ -64,7 +64,7 @@ export function useClipboard() {
     const groupIdMap = new Map<number, number>() // 旧GroupID -> 新GroupID
 
     clipboardItems.forEach((item) => {
-      const oldGroupId = item.originalData.GroupID
+      const oldGroupId = item.groupId
       if (oldGroupId > 0 && !groupIdMap.has(oldGroupId)) {
         groupIdMap.set(oldGroupId, getNextGroupId() + groupIdMap.size)
       }
@@ -79,7 +79,7 @@ export function useClipboard() {
       const newY = item.y + offsetY
 
       // 如果物品有组，分配新的 GroupID
-      const oldGroupId = item.originalData.GroupID
+      const oldGroupId = item.groupId
       const newGroupId = oldGroupId > 0 ? groupIdMap.get(oldGroupId)! : 0
 
       newItems.push({
@@ -88,16 +88,9 @@ export function useClipboard() {
         instanceId: newInstanceId,
         x: newX,
         y: newY,
-        originalData: {
-          ...item.originalData,
-          InstanceID: newInstanceId,
-          GroupID: newGroupId,
-          Location: {
-            ...item.originalData.Location,
-            X: newX,
-            Y: newY,
-          },
-        },
+        rotation: { ...item.rotation },
+        groupId: newGroupId,
+        extra: { ...item.extra },
       })
     })
 

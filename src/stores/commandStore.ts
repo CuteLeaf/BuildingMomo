@@ -268,7 +268,7 @@ export const useCommandStore = defineStore('command', () => {
         if (editorStore.selectedItemIds.size < 2) return false
 
         // 获取所有选中物品的组ID
-        const groupIds = new Set(editorStore.selectedItems.map((item) => item.originalData.GroupID))
+        const groupIds = new Set(editorStore.selectedItems.map((item) => item.groupId))
 
         // 如果所有物品都属于同一个组（且该组ID > 0），则不允许成组
         if (groupIds.size === 1) {
@@ -290,7 +290,7 @@ export const useCommandStore = defineStore('command', () => {
       category: 'edit',
       enabled: () => {
         // 检查选中物品是否有组
-        return editorStore.selectedItems.some((item) => item.originalData.GroupID > 0)
+        return editorStore.selectedItems.some((item) => item.groupId > 0)
       },
       execute: () => {
         console.log('[Command] 取消组合')

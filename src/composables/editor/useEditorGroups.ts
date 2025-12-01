@@ -13,10 +13,7 @@ export function useEditorGroups() {
   function getNextGroupId(): number {
     if (!activeScheme.value || activeScheme.value.items.length === 0) return 1
 
-    const maxId = activeScheme.value.items.reduce(
-      (max, item) => Math.max(max, item.originalData.GroupID),
-      0
-    )
+    const maxId = activeScheme.value.items.reduce((max, item) => Math.max(max, item.groupId), 0)
     return maxId + 1
   }
 
@@ -40,7 +37,7 @@ export function useEditorGroups() {
   function getItemGroupId(itemId: string): number {
     if (!activeScheme.value) return 0
     const item = itemsMap.value.get(itemId)
-    return item?.originalData.GroupID ?? 0
+    return item?.groupId ?? 0
   }
 
   // 获取所有组ID列表（去重）（使用 groupsMap 优化性能）
@@ -66,10 +63,7 @@ export function useEditorGroups() {
       if (activeScheme.value!.selectedItemIds.has(item.internalId)) {
         return {
           ...item,
-          originalData: {
-            ...item.originalData,
-            GroupID: newGroupId,
-          },
+          groupId: newGroupId,
         }
       }
       return item
@@ -104,10 +98,7 @@ export function useEditorGroups() {
       if (activeScheme.value!.selectedItemIds.has(item.internalId)) {
         return {
           ...item,
-          originalData: {
-            ...item.originalData,
-            GroupID: 0,
-          },
+          groupId: 0,
         }
       }
       return item

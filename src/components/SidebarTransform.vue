@@ -69,9 +69,9 @@ const selectionInfo = computed(() => {
     const item = selected[0]
     if (item) {
       rotation = {
-        x: item.originalData.Rotation.Roll,
-        y: item.originalData.Rotation.Pitch,
-        z: item.originalData.Rotation.Yaw,
+        x: item.rotation.x,
+        y: item.rotation.y,
+        z: item.rotation.z,
       }
       // 工作坐标系下，Z轴旋转需要减去坐标系角度
       if (uiStore.workingCoordinateSystem.enabled) {

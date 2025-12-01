@@ -16,7 +16,7 @@ const { getGroupItems, groupSelected, ungroupSelected } = useEditorGroups()
 const selectedGroupInfo = computed(() => {
   if (editorStore.selectedItems.length === 0) return null
 
-  const groupIds = new Set(editorStore.selectedItems.map((item) => item.originalData.GroupID))
+  const groupIds = new Set(editorStore.selectedItems.map((item) => item.groupId))
 
   // 如果所有选中物品都是无组
   if (groupIds.size === 1 && groupIds.has(0)) {
@@ -60,7 +60,7 @@ const selectedItemDetails = computed(() => {
     let dimensions = null
     if (furniture) {
       const size = furniture.size
-      const scale = item.originalData.Scale
+      const scale = item.extra.Scale
       const l = parseFloat((size[0] * scale.X).toFixed(1))
       const w = parseFloat((size[1] * scale.Y).toFixed(1))
       const h = parseFloat((size[2] * scale.Z).toFixed(1))
@@ -241,7 +241,7 @@ function handleIconError(e: Event) {
       </Button>
       <Button
         @click="ungroupSelected()"
-        :disabled="!editorStore.selectedItems.some((item) => item.originalData.GroupID > 0)"
+        :disabled="!editorStore.selectedItems.some((item) => item.groupId > 0)"
         variant="secondary"
         class="flex-1"
         size="sm"

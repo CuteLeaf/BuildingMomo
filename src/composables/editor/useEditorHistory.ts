@@ -28,7 +28,7 @@ export function useEditorHistory() {
     const rawItems = deepToRaw(items)
     return rawItems.map((item) => ({
       ...item, // 浅拷贝基础属性
-      originalData: item.originalData, // 保持引用！不深拷贝 originalData
+      extra: item.extra, // 保持引用！不深拷贝 extra
     }))
   }
 
