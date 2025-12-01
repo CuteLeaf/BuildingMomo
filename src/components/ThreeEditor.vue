@@ -795,7 +795,7 @@ onDeactivated(() => {
       <!-- 3D Tooltip -->
       <div
         v-if="tooltipVisible && tooltipData"
-        class="pointer-events-none absolute z-50 rounded border border-gray-200 bg-white/80 p-1 shadow-xl backdrop-blur-sm"
+        class="pointer-events-none absolute z-50 rounded border bg-background/90 p-1 shadow-xl backdrop-blur-sm"
         :style="{
           left: `${tooltipData.position.x + 12}px`,
           top: `${tooltipData.position.y - 10}px`,
@@ -806,11 +806,11 @@ onDeactivated(() => {
           <img
             v-if="tooltipData.icon"
             :src="tooltipData.icon"
-            class="h-12 w-12 rounded border border-gray-300"
+            class="h-12 w-12 rounded border"
             :alt="tooltipData.name"
             @error="(e) => ((e.target as HTMLImageElement).style.display = 'none')"
           />
-          <div class="px-1 text-gray-900">
+          <div class="flex-shrink-0 px-1">
             <div class="font-medium">{{ tooltipData.name }}</div>
           </div>
         </div>
@@ -818,19 +818,21 @@ onDeactivated(() => {
     </div>
 
     <!-- 视图信息 -->
-    <div class="absolute right-4 bottom-4 space-y-2">
+    <div class="absolute right-4 bottom-4">
       <div
-        class="rounded border border-gray-200 bg-white/90 px-3 py-2 text-xs text-gray-600 shadow-md backdrop-blur-sm"
+        class="flex h-14 items-center rounded-md border bg-background/90 px-3 py-2 text-xs shadow-md backdrop-blur-sm"
       >
-        <div class="font-medium text-gray-900">
-          {{ isOrthographic ? '正交视图' : controlMode === 'flight' ? '漫游模式' : '透视视图' }}
-        </div>
-        <div class="mt-1 text-[10px] text-gray-500">
-          <template v-if="isOrthographic"> 左键选择 · 中键/空格平移 · 滚轮缩放 </template>
-          <template v-else-if="controlMode === 'orbit'">
-            左键选择 · 中键环绕 · 滚轮缩放 · WASD 漫游
-          </template>
-          <template v-else> WASD 平移 · Q/Space 升降 · 按住中键转向 </template>
+        <div>
+          <div class="font-medium">
+            {{ isOrthographic ? '正交视图' : controlMode === 'flight' ? '漫游模式' : '透视视图' }}
+          </div>
+          <div class="mt-1 text-[10px] text-gray-500">
+            <template v-if="isOrthographic"> 左键选择 · 中键/空格平移 · 滚轮缩放 </template>
+            <template v-else-if="controlMode === 'orbit'">
+              左键选择 · 中键环绕 · 滚轮缩放 · F 聚焦选中 · WASD 漫游
+            </template>
+            <template v-else> WASD 平移 · Space/Q 升降 · 按住中键转向 · F 聚焦选中 </template>
+          </div>
         </div>
       </div>
     </div>
@@ -840,7 +842,7 @@ onDeactivated(() => {
       <Item
         variant="muted"
         size="sm"
-        class="rounded border-gray-200 bg-white/90 shadow-md backdrop-blur-sm"
+        class="h-14 rounded-md bg-background/90 px-3 py-2 shadow-md backdrop-blur-sm"
       >
         <ItemContent>
           <div class="mb-2 flex items-center justify-between">
@@ -848,13 +850,13 @@ onDeactivated(() => {
               <ItemTitle class="text-xs font-medium">
                 {{ shouldShowSimpleBoxMesh ? '方块大小' : '图标大小' }}
               </ItemTitle>
-              <span class="text-[10px] text-gray-400">Ctrl + 滚轮快速调整</span>
+              <span class="text-[10px] text-gray-500">Ctrl + 滚轮快速调整</span>
             </div>
-            <span class="text-xs text-gray-500"
+            <span class="w-8 text-right text-xs text-gray-500"
               >{{ Math.round(settingsStore.settings.threeSymbolScale * 100) }}%</span
             >
           </div>
-          <Slider v-model="symbolScaleProxy" :max="3" :min="0.1" :step="0.1" />
+          <Slider v-model="symbolScaleProxy" :max="3" :min="0.1" :step="0.1" variant="thin" />
         </ItemContent>
       </Item>
     </div>
