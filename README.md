@@ -11,14 +11,13 @@
 
   <p>
     <img alt="Platform" src="https://img.shields.io/badge/platform-Web-blue?style=flat-square" />
-    <img alt="Status" src="https://img.shields.io/badge/status-开发中_90%25-yellow?style=flat-square" />
     <img alt="License" src="https://img.shields.io/badge/license-MIT-orange?style=flat-square" />
   </p>
 
   <p>
     <b>
-      <a href="https://chaniok.github.io/BuildingMomo">🌐 在线使用</a> •
-      <a href="README.en.md">English</a>
+      <a href="https://chaniok.github.io/BuildingMomo">🚀 在线使用</a> •
+      <a href="README.en.md">🌍 English</a>
     </b>
   </p>
 
@@ -36,27 +35,21 @@ BuildingMomo（搬砖吧大喵）
 
 ▸ 可视化编辑坐标，所见即所得
 
-💡 专为有特殊建造需求的玩家设计（如复杂建筑群调整、多方案整合、快速成组）
+专为有特殊建造需求的玩家设计（如复杂建筑群调整、多方案整合、快速成组）
 
 ## 🚀 快速开始
 
-### 🌐 在线使用（推荐）
+### 🌐 在线使用
 
-访问 [在线编辑器](https://chaniok.github.io/BuildingMomo) 即可开始使用。
+访问 [Github Pages](https://chaniok.github.io/BuildingMomo) 即可开始使用。
 
 ### 💻 本地运行
 
 如果您是开发者或希望本地部署：
 
 ```bash
-# 1. 安装依赖
+# 安装依赖
 npm install
-
-# 2. 获取最新物品数据与图标 (首次运行必须)
-npm run fetch-data
-
-# 3. 启动开发服务器
-npm run dev
 
 # 构建生产版本
 npm run build
