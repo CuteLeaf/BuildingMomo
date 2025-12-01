@@ -31,39 +31,142 @@
     <h3>选择物品</h3>
     <ul>
       <li><strong>单击</strong>：选中单个物品</li>
-      <li><strong>框选</strong>：按住鼠标左键拖拽矩形区域选择</li>
-      <!-- <li><strong>添加/取消选择</strong>：<code>Ctrl + 单击</code></li> -->
-      <li><strong>添加选择</strong>：<code>Shift + 框选</code></li>
-      <li><strong>减选</strong>：<code>Alt + 框选</code>（从当前选择中移除）</li>
+      <li><strong>框选工具</strong>：按住鼠标左键拖拽矩形区域选择</li>
+      <li><strong>套索工具</strong>：自由绘制曲线选择物品（点击工具栏切换到套索模式）</li>
+      <li><strong>添加选择</strong>：<code>Shift + 框选/套索</code>（追加到当前选择）</li>
+      <li><strong>减选</strong>：<code>Alt + 框选/套索</code>（从当前选择中移除）</li>
+      <li><strong>交叉选择</strong>：<code>Shift + Alt + 框选/套索</code>（仅保留交集）</li>
       <li><strong>全选可见物品</strong>：<code>Ctrl + A</code></li>
     </ul>
 
     <h3>移动物品</h3>
     <ul>
-      <li><strong>拖拽</strong>：选中物品后，直接拖动即可移动</li>
+      <li><strong>变换轴工具（Gizmo）</strong>：选中物品后，会显示三个彩色箭头和平面</li>
       <li>
-        <strong>精确移动</strong>：选中物品后，按 <code>Ctrl + M</code>
-        打开移动对话框，输入具体数值
+        <strong>沿轴移动</strong>：拖拽 <span style="color: #ef4444">红色（X）</span>、<span
+          style="color: #84cc16"
+          >绿色（Y）</span
+        >、<span style="color: #3b82f6">蓝色（Z）</span> 箭头，沿对应轴向移动
       </li>
+      <li><strong>平面移动</strong>：拖拽轴之间的小方块，在对应平面内自由移动</li>
+      <li>
+        <strong>侧边栏数值编辑</strong>：选中物品后，右侧「变换」面板会显示位置 (X、Y、Z) 输入框
+        <ul>
+          <li><strong>绝对模式</strong>：直接设置物品的世界坐标位置</li>
+          <li><strong>相对模式</strong>：输入增量值，在当前位置基础上移动物品（多选物品时常用）</li>
+          <li>
+            <strong>多选范围</strong>：多选物品时，可查看和调整选中物品的坐标范围（Min ~ Max）
+          </li>
+        </ul>
+      </li>
+    </ul>
+
+    <h3>旋转物品</h3>
+    <ul>
+      <li><strong>侧边栏数值编辑</strong>：选中物品后，右侧「变换」面板会显示旋转 (°) 输入框</li>
+      <li>
+        <strong>旋转轴说明</strong>：
+        <ul>
+          <li><span style="color: #ef4444">X 轴</span>：绕 X 轴旋转（俯仰/倾斜）</li>
+          <li><span style="color: #84cc16">Y 轴</span>：绕 Y 轴旋转（点头）</li>
+          <li><span style="color: #3b82f6">Z 轴</span>：绕 Z 轴旋转（左右转向/偏航）</li>
+        </ul>
+      </li>
+      <li><strong>绝对模式</strong>：直接设置目标旋转角度（单选物品时可用）</li>
+      <li><strong>相对模式</strong>：输入增量值，在当前旋转基础上增加旋转（多选物品强制使用）</li>
     </ul>
 
     <h3>复制和删除</h3>
     <ul>
       <li><strong>复制</strong>：<code>Ctrl + C</code> 复制，<code>Ctrl + V</code> 粘贴</li>
-      <li>
-        <strong>拖拽复制</strong>：选中物品后，按住
-        <code>Alt</code> 键拖动鼠标左键，可快速复制并定位到新位置
-      </li>
       <li><strong>剪切</strong>：<code>Ctrl + X</code></li>
       <li><strong>删除</strong>：选中物品后按 <code>Delete</code> 键</li>
       <li><strong>跨方案复制</strong>：可以在不同方案标签之间复制粘贴物品</li>
     </ul>
 
-    <h3>画布操作</h3>
+    <h3>视图与相机</h3>
+
+    <h4 class="mt-4 mb-2 text-base font-medium">1. 透视视图 (Perspective)</h4>
+    <p>模拟人眼视觉，支持两种操作模式（无缝切换）：</p>
     <ul>
-      <li><strong>平移</strong>：按住 <code>空格键</code> 然后鼠标左键拖动，或使用鼠标中键拖动</li>
-      <li><strong>缩放</strong>：鼠标滚轮，或 <code>Ctrl + =</code> / <code>Ctrl + -</code></li>
-      <li><strong>重置视图</strong>：点击菜单栏 <strong>视图 &gt; 重置视图</strong></li>
+      <li>
+        <strong>轨道模式 (默认)</strong>：
+        <ul>
+          <li><strong>旋转</strong>：按住 <code>鼠标中键</code> 拖动</li>
+          <li><strong>缩放</strong>：鼠标滚轮</li>
+          <li><strong>平移</strong>：透视视图下不支持鼠标平移，请直接使用键盘 WASD 移动</li>
+        </ul>
+      </li>
+      <li>
+        <strong>漫游模式 (Flight)</strong>：按 <code>W/A/S/D</code> 任意键自动进入，类似游戏操作。
+        <ul>
+          <li>
+            <strong>移动</strong>：<code>W</code>(前) <code>S</code>(后) <code>A</code>(左)
+            <code>D</code>(右)
+          </li>
+          <li><strong>升降</strong>：<code>Space</code>(升) <code>Q</code>(降)</li>
+          <li><strong>看四周</strong>：按住 <code>鼠标中键</code> 拖动</li>
+          <li><strong>加速</strong>：按住 <code>Shift</code> 键移动</li>
+          <li><strong>退出</strong>：按 <code>F</code> 键聚焦选中物品，即可退出漫游回到轨道模式</li>
+        </ul>
+      </li>
+    </ul>
+
+    <h4 class="mt-4 mb-2 text-base font-medium">2. 正交视图 (Orthographic)</h4>
+    <p>无透视畸变的平行投影（如顶视图），视图锁定不可旋转：</p>
+    <ul>
+      <li>
+        <strong>平移画布</strong>：按住 <code>鼠标中键</code> 拖动，或 <code>空格 + 左键</code> 拖动
+      </li>
+      <li><strong>缩放画布</strong>：鼠标滚轮</li>
+    </ul>
+
+    <h4 class="mt-4 mb-2 text-base font-medium">视图辅助</h4>
+    <ul>
+      <li><strong>聚焦选中 (F)</strong>：最常用的导航键，迷失方向时按 F 可快速找回目标</li>
+      <li><strong>重置视图</strong>：菜单栏 <strong>视图 &gt; 重置视图</strong></li>
+    </ul>
+
+    <h3>显示模式</h3>
+    <p>编辑器支持三种物品显示模式，可根据需要在工具栏切换：</p>
+    <ul>
+      <li>
+        <strong>简易方块 (Simple Cube)</strong>：
+        <br />
+        <strong>默认模式（推荐）</strong
+        >。将所有物品统一显示为标准立方体，方便点击选中和进行大规模布局。
+        <ul>
+          <li class="text-sm text-muted-foreground">
+            <strong>提示</strong>：支持通过左下角滑块或 <code>Ctrl + 滚轮</code> 调整方块显示大小。
+          </li>
+        </ul>
+      </li>
+      <li>
+        <strong>完全体积 (Full Volume)</strong>：
+        <br />
+        显示物品基于长宽高的物理包围盒。主要用于<strong>体积预览</strong>或检查空间占用。
+        <br />
+        <span class="text-sm text-muted-foreground"
+          >注意：由于仅包含尺寸数据，复杂物体（如大树）也会显示为巨大的长方体。</span
+        >
+      </li>
+      <li>
+        <strong>图标模式 (Icon)</strong>：
+        <br />
+        显示物品的游戏图标，方便快速识别物品种类。在透视视图中图标会自动面向相机，在正交视图（如顶视图）中会贴合平面。
+        <ul>
+          <li class="text-sm text-muted-foreground">
+            <strong>提示</strong>：支持通过左下角滑块或 <code>Ctrl + 滚轮</code> 调整图标显示大小。
+          </li>
+        </ul>
+      </li>
+    </ul>
+
+    <h3>撤销和重做</h3>
+    <ul>
+      <li><strong>撤销</strong>：<code>Ctrl + Z</code>，最多保留 50 步历史记录</li>
+      <li><strong>重做</strong>：<code>Ctrl + Y</code></li>
+      <li><strong>记录的操作</strong>：选中、移动、复制、删除、成组、解散组等所有编辑操作</li>
     </ul>
 
     <h2>高级功能</h2>
@@ -83,15 +186,6 @@
       </li>
     </ul>
 
-    <h3>高度过滤器</h3>
-    <p>
-      高度过滤器位于右侧边栏顶部，用于按 Z 轴高度（楼层）筛选显示物品。这在编辑多层建筑时特别有用。
-    </p>
-    <ul>
-      <li><strong>滑块控制</strong>：拖动双向滑块调整可见高度范围</li>
-      <li><strong>动态范围</strong>：滑块范围会根据实际物品的高度范围自动调整</li>
-    </ul>
-
     <h3>工作坐标系</h3>
     <p>工作坐标系功能允许你旋转画布坐标轴，特别适合编辑斜向布局的建筑（如 45° 摆放的建筑群）。</p>
     <ul>
@@ -100,26 +194,30 @@
       <li><strong>移动操作</strong>：启用后，移动物品会沿旋转后的坐标轴方向进行</li>
     </ul>
 
-    <h3>撤销和重做</h3>
-    <ul>
-      <li><strong>撤销</strong>：<code>Ctrl + Z</code>，最多保留 50 步历史记录</li>
-      <li><strong>重做</strong>：<code>Ctrl + Y</code></li>
-      <li><strong>记录的操作</strong>：移动、复制、删除、成组、解散组、精确变换等</li>
-    </ul>
-
-    <h3>重复物品检测</h3>
+    <h3>方案检测</h3>
     <p>
-      自动检测方案中完全重复的物品（位置、旋转、缩放完全相同），并在底部状态栏显示警告。
-      这在原地粘贴后忘记移动时特别有用。
+      编辑器会自动检测方案中的问题，并在底部状态栏显示警告。<strong>点击状态栏的警告，即可选中问题物品</strong>进行处理。
     </p>
     <ul>
-      <li><strong>查看提示</strong>：底部状态栏会显示黄色的"X 个重复物品"警告</li>
-      <li><strong>一键选中</strong>：点击状态栏提示，自动选中所有重复项（每组保留第一个）</li>
-      <li><strong>批量删除</strong>：选中后按 <code>Delete</code> 键清理</li>
+      <li>
+        <strong>重复物品检测</strong>：
+        检测位置、旋转完全重叠的物品（常因复制粘贴后未移动导致）。建议选中后按
+        <code>Delete</code> 清理。
+      </li>
+      <li>
+        <strong>区域限制检查</strong>：
+        物品超出了游戏允许的建造范围或高度限制。请将其移回安全区域内。
+      </li>
+      <li>
+        <strong>组大小限制</strong>： 检测包含超过 50 个物品的组合。请将过大的组解散（<code
+          >Ctrl + Shift + G</code
+        >）并重新分组。
+      </li>
+      <li>
+        <strong>渲染性能提示</strong>：
+        当物品数量过多时，为保持流畅仅渲染部分物品。未渲染的物品依然会被保存和导出，无需担心丢失。
+      </li>
     </ul>
-    <p class="text-sm text-muted-foreground">
-      <strong>提示：</strong>复制粘贴默认保持原坐标不变，粘贴后请记得移动物品到新位置。
-    </p>
 
     <h2>导出和保存</h2>
 
@@ -138,29 +236,18 @@
       <li>手动复制到游戏目录并重命名，替换原文件</li>
     </ol>
 
-    <h2>常见使用场景</h2>
-
-    <h3>批量移动建筑群</h3>
-    <ol>
-      <li>框选要移动的所有建筑</li>
-      <li>按 <code>Ctrl + M</code> 打开移动对话框</li>
-      <li>输入相对偏移量（如：X: 100, Y: 0, Z: 0）</li>
-      <li>点击"确认"，所有选中建筑同时移动</li>
-    </ol>
-
-    <h3>编辑斜向布局</h3>
-    <ol>
-      <li>打开 <strong>视图 &gt; 工作坐标系设置</strong></li>
-      <li>勾选"启用工作坐标系"，设置角度为 45°</li>
-      <li>此时移动物品会沿 45° 方向进行，更符合斜向布局的家园方案</li>
-      <li>编辑完成后，可以关闭工作坐标系恢复正常模式</li>
-    </ol>
-
-    <h3>按高度编辑多层建筑</h3>
-    <ol>
-      <li>使用右侧的高度过滤器，筛选出指定高度范围的物品</li>
-      <li>在该高度范围内进行编辑（其他高度的物品不可见，不会干扰选择）</li>
-      <li>所有高度范围编辑完成后，将过滤器调回完整范围</li>
-    </ol>
+    <h2>最佳实践建议</h2>
+    <ul>
+      <li>
+        <strong>模块化编辑（分治法）</strong>：<br />
+        如果家园方案非常复杂，建议将主要建筑群或组件<strong>剪切</strong>到一个新的空白方案标签页中单独编辑。这样可以获得更流畅的操作体验和清晰的视野。编辑完成后，再<strong>复制粘贴</strong>回主方案中组合。
+      </li>
+      <li>
+        <strong>推荐的高效工作流</strong>：<br />
+        实际上，<strong>80% 的布局工作都可以在“顶视图 + 简易方块模式”下完成</strong>。这种类似 2D
+        平面设计的操作方式最直观、效率最高。你无需花费大量精力学习复杂的 3D
+        漫游操作，仅在需要微调高度或预览最终效果时切换到透视视图即可。
+      </li>
+    </ul>
   </div>
 </template>

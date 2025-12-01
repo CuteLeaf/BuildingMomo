@@ -62,7 +62,6 @@
       </a>
       , 感谢 NUAN5.PRO 提供的数据支持！
     </p>
-    <p><strong>注意：</strong>工具本身不包含任何游戏资源文件，仅处理用户提供的方案数据。</p>
 
     <h2>遇到问题？</h2>
     <p>如果你在使用中遇到问题或有功能建议，欢迎在 GitHub 仓库提交 Issue：</p>
@@ -77,6 +76,24 @@
       </a>
     </p>
 
-    <p class="mt-8 text-sm text-muted-foreground">最后更新：2025-11-12</p>
+    <h2>关于与声明</h2>
+    <ul>
+      <li><strong>开发初衷</strong>：纯属个人兴趣，旨在辅助游戏体验。</li>
+      <li><strong>维护说明</strong>：在开发者退坑游戏前，会持续进行正常的维护更新。</li>
+      <li>
+        <strong>版权归属</strong>：代码基于
+        <a
+          href="https://github.com/ChanIok/BuildingMomo/blob/main/LICENSE"
+          target="_blank"
+          rel="noopener noreferrer"
+          class="font-medium text-primary underline underline-offset-4 hover:text-primary/80"
+        >
+          MIT 协议
+        </a>
+        开源，游戏素材版权归原厂商所有。
+      </li>
+    </ul>
+
+    <p class="mt-8 text-sm text-muted-foreground">最后更新：2025-12-2</p>
   </div>
 </template>

@@ -30,6 +30,10 @@ function importJSON() {
 function showSafetyNotice() {
   tabStore.openDocTab('faq')
 }
+
+function openQuickStart() {
+  tabStore.openDocTab('quickstart')
+}
 </script>
 
 <template>
@@ -178,7 +182,12 @@ function showSafetyNotice() {
         </p>
 
         <p class="flex flex-wrap items-center justify-center gap-x-2 gap-y-1">
-          <span>文件将在本地处理，不会上传到任何服务器</span>
+          <span
+            >文件将在本地处理，首次使用可阅读
+            <a href="#" @click.prevent="openQuickStart" class="text-blue-400 hover:underline"
+              >帮助文档</a
+            ></span
+          >
           <span class="text-gray-300">·</span>
           <span>
             物品数据与图标服务由
