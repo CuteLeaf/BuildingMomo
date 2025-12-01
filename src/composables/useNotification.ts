@@ -1,5 +1,6 @@
 import { toast } from 'vue-sonner'
 import { useNotificationStore } from '../stores/notificationStore'
+import { useI18n } from './useI18n'
 
 /**
  * 统一的通知系统 API
@@ -7,6 +8,7 @@ import { useNotificationStore } from '../stores/notificationStore'
  */
 export function useNotification() {
   const notificationStore = useNotificationStore()
+  const { t } = useI18n()
 
   return {
     // ===== Toast 通知（使用 vue-sonner）=====
@@ -94,10 +96,13 @@ export function useNotification() {
      */
     fileUpdate: (fileName: string, lastModified: number): Promise<boolean> => {
       return notificationStore.confirm({
-        title: '检测到文件更新',
-        description: `文件 ${fileName} 已更新，最后修改时间：${new Date(lastModified).toLocaleString()}。\n\n是否立即导入最新数据？`,
-        confirmText: '立即导入',
-        cancelText: '稍后',
+        title: t('notification.fileUpdate.title'),
+        description: t('notification.fileUpdate.desc', {
+          name: fileName,
+          time: new Date(lastModified).toLocaleString(),
+        }),
+        confirmText: t('notification.fileUpdate.confirm'),
+        cancelText: t('notification.fileUpdate.cancel'),
       })
     },
   }

@@ -7,6 +7,7 @@ import type { AlertDetailItem } from '../stores/notificationStore'
 import { storeToRefs } from 'pinia'
 import { useValidationStore } from '../stores/validationStore'
 import { getIconLoader } from './useIconLoader'
+import { useI18n } from './useI18n'
 import backgroundUrl from '@/assets/home.webp'
 
 // 检查浏览器是否支持 File System Access API
@@ -107,6 +108,7 @@ async function findLatestBuildSaveData(
 
 export function useFileOperations(editorStore: ReturnType<typeof useEditorStore>) {
   const notification = useNotification()
+  const { t } = useI18n()
   const fileInputRef = ref<HTMLInputElement | null>(null)
 
   // 辅助函数：预加载图片
@@ -155,11 +157,8 @@ export function useFileOperations(editorStore: ReturnType<typeof useEditorStore>
     if (settingsStore.settings.enableDuplicateDetection && hasDuplicate.value) {
       details.push({
         type: 'warning',
-        title: '重复物品',
-        list: [
-          `检测到 ${duplicateItemCount.value} 个重复物品。`,
-          '这些物品的位置、旋转和缩放完全相同，会在游戏中完全重叠，可能不是您期望的摆放效果。',
-        ],
+        title: t('fileOps.duplicate.title'),
+        text: `${t('fileOps.duplicate.desc', { n: duplicateItemCount.value })}\n${t('fileOps.duplicate.detail')}`,
       })
     }
 
@@ -169,17 +168,17 @@ export function useFileOperations(editorStore: ReturnType<typeof useEditorStore>
       const limitMsgs: string[] = []
 
       if (outOfBoundsItemIds.length > 0) {
-        limitMsgs.push(`${outOfBoundsItemIds.length} 个物品超出可建造区域 (将被移除)`)
+        limitMsgs.push(t('fileOps.limit.outOfBounds', { n: outOfBoundsItemIds.length }))
       }
       if (oversizedGroups.length > 0) {
-        limitMsgs.push(`${oversizedGroups.length} 个组合超过 50 个物品上限 (将被解组)`)
+        limitMsgs.push(t('fileOps.limit.oversized', { n: oversizedGroups.length }))
       }
 
       if (limitMsgs.length > 0) {
         details.push({
           type: 'info',
-          title: '限制自动处理',
-          text: '保存时将自动修复以下问题：',
+          title: t('fileOps.limit.title'),
+          text: t('fileOps.limit.desc'),
           list: limitMsgs,
         })
       }
@@ -188,11 +187,11 @@ export function useFileOperations(editorStore: ReturnType<typeof useEditorStore>
     // 3. 如果有问题，统一弹窗
     if (details.length > 0) {
       const confirmed = await notification.confirm({
-        title: '保存确认',
-        description: '检测到以下问题，请确认是否继续保存？',
+        title: t('fileOps.save.confirmTitle'),
+        description: t('fileOps.save.confirmDesc'),
         details: details,
-        confirmText: '继续保存',
-        cancelText: '取消',
+        confirmText: t('fileOps.save.continue'),
+        cancelText: t('common.cancel'),
       })
 
       if (!confirmed) {
@@ -264,18 +263,20 @@ export function useFileOperations(editorStore: ReturnType<typeof useEditorStore>
 
           if (result.success) {
             console.log(`[FileOps] Successfully imported scheme: ${file.name}`)
-            notification.success('导入成功')
+            notification.success(t('fileOps.import.success'))
             // 预加载图标
             preloadActiveSchemeIcons()
           } else {
-            notification.error(`导入失败: ${result.error}`)
+            notification.error(
+              t('fileOps.import.failed', { reason: result.error || 'Unknown error' })
+            )
           }
 
           resolve()
         }
 
         reader.onerror = () => {
-          notification.error('文件读取失败')
+          notification.error(t('fileOps.import.readFailed'))
           resolve()
         }
 
@@ -290,7 +291,7 @@ export function useFileOperations(editorStore: ReturnType<typeof useEditorStore>
   // 导出 JSON 文件
   async function exportJSON(filename?: string): Promise<void> {
     if (editorStore.items.length === 0) {
-      notification.warning('没有可导出的数据')
+      notification.warning(t('fileOps.export.noData'))
       return
     }
 
@@ -335,12 +336,12 @@ export function useFileOperations(editorStore: ReturnType<typeof useEditorStore>
   async function saveToGame(): Promise<void> {
     // 检查全局游戎连接状态
     if (!watchState.value.isActive || !watchState.value.fileHandle) {
-      notification.warning('请先连接游戏目录')
+      notification.warning(t('fileOps.saveToGame.noDir'))
       return
     }
 
     if (editorStore.items.length === 0) {
-      notification.warning('没有可保存的数据')
+      notification.warning(t('fileOps.saveToGame.noData'))
       return
     }
 
@@ -361,7 +362,7 @@ export function useFileOperations(editorStore: ReturnType<typeof useEditorStore>
       const permission = await verifyPermission(handle, true)
 
       if (!permission) {
-        notification.error('没有文件写入权限')
+        notification.error(t('fileOps.saveToGame.noPermission'))
         return
       }
 
@@ -375,10 +376,12 @@ export function useFileOperations(editorStore: ReturnType<typeof useEditorStore>
       watchState.value.lastContent = jsonString
 
       console.log(`[FileOps] Successfully saved to game: ${watchState.value.fileName}`)
-      notification.success('保存成功！')
+      notification.success(t('fileOps.saveToGame.success'))
     } catch (error: any) {
       console.error('[FileOps] Failed to save to game:', error)
-      notification.error(`保存失败: ${error.message || '未知错误'}`)
+      notification.error(
+        t('fileOps.saveToGame.failed', { reason: error.message || 'Unknown error' })
+      )
     }
   }
 
@@ -497,7 +500,7 @@ export function useFileOperations(editorStore: ReturnType<typeof useEditorStore>
   // 启动监控模式
   async function startWatchMode(): Promise<void> {
     if (!isFileSystemAccessSupported) {
-      notification.error('您的浏览器不支持文件系统访问功能，请使用最新版本的 Chrome 或 Edge 浏览器')
+      notification.error(t('fileOps.watch.notSupported'))
       return
     }
 
@@ -515,9 +518,7 @@ export function useFileOperations(editorStore: ReturnType<typeof useEditorStore>
       // 2. 查找 BuildData 目录
       const buildDataDir = await findBuildDataDirectory(dirHandle)
       if (!buildDataDir) {
-        notification.error(
-          '未找到 BuildData 目录，请确保选择的是游戏目录的任意位置（InfinityNikki\\X6Game\\Saved\\SavedData\\BuildData）'
-        )
+        notification.error(t('fileOps.watch.noBuildData'))
         return
       }
 
@@ -565,10 +566,13 @@ export function useFileOperations(editorStore: ReturnType<typeof useEditorStore>
           // 只有 NeedRestore 为 true 时才提示导入
           if (jsonData.NeedRestore === true) {
             const shouldImport = await notification.confirm({
-              title: '找到存档文件',
-              description: `文件：${fileName}\n最后修改时间：${new Date(lastModified).toLocaleString()}\n\n是否立即导入？`,
-              confirmText: '立即导入',
-              cancelText: '稍后',
+              title: t('fileOps.watch.foundTitle'),
+              description: t('fileOps.watch.foundDesc', {
+                name: fileName,
+                time: new Date(lastModified).toLocaleString(),
+              }),
+              confirmText: t('fileOps.watch.importNow'),
+              cancelText: t('fileOps.watch.later'),
             })
 
             if (shouldImport) {
@@ -576,15 +580,15 @@ export function useFileOperations(editorStore: ReturnType<typeof useEditorStore>
             }
           } else {
             // NeedRestore 为 false，说明暂无建造数据
-            notification.success('监控已启动，等待游戏导出建造数据')
+            notification.success(t('fileOps.watch.started'))
           }
         } catch (error) {
           console.error('[FileWatch] Failed to parse JSON:', error)
           // 解析失败时也提示用户
-          notification.warning('监控已启动，找到存档文件但无法解析')
+          notification.warning(t('fileOps.watch.parseFailed'))
         }
       } else {
-        notification.success('监控已启动，等待游戏导出建造数据')
+        notification.success(t('fileOps.watch.started'))
       }
     } catch (error: any) {
       if (error.name === 'AbortError') {
@@ -592,7 +596,9 @@ export function useFileOperations(editorStore: ReturnType<typeof useEditorStore>
         return
       }
       console.error('[FileWatch] Failed to start watch mode:', error)
-      notification.error(`启动监控失败: ${error.message || '未知错误'}`)
+      notification.error(
+        t('fileOps.watch.startFailed', { reason: error.message || 'Unknown error' })
+      )
     }
   }
 
@@ -615,7 +621,7 @@ export function useFileOperations(editorStore: ReturnType<typeof useEditorStore>
   // 从监控的文件导入
   async function importFromWatchedFile(): Promise<void> {
     if (!watchState.value.isActive || !watchState.value.dirHandle) {
-      notification.warning('监控模式未启动')
+      notification.warning(t('fileOps.importWatched.notStarted'))
       return
     }
 
@@ -623,7 +629,7 @@ export function useFileOperations(editorStore: ReturnType<typeof useEditorStore>
       // 重新查找最新文件（可能用户在游戏中保存了新文件）
       const result = await findLatestBuildSaveData(watchState.value.dirHandle)
       if (!result) {
-        notification.warning('未找到 BUILD_SAVEDATA_*.json 文件')
+        notification.warning(t('fileOps.importWatched.notFound'))
         return
       }
 
@@ -653,15 +659,17 @@ export function useFileOperations(editorStore: ReturnType<typeof useEditorStore>
         watchState.value.fileName = file.name
         watchState.value.lastModifiedTime = file.lastModified
 
-        notification.success('导入成功')
+        notification.success(t('fileOps.import.success'))
         // 预加载图标
         preloadActiveSchemeIcons()
       } else {
-        notification.error(`导入失败: ${importResult.error}`)
+        notification.error(
+          t('fileOps.import.failed', { reason: importResult.error || 'Unknown error' })
+        )
       }
     } catch (error: any) {
       console.error('[FileWatch] Failed to import from watched file:', error)
-      notification.error(`导入失败: ${error.message || '未知错误'}`)
+      notification.error(t('fileOps.import.failed', { reason: error.message || 'Unknown error' }))
     }
   }
 

@@ -177,7 +177,7 @@ onMounted(async () => {
 
               <!-- 内容 -->
               <div class="space-y-1 pl-6 text-gray-600">
-                <p v-if="detail.text">{{ detail.text }}</p>
+                <p v-if="detail.text" class="whitespace-pre-line">{{ detail.text }}</p>
                 <ul v-if="detail.list && detail.list.length > 0" class="list-disc space-y-0.5 pl-4">
                   <li v-for="(item, i) in detail.list" :key="i">{{ item }}</li>
                 </ul>

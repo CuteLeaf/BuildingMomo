@@ -135,9 +135,67 @@ export const enLocale = {
     github: 'GitHub Repository',
   },
 
+  // File Operations and Monitoring
+  fileOps: {
+    duplicate: {
+      title: 'Duplicate Items',
+      desc: 'Detected {n} duplicate items.',
+      detail:
+        'These items have identical position, rotation, and scale. They will overlap completely in-game.',
+    },
+    limit: {
+      title: 'Auto-fix Limits',
+      desc: 'The following issues will be fixed upon saving:',
+      outOfBounds: '{n} items out of bounds (will be removed)',
+      oversized: '{n} oversized groups (will be ungrouped)',
+    },
+    save: {
+      confirmTitle: 'Confirm Save',
+      confirmDesc: 'Issues detected. Continue saving?',
+      continue: 'Continue Save',
+    },
+    import: {
+      success: 'Import Successful',
+      failed: 'Import Failed: {reason}',
+      readFailed: 'Failed to read file',
+    },
+    export: {
+      noData: 'No data to export',
+    },
+    saveToGame: {
+      noDir: 'Please link game folder first',
+      noData: 'No data to save',
+      noPermission: 'No write permission',
+      success: 'Saved successfully!',
+      failed: 'Save failed: {reason}',
+    },
+    watch: {
+      notSupported: 'File System Access API not supported. Please use Chrome or Edge.',
+      noBuildData:
+        'BuildData directory not found. Please select the game folder (InfinityNikki\\X6Game\\Saved\\SavedData\\BuildData).',
+      foundTitle: 'Save File Found',
+      foundDesc: 'File: {name}\nLast Modified: {time}\n\nImport now?',
+      importNow: 'Import Now',
+      later: 'Later',
+      started: 'Monitoring started. Waiting for game data...',
+      parseFailed: 'Monitoring started. Found file but failed to parse.',
+      startFailed: 'Failed to start monitoring: {reason}',
+    },
+    importWatched: {
+      notStarted: 'Monitoring not started',
+      notFound: 'BUILD_SAVEDATA_*.json not found',
+    },
+  },
+
   // Errors and Notifications
   notification: {
     furnitureDataLoadFailed: 'Failed to load furniture data, some features may be unavailable',
+    fileUpdate: {
+      title: 'File Update Detected',
+      desc: 'File {name} updated at {time}.\n\nImport new data?',
+      confirm: 'Import Now',
+      cancel: 'Later',
+    },
     success: 'Success',
     error: 'Error',
     warning: 'Warning',

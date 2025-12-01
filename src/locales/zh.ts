@@ -134,9 +134,66 @@ export const zhLocale = {
     github: 'GitHub 仓库',
   },
 
+  // 文件操作和监控
+  fileOps: {
+    duplicate: {
+      title: '重复物品',
+      desc: '检测到 {n} 个重复物品。',
+      detail: '这些物品的位置、旋转和缩放完全相同，会在游戏中完全重叠，可能不是您期望的摆放效果。',
+    },
+    limit: {
+      title: '限制自动处理',
+      desc: '保存时将自动修复以下问题：',
+      outOfBounds: '{n} 个物品超出可建造区域 (将被移除)',
+      oversized: '{n} 个组合超过 50 个物品上限 (将被解组)',
+    },
+    save: {
+      confirmTitle: '保存确认',
+      confirmDesc: '检测到以下问题，请确认是否继续保存？',
+      continue: '继续保存',
+    },
+    import: {
+      success: '导入成功',
+      failed: '导入失败: {reason}',
+      readFailed: '文件读取失败',
+    },
+    export: {
+      noData: '没有可导出的数据',
+    },
+    saveToGame: {
+      noDir: '请先连接游戏目录',
+      noData: '没有可保存的数据',
+      noPermission: '没有文件写入权限',
+      success: '保存成功！',
+      failed: '保存失败: {reason}',
+    },
+    watch: {
+      notSupported: '您的浏览器不支持文件系统访问功能，请使用最新版本的 Chrome 或 Edge 浏览器',
+      noBuildData:
+        '未找到 BuildData 目录，请确保选择的是游戏目录的任意位置（InfinityNikki\\X6Game\\Saved\\SavedData\\BuildData）',
+      foundTitle: '找到存档文件',
+      foundDesc: '文件：{name}\n最后修改时间：{time}\n\n是否立即导入？',
+      importNow: '立即导入',
+      later: '稍后',
+      started: '监控已启动，等待游戏导出建造数据',
+      parseFailed: '监控已启动，找到存档文件但无法解析',
+      startFailed: '启动监控失败: {reason}',
+    },
+    importWatched: {
+      notStarted: '监控模式未启动',
+      notFound: '未找到 BUILD_SAVEDATA_*.json 文件',
+    },
+  },
+
   // 错误和通知
   notification: {
     furnitureDataLoadFailed: '家具数据加载失败，部分功能可能不可用',
+    fileUpdate: {
+      title: '检测到文件更新',
+      desc: '文件 {name} 已更新，最后修改时间：{time}。\n\n是否立即导入最新数据？',
+      confirm: '立即导入',
+      cancel: '稍后',
+    },
     success: '成功',
     error: '错误',
     warning: '警告',

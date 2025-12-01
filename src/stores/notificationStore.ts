@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
+import { useI18n } from '../composables/useI18n'
 
 // 详情项接口
 export interface AlertDetailItem {
@@ -22,6 +23,8 @@ export interface AlertConfig {
 }
 
 export const useNotificationStore = defineStore('notification', () => {
+  const { t } = useI18n()
+
   // AlertDialog 队列
   const alerts = ref<AlertConfig[]>([])
 
@@ -33,8 +36,8 @@ export const useNotificationStore = defineStore('notification', () => {
     const id = generateAlertId()
     const alert: AlertConfig = {
       id,
-      confirmText: '确定',
-      cancelText: '取消',
+      confirmText: t('common.confirm'),
+      cancelText: t('common.cancel'),
       ...config,
     }
 
