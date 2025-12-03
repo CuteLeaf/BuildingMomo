@@ -24,7 +24,7 @@ const { t } = useI18n()
 
 // 方案信息
 const fileName = computed(() => {
-  return editorStore.activeScheme?.filePath?.replace(/\\/g, '/') || t('status.unnamed')
+  return editorStore.activeScheme?.filePath.value?.replace(/\\/g, '/') || t('status.unnamed')
 })
 
 const currentIndex = computed(() => {
@@ -37,7 +37,9 @@ const schemeCount = computed(() => editorStore.schemes.length)
 // 修改时间
 const lastModified = computed(() => {
   // 优先使用 scheme 的 lastModified，其次使用 watchState
-  return editorStore.activeScheme?.lastModified || commandStore.fileOps.watchState.lastModifiedTime
+  return (
+    editorStore.activeScheme?.lastModified.value || commandStore.fileOps.watchState.lastModifiedTime
+  )
 })
 
 const shortTime = computed(() => {

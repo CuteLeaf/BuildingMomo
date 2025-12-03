@@ -239,9 +239,10 @@ export function useThreeCamera(
       // 更新一次基准距离
       updateCameraDistance()
 
-      if (scheme?.viewState) {
+      // scheme.viewState 是 Ref，需要传入 .value
+      if (scheme?.viewState.value) {
         // 恢复状态
-        restoreSnapshot(scheme.viewState)
+        restoreSnapshot(scheme.viewState.value)
       } else {
         // 无状态（如新导入），默认使用顶视图并聚焦到物品中心
         setViewPreset('top', sceneCenter.value, cameraDistance.value, 1)
@@ -255,7 +256,7 @@ export function useThreeCamera(
     state,
     (newVal) => {
       if (editorStore.activeScheme) {
-        editorStore.activeScheme.viewState = {
+        editorStore.activeScheme.viewState.value = {
           position: [...newVal.position],
           target: [...newVal.target],
           preset: uiStore.currentViewPreset,

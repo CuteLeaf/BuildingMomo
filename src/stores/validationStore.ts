@@ -61,7 +61,8 @@ export const useValidationStore = defineStore('validation', () => {
       // 准备数据: 构造轻量级的 ValidationItem 数组
       // 避免使用 deepToRaw 递归去代理，避免 Worker 结构化克隆大量无用数据
       // 这里的 map 操作虽然在主线程，但对于 10k items 也是毫秒级的
-      const items: ValidationItem[] = activeScheme.value.items.map((item) => ({
+      // items 是 ShallowRef，需要访问 .value
+      const items: ValidationItem[] = activeScheme.value.items.value.map((item) => ({
         internalId: item.internalId,
         gameId: item.gameId,
         x: item.x,
@@ -118,7 +119,7 @@ export const useValidationStore = defineStore('validation', () => {
 
   watch(
     [
-      () => activeScheme.value?.items, // 监听物品变化
+      () => activeScheme.value?.items.value, // 监听 items.value (ShallowRef)
       () => settings.value.enableDuplicateDetection,
       () => settings.value.enableLimitDetection,
       isBuildableAreaLoaded,
@@ -126,7 +127,7 @@ export const useValidationStore = defineStore('validation', () => {
     () => {
       debouncedValidation()
     },
-    { deep: true } // 深度监听 items 变化 (如坐标改变)
+    { deep: false }
   )
 
   // 选择所有重复的物品
@@ -134,12 +135,12 @@ export const useValidationStore = defineStore('validation', () => {
     if (!activeScheme.value || duplicateGroups.value.length === 0) return
 
     saveHistory('selection')
-    activeScheme.value.selectedItemIds.clear()
+    activeScheme.value.selectedItemIds.value.clear()
 
     duplicateGroups.value.forEach((group) => {
       // Skip the first one, select the rest
       group.slice(1).forEach((internalId) => {
-        activeScheme.value!.selectedItemIds.add(internalId)
+        activeScheme.value!.selectedItemIds.value.add(internalId)
       })
     })
 
@@ -153,10 +154,10 @@ export const useValidationStore = defineStore('validation', () => {
     if (!activeScheme.value || limitIssues.value.outOfBoundsItemIds.length === 0) return
 
     saveHistory('selection')
-    activeScheme.value.selectedItemIds.clear()
+    activeScheme.value.selectedItemIds.value.clear()
 
     limitIssues.value.outOfBoundsItemIds.forEach((id) => {
-      activeScheme.value!.selectedItemIds.add(id)
+      activeScheme.value!.selectedItemIds.value.add(id)
     })
   }
 
@@ -165,12 +166,13 @@ export const useValidationStore = defineStore('validation', () => {
     if (!activeScheme.value || limitIssues.value.oversizedGroups.length === 0) return
 
     saveHistory('selection')
-    activeScheme.value.selectedItemIds.clear()
+    activeScheme.value.selectedItemIds.value.clear()
 
     const targetGroups = new Set(limitIssues.value.oversizedGroups)
-    activeScheme.value.items.forEach((item) => {
+    // items 是 ShallowRef
+    activeScheme.value.items.value.forEach((item) => {
       if (targetGroups.has(item.groupId)) {
-        activeScheme.value!.selectedItemIds.add(item.internalId)
+        activeScheme.value!.selectedItemIds.value.add(item.internalId)
       }
     })
   }

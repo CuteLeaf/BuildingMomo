@@ -65,14 +65,17 @@ onMounted(async () => {
   // 初始化设置
   settingsStore.initialize()
 
-  // 恢复工作区状态 (Auto-Save)
-  // 即使恢复失败，也要启动监控以保证后续操作被保存
-  try {
-    await restoreWorkspace()
-  } catch (e) {
-    console.error('[App] Restore failed:', e)
-  } finally {
-    startMonitoring()
+  // 只有在启用自动保存功能时才恢复工作区状态
+  if (settingsStore.settings.enableAutoSave) {
+    // 恢复工作区状态 (Auto-Save)
+    // 即使恢复失败，也要启动监控以保证后续操作被保存
+    try {
+      await restoreWorkspace()
+    } catch (e) {
+      console.error('[App] Restore failed:', e)
+    } finally {
+      startMonitoring()
+    }
   }
 
   // 初始化家具数据

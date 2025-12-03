@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { ref, computed } from 'vue'
+import { ref, computed, shallowRef, triggerRef } from 'vue'
 import type { AppItem, GameItem, GameDataFile, HomeScheme } from '../types/editor'
 import { useTabStore } from './tabStore'
 import { useI18n } from '../composables/useI18n'
@@ -16,12 +16,12 @@ function generateUUID(): string {
 export const useEditorStore = defineStore('editor', () => {
   const { t } = useI18n()
 
-  // 多方案状态
-  const schemes = ref<HomeScheme[]>([])
+  // 多方案状态 - 使用 ShallowRef 优化列表性能
+  const schemes = shallowRef<HomeScheme[]>([])
   const activeSchemeId = ref<string | null>(null)
 
-  // 全局剪贴板（支持跨方案复制粘贴）
-  const clipboardRef = ref<AppItem[]>([])
+  // 全局剪贴板（支持跨方案复制粘贴）- 使用 ShallowRef
+  const clipboardRef = shallowRef<AppItem[]>([])
 
   // 当前工具状态
   const currentTool = ref<'select' | 'hand'>('select')
@@ -58,53 +58,65 @@ export const useEditorStore = defineStore('editor', () => {
     () => schemes.value.find((s) => s.id === activeSchemeId.value) ?? null
   )
 
-  // 向后兼容的计算属性（指向当前激活方案）
-  const items = computed(() => activeScheme.value?.items ?? [])
+  // 核心数据访问 - 适配 ShallowRef 结构
+  const items = computed(() => activeScheme.value?.items.value ?? [])
 
-  // 性能优化：建立 itemId -> item 的索引映射，避免频繁的 find 操作
+  // 性能优化：建立 itemId -> item 的索引映射
+  // 由于 items 是 computed，当 items.value 触发更新时，此映射也会重建
   const itemsMap = computed(() => {
     const map = new Map<string, AppItem>()
-    if (!activeScheme.value) return map
-
-    activeScheme.value.items.forEach((item) => {
+    const list = items.value
+    // 使用 for 循环通常比 forEach 略快，适合大数组
+    for (const item of list) {
       map.set(item.internalId, item)
-    })
+    }
     return map
   })
 
-  // 性能优化：建立 groupId -> itemIds 的索引映射，加速组扩展
+  // 性能优化：建立 groupId -> itemIds 的索引映射
   const groupsMap = computed(() => {
     const map = new Map<number, Set<string>>()
-    if (!activeScheme.value) return map
+    const list = items.value
 
-    activeScheme.value.items.forEach((item) => {
+    for (const item of list) {
       const gid = item.groupId
       if (gid > 0) {
-        if (!map.has(gid)) {
-          map.set(gid, new Set())
+        let group = map.get(gid)
+        if (!group) {
+          group = new Set()
+          map.set(gid, group)
         }
-        map.get(gid)!.add(item.internalId)
+        group.add(item.internalId)
       }
-    })
+    }
     return map
   })
 
-  const selectedItemIds = computed(() => activeScheme.value?.selectedItemIds ?? new Set<string>())
+  const selectedItemIds = computed(
+    () => activeScheme.value?.selectedItemIds.value ?? new Set<string>()
+  )
 
   // 计算属性：边界框
   const bounds = computed(() => {
-    if (items.value.length === 0) return null
+    const list = items.value
+    if (list.length === 0) return null
 
-    const xs = items.value.map((i) => i.x)
-    const ys = items.value.map((i) => i.y)
-    const zs = items.value.map((i) => i.z)
+    // 手动计算 min/max 避免 map 创建新数组的开销
+    let minX = Infinity,
+      maxX = -Infinity
+    let minY = Infinity,
+      maxY = -Infinity
+    let minZ = Infinity,
+      maxZ = -Infinity
 
-    const minX = Math.min(...xs)
-    const maxX = Math.max(...xs)
-    const minY = Math.min(...ys)
-    const maxY = Math.max(...ys)
-    const minZ = Math.min(...zs)
-    const maxZ = Math.max(...zs)
+    for (const item of list) {
+      if (item.x < minX) minX = item.x
+      if (item.x > maxX) maxX = item.x
+      if (item.y < minY) minY = item.y
+      if (item.y > maxY) maxY = item.y
+      if (item.z < minZ) minZ = item.z
+      if (item.z > maxZ) maxZ = item.z
+    }
 
     return {
       minX,
@@ -133,34 +145,65 @@ export const useEditorStore = defineStore('editor', () => {
 
   // 计算属性：选中的物品列表
   const selectedItems = computed(() => {
-    return items.value.filter((item) => selectedItemIds.value.has(item.internalId))
+    const list = items.value
+    const selected = selectedItemIds.value
+    if (selected.size === 0) return []
+
+    // 优化：如果选中数量很少，遍历 selected Set 可能更快？
+    // 但通常 list 很大，filter 可能较慢。
+    // 不过考虑到 itemsMap 已经构建，如果只是为了获取对象，可以直接用 map
+    // 这里维持 filter 逻辑，但其实可以用 itemsMap 优化
+    return list.filter((item) => selected.has(item.internalId))
   })
+
+  // 手动触发更新的方法
+  function triggerSceneUpdate() {
+    if (activeScheme.value) {
+      triggerRef(activeScheme.value.items)
+    }
+  }
+
+  function triggerSelectionUpdate() {
+    if (activeScheme.value) {
+      // 强制替换引用以触发 computed 更新，解决 triggerRef 在某些情况下无法穿透 computed 缓存的问题
+      activeScheme.value.selectedItemIds.value = new Set(activeScheme.value.selectedItemIds.value)
+    }
+  }
 
   // 获取下一个唯一的 InstanceID（自增策略）
   function getNextInstanceId(): number {
-    if (!activeScheme.value || activeScheme.value.items.length === 0) return 1
-
-    const maxId = activeScheme.value.items.reduce((max, item) => Math.max(max, item.instanceId), 0)
-    return maxId + 1
+    const list = items.value
+    if (list.length === 0) return 1
+    // 简单遍历查找最大值
+    let max = 0
+    for (const item of list) {
+      if (item.instanceId > max) max = item.instanceId
+    }
+    return max + 1
   }
 
-  // ========== 方案管理 ==========
+  // ========== 方案管理 ==========\
 
   // 方案管理：创建新方案
   function createScheme(name?: string): string {
     const newScheme: HomeScheme = {
       id: generateUUID(),
-      name: name || t('scheme.unnamed'),
-      items: [],
-      selectedItemIds: new Set(),
+      name: ref(name || t('scheme.unnamed')),
+      filePath: ref(undefined),
+      lastModified: ref(undefined),
+      items: shallowRef([]),
+      selectedItemIds: shallowRef(new Set()),
+      currentViewConfig: ref(undefined),
+      viewState: ref(undefined),
+      history: shallowRef(undefined),
     }
 
-    schemes.value.push(newScheme)
+    schemes.value = [...schemes.value, newScheme]
     activeSchemeId.value = newScheme.id
 
     // 同步到 TabStore
     const tabStore = useTabStore()
-    tabStore.openSchemeTab(newScheme.id, newScheme.name)
+    tabStore.openSchemeTab(newScheme.id, newScheme.name.value)
 
     return newScheme.id
   }
@@ -182,10 +225,8 @@ export const useEditorStore = defineStore('editor', () => {
       // 处理 PlaceInfo 的不同格式
       let placeInfoArray: GameItem[] = []
       if (Array.isArray(data.PlaceInfo)) {
-        // PlaceInfo 是数组（正常情况）
         placeInfoArray = data.PlaceInfo
       } else if (typeof data.PlaceInfo === 'object' && data.PlaceInfo !== null) {
-        // PlaceInfo 是空对象 {}（游戏未建造或清空时），视为空数组
         placeInfoArray = []
       } else {
         throw new Error('Invalid JSON format: PlaceInfo must be an array or object')
@@ -211,25 +252,28 @@ export const useEditorStore = defineStore('editor', () => {
         }
       })
 
-      // 从文件名提取方案名称（默认使用“方案 N”形式，避免重复）
+      // 从文件名提取方案名称
       const schemeName = t('scheme.defaultName', { n: schemes.value.length + 1 })
 
       // 创建新方案
       const newScheme: HomeScheme = {
         id: generateUUID(),
-        name: schemeName,
-        filePath: fileName,
-        items: newItems,
-        selectedItemIds: new Set(),
-        lastModified: fileLastModified,
+        name: ref(schemeName),
+        filePath: ref(fileName),
+        items: shallowRef(newItems),
+        selectedItemIds: shallowRef(new Set()),
+        lastModified: ref(fileLastModified),
+        currentViewConfig: ref(undefined),
+        viewState: ref(undefined),
+        history: shallowRef(undefined),
       }
 
-      schemes.value.push(newScheme)
+      schemes.value = [...schemes.value, newScheme]
       activeSchemeId.value = newScheme.id
 
       // 同步到 TabStore
       const tabStore = useTabStore()
-      tabStore.openSchemeTab(newScheme.id, newScheme.name)
+      tabStore.openSchemeTab(newScheme.id, newScheme.name.value)
 
       return { success: true, schemeId: newScheme.id }
     } catch (error) {
@@ -250,12 +294,15 @@ export const useEditorStore = defineStore('editor', () => {
     const index = schemes.value.findIndex((s) => s.id === schemeId)
     if (index === -1) return
 
-    schemes.value.splice(index, 1)
+    // 使用 filter 创建新数组以触发更新 (ShallowRef)
+    const newSchemes = [...schemes.value]
+    newSchemes.splice(index, 1)
+    schemes.value = newSchemes
 
     // 如果关闭的是当前激活方案，切换到其他方案
     if (activeSchemeId.value === schemeId) {
       if (schemes.value.length > 0) {
-        // 优先切换到前一个，否则切换到第一个
+        // 优先切换到前一个
         const newIndex = Math.max(0, index - 1)
         const nextScheme = schemes.value[newIndex]
         if (nextScheme) {
@@ -279,14 +326,14 @@ export const useEditorStore = defineStore('editor', () => {
     const scheme = schemes.value.find((s) => s.id === schemeId)
     if (scheme) {
       if (info.name !== undefined) {
-        scheme.name = info.name
+        scheme.name.value = info.name
         // 同步到 TabStore
         const tabStore = useTabStore()
         tabStore.updateSchemeTabName(schemeId, info.name)
       }
 
       if (info.filePath !== undefined) {
-        scheme.filePath = info.filePath
+        scheme.filePath.value = info.filePath
       }
     }
   }
@@ -299,13 +346,13 @@ export const useEditorStore = defineStore('editor', () => {
   // 保存当前视图配置
   function saveCurrentViewConfig(config: { scale: number; x: number; y: number }) {
     if (!activeScheme.value) return
-    activeScheme.value.currentViewConfig = config
+    activeScheme.value.currentViewConfig.value = config
   }
 
   // 获取保存的视图配置
   function getSavedViewConfig(): { scale: number; x: number; y: number } | null {
     if (!activeScheme.value) return null
-    return activeScheme.value.currentViewConfig ?? null
+    return activeScheme.value.currentViewConfig.value ?? null
   }
 
   // 清空数据
@@ -315,7 +362,7 @@ export const useEditorStore = defineStore('editor', () => {
     clipboardRef.value = []
   }
 
-  // ========== 编辑操作 ==========
+  // ========== 编辑操作 ==========\
 
   // 获取选中物品的中心坐标（用于UI显示）
   function getSelectedItemsCenter(): { x: number; y: number; z: number } | null {
@@ -336,11 +383,11 @@ export const useEditorStore = defineStore('editor', () => {
     schemes,
     activeSchemeId,
     activeScheme,
-    itemsMap, // 导出以便 Composables 使用
-    groupsMap, // 导出以便 Composables 使用
+    itemsMap,
+    groupsMap,
     buildableAreas,
     isBuildableAreaLoaded,
-    clipboardList: clipboardRef, // 导出给 useClipboard 使用
+    clipboardList: clipboardRef,
     currentTool,
     selectionMode,
     selectionAction,
@@ -365,6 +412,10 @@ export const useEditorStore = defineStore('editor', () => {
 
     // 编辑操作
     getSelectedItemsCenter,
-    getNextInstanceId, // 导出以便 Composables 使用
+    getNextInstanceId,
+
+    // 手动触发更新 (Crucial for ShallowRef pattern)
+    triggerSceneUpdate,
+    triggerSelectionUpdate,
   }
 })
