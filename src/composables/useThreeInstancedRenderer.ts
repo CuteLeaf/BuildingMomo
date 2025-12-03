@@ -326,8 +326,10 @@ export function useThreeInstancedRenderer(
       return type === 'icon' ? 0xf59e0b : 0xf59e0b // Icon & Box/SimpleBox: amber-400
     }
 
+    const selectedItemIds = editorStore.activeScheme?.selectedItemIds.value ?? new Set()
+
     // 其次是选中高亮
-    if (editorStore.selectedItemIds.has(item.internalId)) {
+    if (selectedItemIds.has(item.internalId)) {
       return type === 'icon' ? 0x60a5fa : 0x60a5fa // Icon & Box/SimpleBox: blue-400
     }
 
@@ -346,7 +348,7 @@ export function useThreeInstancedRenderer(
     const iconMeshTarget = iconInstancedMesh.value
     const simpleBoxMeshTarget = simpleBoxInstancedMesh.value
 
-    const items = editorStore.items
+    const items = editorStore.activeScheme?.items.value ?? []
     const map = indexToIdMap.value
     if (!map || map.size === 0) return
 
@@ -393,7 +395,7 @@ export function useThreeInstancedRenderer(
     const index = idToIndexMap.value.get(id)
     if (index === undefined) return
 
-    const item = editorStore.items.find((it) => it.internalId === id)
+    const item = editorStore.activeScheme?.items.value.find((it) => it.internalId === id)
     if (!item) return
 
     if (mode === 'box' && meshTarget) {
@@ -448,7 +450,7 @@ export function useThreeInstancedRenderer(
     if (mode === 'icon' && !iconMeshTarget) return
     if (mode === 'simple-box' && !simpleBoxMeshTarget) return
 
-    const items = editorStore.items
+    const items = editorStore.activeScheme?.items.value ?? []
     const instanceCount = Math.min(items.length, MAX_INSTANCES)
 
     if (items.length > MAX_INSTANCES) {
@@ -631,7 +633,7 @@ export function useThreeInstancedRenderer(
 
   // 物品集合变化时重建实例；选中状态变化时仅刷新颜色
   watch(
-    () => editorStore.items,
+    () => editorStore.activeScheme?.items.value,
     () => {
       // 拖拽时不触发全量更新，由 handleGizmoChange 直接更新实例矩阵
       if (isTransformDragging?.value) {
@@ -752,20 +754,22 @@ export function useThreeInstancedRenderer(
   )
 
   watch(
-    () => Array.from(editorStore.selectedItemIds),
+    () => Array.from(editorStore.activeScheme?.selectedItemIds.value ?? []),
     () => {
       if (isTransformDragging?.value) {
         return
       }
 
+      const selectedItemIds = editorStore.activeScheme?.selectedItemIds.value ?? new Set()
+
       // 1. 处理刚刚被选中的情况：抑制 Hover，使其显示选中色
-      if (hoveredItemId.value && editorStore.selectedItemIds.has(hoveredItemId.value)) {
+      if (hoveredItemId.value && selectedItemIds.has(hoveredItemId.value)) {
         suppressedHoverId.value = hoveredItemId.value
         hoveredItemId.value = null
       }
 
       // 2. 处理被抑制的物品不再被选中的情况：解除抑制
-      if (suppressedHoverId.value && !editorStore.selectedItemIds.has(suppressedHoverId.value)) {
+      if (suppressedHoverId.value && !selectedItemIds.has(suppressedHoverId.value)) {
         suppressedHoverId.value = null
       }
 

@@ -58,14 +58,11 @@ export const useEditorStore = defineStore('editor', () => {
     () => schemes.value.find((s) => s.id === activeSchemeId.value) ?? null
   )
 
-  // 核心数据访问 - 适配 ShallowRef 结构
-  const items = computed(() => activeScheme.value?.items.value ?? [])
-
   // 性能优化：建立 itemId -> item 的索引映射
   // 由于 items 是 computed，当 items.value 触发更新时，此映射也会重建
   const itemsMap = computed(() => {
     const map = new Map<string, AppItem>()
-    const list = items.value
+    const list = activeScheme.value?.items.value ?? []
     // 使用 for 循环通常比 forEach 略快，适合大数组
     for (const item of list) {
       map.set(item.internalId, item)
@@ -76,7 +73,7 @@ export const useEditorStore = defineStore('editor', () => {
   // 性能优化：建立 groupId -> itemIds 的索引映射
   const groupsMap = computed(() => {
     const map = new Map<number, Set<string>>()
-    const list = items.value
+    const list = activeScheme.value?.items.value ?? []
 
     for (const item of list) {
       const gid = item.groupId
@@ -90,70 +87,6 @@ export const useEditorStore = defineStore('editor', () => {
       }
     }
     return map
-  })
-
-  const selectedItemIds = computed(
-    () => activeScheme.value?.selectedItemIds.value ?? new Set<string>()
-  )
-
-  // 计算属性：边界框
-  const bounds = computed(() => {
-    const list = items.value
-    if (list.length === 0) return null
-
-    // 手动计算 min/max 避免 map 创建新数组的开销
-    let minX = Infinity,
-      maxX = -Infinity
-    let minY = Infinity,
-      maxY = -Infinity
-    let minZ = Infinity,
-      maxZ = -Infinity
-
-    for (const item of list) {
-      if (item.x < minX) minX = item.x
-      if (item.x > maxX) maxX = item.x
-      if (item.y < minY) minY = item.y
-      if (item.y > maxY) maxY = item.y
-      if (item.z < minZ) minZ = item.z
-      if (item.z > maxZ) maxZ = item.z
-    }
-
-    return {
-      minX,
-      maxX,
-      minY,
-      maxY,
-      minZ,
-      maxZ,
-      centerX: (minX + maxX) / 2,
-      centerY: (minY + maxY) / 2,
-      centerZ: (minZ + maxZ) / 2,
-      width: maxX - minX,
-      height: maxY - minY,
-      depth: maxZ - minZ,
-    }
-  })
-
-  // 计算属性：统计信息
-  const stats = computed(() => {
-    return {
-      totalItems: items.value.length,
-      selectedItems: selectedItemIds.value.size,
-      totalGroups: groupsMap.value.size,
-    }
-  })
-
-  // 计算属性：选中的物品列表
-  const selectedItems = computed(() => {
-    const list = items.value
-    const selected = selectedItemIds.value
-    if (selected.size === 0) return []
-
-    // 优化：如果选中数量很少，遍历 selected Set 可能更快？
-    // 但通常 list 很大，filter 可能较慢。
-    // 不过考虑到 itemsMap 已经构建，如果只是为了获取对象，可以直接用 map
-    // 这里维持 filter 逻辑，但其实可以用 itemsMap 优化
-    return list.filter((item) => selected.has(item.internalId))
   })
 
   // 手动触发更新的方法
@@ -172,7 +105,7 @@ export const useEditorStore = defineStore('editor', () => {
 
   // 获取下一个唯一的 InstanceID（自增策略）
   function getNextInstanceId(): number {
-    const list = items.value
+    const list = activeScheme.value?.items.value ?? []
     if (list.length === 0) return 1
     // 简单遍历查找最大值
     let max = 0
@@ -364,20 +297,6 @@ export const useEditorStore = defineStore('editor', () => {
 
   // ========== 编辑操作 ==========\
 
-  // 获取选中物品的中心坐标（用于UI显示）
-  function getSelectedItemsCenter(): { x: number; y: number; z: number } | null {
-    const selected = selectedItems.value
-    if (selected.length === 0) {
-      return null
-    }
-
-    return {
-      x: selected.reduce((sum, item) => sum + item.x, 0) / selected.length,
-      y: selected.reduce((sum, item) => sum + item.y, 0) / selected.length,
-      z: selected.reduce((sum, item) => sum + item.z, 0) / selected.length,
-    }
-  }
-
   return {
     // 多方案状态
     schemes,
@@ -392,13 +311,6 @@ export const useEditorStore = defineStore('editor', () => {
     selectionMode,
     selectionAction,
 
-    // 向后兼容的计算属性
-    items,
-    bounds,
-    stats,
-    selectedItemIds,
-    selectedItems,
-
     // 方案管理
     createScheme,
     importJSONAsScheme,
@@ -411,7 +323,6 @@ export const useEditorStore = defineStore('editor', () => {
     clearData,
 
     // 编辑操作
-    getSelectedItemsCenter,
     getNextInstanceId,
 
     // 手动触发更新 (Crucial for ShallowRef pattern)

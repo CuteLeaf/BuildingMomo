@@ -205,7 +205,7 @@ export function useFileOperations(editorStore: ReturnType<typeof useEditorStore>
     const oversizedGroupIds = new Set(limitIssues.value.oversizedGroups)
 
     // editorStore.items 已经是一个 computed 属性，返回的是 items.value，所以这里不需要改
-    const gameItems: GameItem[] = editorStore.items
+    const gameItems: GameItem[] = (editorStore.activeScheme?.items.value ?? [])
       .filter((item) => !outOfBoundsIds.has(item.internalId)) // 移除越界物品
       .map((item) => {
         const originalGroupId = item.groupId
@@ -292,7 +292,7 @@ export function useFileOperations(editorStore: ReturnType<typeof useEditorStore>
 
   // 导出 JSON 文件
   async function exportJSON(filename?: string): Promise<void> {
-    if (editorStore.items.length === 0) {
+    if ((editorStore.activeScheme?.items.value.length ?? 0) === 0) {
       notification.warning(t('fileOps.export.noData'))
       return
     }
@@ -342,7 +342,7 @@ export function useFileOperations(editorStore: ReturnType<typeof useEditorStore>
       return
     }
 
-    if (editorStore.items.length === 0) {
+    if ((editorStore.activeScheme?.items.value.length ?? 0) === 0) {
       notification.warning(t('fileOps.saveToGame.noData'))
       return
     }

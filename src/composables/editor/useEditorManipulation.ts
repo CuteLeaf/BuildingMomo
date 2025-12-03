@@ -1,6 +1,7 @@
 import { storeToRefs } from 'pinia'
 import { Vector3, Quaternion, Euler, MathUtils, Matrix4 } from 'three'
 import { useEditorStore } from '../../stores/editorStore'
+import { calculateBounds } from '../../lib/geometry'
 import { useEditorHistory } from './useEditorHistory'
 import type { TransformParams } from '../../types/editor'
 import type { AppItem } from '../../types/editor'
@@ -105,9 +106,31 @@ function calculateNewTransform(
 
 export function useEditorManipulation() {
   const store = useEditorStore()
-  const { activeScheme, selectedItems } = storeToRefs(store)
-  const { getSelectedItemsCenter } = store // This is still in store, or we could move it here too.
+  const { activeScheme } = storeToRefs(store)
   const { saveHistory } = useEditorHistory()
+
+  /**
+   * 获取选中物品的中心坐标（包围盒中心）
+   * 算法：(Min + Max) / 2
+   */
+  function getSelectedItemsCenter(): { x: number; y: number; z: number } | null {
+    const scheme = activeScheme.value
+    if (!scheme) return null
+    const selectedIds = scheme.selectedItemIds.value
+    if (selectedIds.size === 0) return null
+
+    const list = scheme.items.value
+    const selectedItems = list.filter((item) => selectedIds.has(item.internalId))
+
+    const bounds = calculateBounds(selectedItems)
+    if (!bounds) return null
+
+    return {
+      x: bounds.centerX,
+      y: bounds.centerY,
+      z: bounds.centerZ,
+    }
+  }
 
   // 删除选中物品
   function deleteSelected() {
@@ -131,9 +154,9 @@ export function useEditorManipulation() {
     saveHistory('edit')
 
     const { mode, position, rotation } = params
-    const selected = selectedItems.value
-
-    if (selected.length === 0) return
+    const scheme = activeScheme.value
+    const ids = scheme.selectedItemIds.value
+    if (ids.size === 0) return
 
     // 计算选区中心（用于旋转和绝对位置）
     const center = getSelectedItemsCenter()
@@ -253,6 +276,7 @@ export function useEditorManipulation() {
   }
 
   return {
+    getSelectedItemsCenter,
     deleteSelected,
     updateSelectedItemsTransform,
     moveSelectedItems,

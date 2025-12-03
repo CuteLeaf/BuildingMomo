@@ -4,7 +4,7 @@ import { useEditorHistory } from './useEditorHistory'
 
 export function useEditorSelection() {
   const store = useEditorStore()
-  const { activeScheme, itemsMap, groupsMap, items } = storeToRefs(store)
+  const { activeScheme, itemsMap, groupsMap } = storeToRefs(store)
 
   const { saveHistory } = useEditorHistory()
 
@@ -152,7 +152,7 @@ export function useEditorSelection() {
     saveHistory('selection')
 
     activeScheme.value.selectedItemIds.value.clear()
-    items.value.forEach((item) => {
+    activeScheme.value.items.value.forEach((item: any) => {
       activeScheme.value!.selectedItemIds.value.add(item.internalId)
     })
 
@@ -167,7 +167,7 @@ export function useEditorSelection() {
     saveHistory('selection')
 
     const newSelection = new Set<string>()
-    items.value.forEach((item) => {
+    activeScheme.value.items.value.forEach((item: any) => {
       if (!activeScheme.value!.selectedItemIds.value.has(item.internalId)) {
         newSelection.add(item.internalId)
       }

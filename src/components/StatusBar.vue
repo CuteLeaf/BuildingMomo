@@ -56,15 +56,16 @@ const fullTimeTooltip = computed(() => {
 })
 
 // 统计信息
-const stats = computed(() => ({
-  total: editorStore.stats.totalItems,
-  selected: editorStore.stats.selectedItems,
-}))
+const stats = computed(() => {
+  const scheme = editorStore.activeScheme
+  return {
+    total: scheme?.items.value.length ?? 0,
+    selected: scheme?.selectedItemIds.value.size ?? 0,
+    groupsCount: editorStore.groupsMap.size ?? 0,
+  }
+})
 
 const isRenderLimitExceeded = computed(() => stats.value.total > MAX_RENDER_INSTANCES)
-
-// 组信息
-const groupCount = computed(() => editorStore.stats.totalGroups)
 
 // 工作坐标系
 const coordinateSystem = computed(() => ({
@@ -275,7 +276,7 @@ watch(
         <!-- 组信息 -->
         <div class="flex shrink-0 items-center gap-1 text-purple-600">
           <span class="text-xs">{{
-            t('status.stats.groups').replace('{count}', String(groupCount))
+            t('status.stats.groups').replace('{count}', String(stats.groupsCount))
           }}</span>
         </div>
 

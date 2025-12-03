@@ -21,15 +21,25 @@ function getFurnitureName(furniture: any, fallbackId: number) {
   return furniture.name_en || furniture.name_cn
 }
 
+// 计算属性:选中物品列表
+const selectedItems = computed(() => {
+  const scheme = editorStore.activeScheme
+  if (!scheme) return []
+  const ids = scheme.selectedItemIds.value
+  if (ids.size === 0) return []
+  return scheme.items.value.filter((item) => ids.has(item.internalId))
+})
+
 // 计算属性:选中物品的组信息
 const selectedGroupInfo = computed(() => {
-  if (editorStore.selectedItems.length === 0) return null
+  const items = selectedItems.value
+  if (items.length === 0) return null
 
-  const groupIds = new Set(editorStore.selectedItems.map((item) => item.groupId))
+  const groupIds = new Set(items.map((item) => item.groupId))
 
   // 如果所有选中物品都是无组
   if (groupIds.size === 1 && groupIds.has(0)) {
-    return { type: 'none', count: editorStore.selectedItems.length }
+    return { type: 'none', count: items.length }
   }
 
   // 如果所有选中物品都属于同一组
@@ -39,7 +49,7 @@ const selectedGroupInfo = computed(() => {
     return {
       type: 'single',
       groupId,
-      selectedCount: editorStore.selectedItems.length,
+      selectedCount: items.length,
       totalCount: groupItems.length,
     }
   }
@@ -49,13 +59,13 @@ const selectedGroupInfo = computed(() => {
   return {
     type: 'multiple',
     groupCount,
-    selectedCount: editorStore.selectedItems.length,
+    selectedCount: items.length,
   }
 })
 
 // 计算属性:选中物品详情
 const selectedItemDetails = computed(() => {
-  const selected = editorStore.selectedItems
+  const selected = selectedItems.value
   if (selected.length === 0) return null
 
   // 单个物品
@@ -149,7 +159,9 @@ function handleIconError(e: Event) {
     <div class="flex shrink-0 items-center justify-between pr-2">
       <div class="flex items-center gap-2">
         <h2 class="text-sm font-semibold">{{ t('sidebar.selectionList') }}</h2>
-        <span class="font-semibold text-blue-500">{{ editorStore.stats.selectedItems }}</span>
+        <span class="font-semibold text-blue-500">{{
+          editorStore.activeScheme?.selectedItemIds.value.size ?? 0
+        }}</span>
       </div>
       <!-- 组信息徽章 -->
       <div v-if="groupBadgeText" class="flex items-center gap-1">
@@ -241,7 +253,10 @@ function handleIconError(e: Event) {
     <div class="flex gap-2 pt-2 pr-2">
       <Button
         @click="groupSelected()"
-        :disabled="editorStore.selectedItemIds.size < 2 || selectedGroupInfo?.type === 'single'"
+        :disabled="
+          (editorStore.activeScheme?.selectedItemIds.value.size ?? 0) < 2 ||
+          selectedGroupInfo?.type === 'single'
+        "
         class="flex-1"
         size="sm"
         title="Ctrl+G"
@@ -250,7 +265,7 @@ function handleIconError(e: Event) {
       </Button>
       <Button
         @click="ungroupSelected()"
-        :disabled="!editorStore.selectedItems.some((item) => item.groupId > 0)"
+        :disabled="!selectedItems.some((item) => item.groupId > 0)"
         variant="secondary"
         class="flex-1"
         size="sm"
