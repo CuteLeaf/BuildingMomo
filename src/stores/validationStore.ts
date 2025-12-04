@@ -1,18 +1,14 @@
 import { defineStore, storeToRefs } from 'pinia'
 import { ref, computed, watch } from 'vue'
 import type { ValidationResult } from '../types/persistence'
-import { workerApi } from '../workers/client'
 import { useEditorStore } from './editorStore'
-import { useSettingsStore } from './settingsStore'
 import { useEditorHistory } from '../composables/editor/useEditorHistory'
 
 export const useValidationStore = defineStore('validation', () => {
   const editorStore = useEditorStore()
-  const settingsStore = useSettingsStore()
   const { saveHistory } = useEditorHistory()
 
-  const { activeScheme, buildableAreas, isBuildableAreaLoaded } = storeToRefs(editorStore)
-  const settings = computed(() => settingsStore.settings)
+  const { activeScheme } = storeToRefs(editorStore)
 
   // 响应式状态
   const duplicateGroups = ref<string[][]>([])
@@ -44,43 +40,23 @@ export const useValidationStore = defineStore('validation', () => {
     limitIssues.value = results.limitIssues
   }
 
-  // 监听设置变化，通知 Worker 更新设置并重新验证
+  // 监听方案切换，重置或重新获取验证结果
+  // (由于方案切换也会触发 Persistence 的 syncScheme，这里其实也可以简化，
+  // 但为了 UI 响应速度，可以先保留或清理旧状态)
   watch(
-    [() => settings.value.enableDuplicateDetection, () => settings.value.enableLimitDetection],
-    async ([enableDup, enableLimit]) => {
-      isValidating.value = true
-      try {
-        const results = await workerApi.updateSettings({
-          enableDuplicateDetection: enableDup,
-          enableLimitDetection: enableLimit,
-        })
-        setValidationResults(results)
-      } finally {
-        isValidating.value = false
-      }
+    () => editorStore.activeSchemeId,
+    () => {
+      // 切换时先清空旧的验证结果，避免显示错误的警告
+      setValidationResults({
+        duplicateGroups: [],
+        limitIssues: { outOfBoundsItemIds: [], oversizedGroups: [] },
+      })
+      // 新方案的验证结果会随后由 Persistence 的 syncScheme 带回
     }
   )
 
-  // 监听可建造区域变化
-  watch([isBuildableAreaLoaded, buildableAreas], async ([loaded, areas]) => {
-    if (loaded && areas) {
-      isValidating.value = true
-      try {
-        const results = await workerApi.updateBuildableAreas(areas)
-        setValidationResults(results)
-      } finally {
-        isValidating.value = false
-      }
-    }
-  })
-
   // 选择所有重复的物品
   function selectDuplicateItems() {
-    if (!activeScheme.value || duplicateGroups.value.length === 0) return
-
-    saveHistory('selection')
-    activeScheme.value.selectedItemIds.value.clear()
-
     duplicateGroups.value.forEach((group) => {
       // Skip the first one, select the rest
       group.slice(1).forEach((internalId) => {

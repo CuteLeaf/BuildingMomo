@@ -62,8 +62,14 @@ const dialogOpen = computed({
 
 // 初始化
 onMounted(async () => {
-  // 初始化设置
-  settingsStore.initialize()
+  // 初始化家具数据
+  try {
+    await furnitureStore.initialize()
+    console.log('[App] Furniture data initialized')
+  } catch (error) {
+    console.error('[App] Failed to initialize furniture data:', error)
+    toast.error(t('notification.furnitureDataLoadFailed'))
+  }
 
   // 只有在启用自动保存功能时才恢复工作区状态
   if (settingsStore.settings.enableAutoSave) {
@@ -76,15 +82,6 @@ onMounted(async () => {
     } finally {
       startMonitoring()
     }
-  }
-
-  // 初始化家具数据
-  try {
-    await furnitureStore.initialize()
-    console.log('[App] Furniture data initialized')
-  } catch (error) {
-    console.error('[App] Failed to initialize furniture data:', error)
-    toast.error(t('notification.furnitureDataLoadFailed'))
   }
 })
 </script>

@@ -1,8 +1,10 @@
-import { ref, shallowRef, onUnmounted, toRaw, watch } from 'vue'
-import { useEventListener, useDebounceFn } from '@vueuse/core'
+import { ref, shallowRef, toRaw, watch, onUnmounted } from 'vue'
+import { useDebounceFn } from '@vueuse/core'
 import { get } from 'idb-keyval'
+import { storeToRefs } from 'pinia'
 import { useEditorStore } from '../stores/editorStore'
 import { useTabStore } from '../stores/tabStore'
+import { useSettingsStore } from '../stores/settingsStore'
 import { useValidationStore } from '../stores/validationStore'
 import { workerApi } from '../workers/client'
 import type { HomeScheme } from '../types/editor'
@@ -14,92 +16,157 @@ const CURRENT_VERSION = 1
 export function useWorkspacePersistence() {
   const editorStore = useEditorStore()
   const tabStore = useTabStore()
+  const settingsStore = useSettingsStore()
   const validationStore = useValidationStore()
+
+  const { buildableAreas, isBuildableAreaLoaded } = storeToRefs(editorStore)
 
   const isRestoring = ref(false)
   const lastSavedTime = ref(0)
 
-  // --- 序列化（主线程 -> 工作线程）---
-  // 只是组装快照。因为我们使用 ShallowRef 和普通对象，
-  const createSnapshot = (): WorkspaceSnapshot => {
-    const schemesValue = editorStore.schemes || []
-    const schemesSnapshot: HomeSchemeSnapshot[] = schemesValue.map((scheme) => ({
-      id: scheme.id,
-      name: scheme.name.value,
-      filePath: scheme.filePath.value,
-      lastModified: scheme.lastModified.value,
-      // items.value 是 ShallowRef<AppItem[]>。数组和项目都是普通对象。
-      // toRaw 确保我们不会传递 Proxy（如果它变成了 Proxy）。
-      items: toRaw(scheme.items.value),
-      selectedItemIds: toRaw(scheme.selectedItemIds.value),
-      currentViewConfig: toRaw(scheme.currentViewConfig.value),
-      viewState: toRaw(scheme.viewState.value),
-    }))
+  // --- 增量同步 (主线程 -> Worker) ---
 
-    return {
-      version: CURRENT_VERSION,
-      updatedAt: Date.now(),
-      editor: {
-        schemes: schemesSnapshot,
-        activeSchemeId: editorStore.activeSchemeId,
-      },
-      tab: {
-        tabs: tabStore.tabs.map((t) => toRaw(t)),
-        activeTabId: tabStore.activeTabId,
-      },
-    }
-  }
-
-  // --- 同步到工作线程 ---
-  const syncToWorker = async () => {
+  // 统一同步逻辑：结构 + 内容
+  const syncWorkspace = async () => {
     if (isRestoring.value) return
 
+    // 1. 准备元数据 (Meta)
+    const meta = {
+      activeSchemeId: editorStore.activeSchemeId || '',
+      tabs: tabStore.tabs.map((t) => toRaw(t)),
+      activeTabId: tabStore.activeTabId || '',
+      schemes: editorStore.schemes.map((s) => ({
+        id: s.id,
+        name: s.name.value,
+        filePath: s.filePath.value,
+        lastModified: s.lastModified.value,
+      })),
+    }
+
+    // 2. 准备当前激活方案的内容 (Active Scheme Data)
+    let activeSchemeData = undefined
+    if (editorStore.activeScheme) {
+      const scheme = editorStore.activeScheme
+      activeSchemeData = {
+        id: scheme.id,
+        items: toRaw(scheme.items.value),
+        selectedItemIds: toRaw(scheme.selectedItemIds.value),
+        currentViewConfig: toRaw(scheme.currentViewConfig.value),
+        viewState: toRaw(scheme.viewState.value),
+      }
+    }
+
     try {
-      const snapshot = createSnapshot()
+      // 3. 发送统一指令
+      const validationResults = await workerApi.syncWorkspace({
+        meta,
+        activeSchemeData,
+      })
 
-      // 发送到工作线程
-      // 这会触发验证并在工作线程中安排保存
-      const validationResults = await workerApi.syncWorkspace(snapshot)
-
-      // 用结果更新验证存储
+      // 4. 更新验证状态
       validationStore.setValidationResults(validationResults)
-
-      lastSavedTime.value = Date.now()
+      // console.log('[Persistence] Workspace synced')
     } catch (error) {
-      console.error('[Persistence] Failed to sync to worker:', error)
+      console.error('[Persistence] Failed to sync workspace to worker:', error)
     }
   }
 
-  // 防抖同步，避免在每个像素拖动时阻塞工作线程通道
-  // 但我们希望它足够快以获得验证反馈。
-  // 200ms 是"实时"感觉和避免 60fps 垃圾邮件的良好平衡。
-  // 对于"保存"，工作线程有自己的 2 秒防抖。
-  const debouncedSync = useDebounceFn(syncToWorker, 200)
+  // --- 防抖控制 ---
+
+  // 统一防抖 (300ms) - 任何变化都归流到这一个出口
+  const debouncedSyncWorkspace = useDebounceFn(syncWorkspace, 300)
+
+  // 3. 同步设置 (特别是 AutoSave)
+  // 这确保了 Worker 知道是否应该保存数据，并返回最新的验证结果
+  const syncSettings = async () => {
+    const s = settingsStore.settings
+    try {
+      // 1. 发送命令：更新设置
+      await workerApi.updateSettings({
+        enableDuplicateDetection: s.enableDuplicateDetection,
+        enableLimitDetection: s.enableLimitDetection,
+        enableAutoSave: s.enableAutoSave,
+      })
+
+      // 2. 发送查询：获取最新的验证结果
+      const results = await workerApi.revalidate()
+
+      // 3. 更新 UI
+      validationStore.setValidationResults(results)
+    } catch (error) {
+      console.error('[Persistence] Failed to sync settings to worker:', error)
+    }
+  }
+
+  // 4. 同步可建造区域
+  // 移至此处统一管理
+  const syncBuildableAreas = async () => {
+    if (!isBuildableAreaLoaded.value) return
+    try {
+      // 1. 发送命令
+      await workerApi.updateBuildableAreas(toRaw(buildableAreas.value))
+
+      // 2. 发送查询
+      const results = await workerApi.revalidate()
+
+      // 3. 更新 UI
+      validationStore.setValidationResults(results)
+    } catch (error) {
+      console.error('[Persistence] Failed to sync buildable areas to worker:', error)
+    }
+  }
 
   const cleanupFns: (() => void)[] = []
 
   function startMonitoring() {
-    console.log('[Persistence] 监控已启动（基于工作线程）')
+    console.log('[Persistence] 监控已启动 (增量模式)')
+
+    // 1. 初始同步
+    syncSettings()
+    syncBuildableAreas()
 
     cleanupFns.forEach((fn) => fn())
     cleanupFns.length = 0
 
-    // 用户交互结束的事件监听器
-    cleanupFns.push(useEventListener(window, 'pointerup', debouncedSync))
-    cleanupFns.push(useEventListener(window, 'keyup', debouncedSync))
-    cleanupFns.push(useEventListener(window, 'blur', debouncedSync))
-
-    // 监视数据变化（撤消/重做，属性更改）
-    const unwatch = watch(
-      () => editorStore.sceneVersion,
+    // 2. 监听所有相关状态变化
+    // 无论是内容变了(sceneVersion)，还是结构变了(Tabs/ActiveScheme)，
+    // 都触发同一个防抖函数，确保原子性同步。
+    const unwatchAll = watch(
+      [
+        () => editorStore.sceneVersion,
+        () => editorStore.selectionVersion,
+        () => tabStore.tabs,
+        () => tabStore.activeTabId,
+      ],
       () => {
-        debouncedSync()
-      }
+        debouncedSyncWorkspace()
+      },
+      { deep: true } // 深度监听，因为 tabs 内部属性可能变化
     )
-    cleanupFns.push(unwatch)
+    cleanupFns.push(unwatchAll)
 
-    // 还要触发初始同步以确保工作线程有数据
-    debouncedSync()
+    // 3. 监听设置变化 (独立逻辑，保持不变)
+    const unwatchSettings = watch(
+      () => settingsStore.settings,
+      () => {
+        syncSettings()
+      },
+      { deep: true }
+    )
+    cleanupFns.push(unwatchSettings)
+
+    // 4. 监听可建造区域变化 (独立逻辑，保持不变)
+    const unwatchAreas = watch(
+      [isBuildableAreaLoaded, buildableAreas],
+      () => {
+        syncBuildableAreas()
+      },
+      { deep: true }
+    )
+    cleanupFns.push(unwatchAreas)
+
+    // 初始同步
+    debouncedSyncWorkspace()
   }
 
   onUnmounted(() => {
@@ -107,7 +174,8 @@ export function useWorkspacePersistence() {
     cleanupFns.length = 0
   })
 
-  // --- 恢复（主线程 -> 运行时）---
+  // --- 恢复 (主线程 -> 运行时) ---
+
   const hydrate = (snapshot: WorkspaceSnapshot) => {
     const restoredSchemes: HomeScheme[] = snapshot.editor.schemes.map((s) => ({
       id: s.id,
@@ -140,18 +208,51 @@ export function useWorkspacePersistence() {
             '[Persistence] Workspace restored, last updated:',
             new Date(snapshot.updatedAt).toLocaleString()
           )
-          // 将恢复的数据同步到工作线程，以便它可以验证/保存未来的更改
-          debouncedSync()
+
+          // 重要：恢复后，必须把全量数据初始化给 Worker
+          // 这样 Worker 才能作为 Source of Truth 进行后续的增量更新
+          await workerApi.initWorkspace(snapshot)
         } else {
           console.warn('[Persistence] Version mismatch, skipping restore')
         }
       } else {
         console.log('[Persistence] No snapshot found')
+        // 如果没有快照，初始化一个空的给 Worker
+        const initialSnapshot = createCurrentSnapshot()
+        await workerApi.initWorkspace(initialSnapshot)
       }
     } catch (error) {
       console.error('[Persistence] Failed to restore workspace:', error)
     } finally {
       isRestoring.value = false
+    }
+  }
+
+  // 辅助：从当前状态构建完整快照 (用于初始化 Worker)
+  const createCurrentSnapshot = (): WorkspaceSnapshot => {
+    const schemesValue = editorStore.schemes || []
+    const schemesSnapshot: HomeSchemeSnapshot[] = schemesValue.map((scheme) => ({
+      id: scheme.id,
+      name: scheme.name.value,
+      filePath: scheme.filePath.value,
+      lastModified: scheme.lastModified.value,
+      items: toRaw(scheme.items.value),
+      selectedItemIds: toRaw(scheme.selectedItemIds.value),
+      currentViewConfig: toRaw(scheme.currentViewConfig.value),
+      viewState: toRaw(scheme.viewState.value),
+    }))
+
+    return {
+      version: CURRENT_VERSION,
+      updatedAt: Date.now(),
+      editor: {
+        schemes: schemesSnapshot,
+        activeSchemeId: editorStore.activeSchemeId,
+      },
+      tab: {
+        tabs: tabStore.tabs.map((t) => toRaw(t)),
+        activeTabId: tabStore.activeTabId,
+      },
     }
   }
 

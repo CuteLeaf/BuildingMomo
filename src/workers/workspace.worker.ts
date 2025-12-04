@@ -11,6 +11,7 @@ let buildableAreas: Record<string, number[][]> | null = null
 let settings = {
   enableDuplicateDetection: true,
   enableLimitDetection: true,
+  enableAutoSave: false,
 }
 
 // --- 验证逻辑（适配 AppItem）---
@@ -35,8 +36,11 @@ function isPointInPolygon(point: { x: number; y: number }, polygon: number[][]):
   return inside
 }
 
-function detectDuplicates(items: AppItem[]): string[][] {
-  if (!settings.enableDuplicateDetection || items.length === 0) {
+function detectDuplicates(
+  items: AppItem[],
+  config: { enableDuplicateDetection: boolean }
+): string[][] {
+  if (!config.enableDuplicateDetection || items.length === 0) {
     return []
   }
 
@@ -62,14 +66,17 @@ function detectDuplicates(items: AppItem[]): string[][] {
   return Array.from(itemMap.values()).filter((group) => group.length > 1)
 }
 
-function checkLimits(items: AppItem[]): {
+function checkLimits(
+  items: AppItem[],
+  config: { enableLimitDetection: boolean }
+): {
   outOfBoundsItemIds: string[]
   oversizedGroups: number[]
 } {
   const outOfBoundsItemIds: string[] = []
   const oversizedGroups: number[] = []
 
-  if (!settings.enableLimitDetection) {
+  if (!config.enableLimitDetection) {
     return { outOfBoundsItemIds, oversizedGroups }
   }
 
@@ -127,29 +134,12 @@ function checkLimits(items: AppItem[]): {
   return { outOfBoundsItemIds, oversizedGroups }
 }
 
-function runValidation(): ValidationResult {
-  if (!currentSnapshot || !currentSnapshot.editor.activeSchemeId) {
-    return {
-      duplicateGroups: [],
-      limitIssues: { outOfBoundsItemIds: [], oversizedGroups: [] },
-    }
-  }
-
-  const activeScheme = currentSnapshot.editor.schemes.find(
-    (s) => s.id === currentSnapshot!.editor.activeSchemeId
-  )
-
-  if (!activeScheme) {
-    return {
-      duplicateGroups: [],
-      limitIssues: { outOfBoundsItemIds: [], oversizedGroups: [] },
-    }
-  }
-
-  const items = activeScheme.items
-
-  const duplicates = detectDuplicates(items)
-  const limits = checkLimits(items)
+function runValidation(
+  items: AppItem[],
+  config: { enableDuplicateDetection: boolean; enableLimitDetection: boolean }
+): ValidationResult {
+  const duplicates = detectDuplicates(items, config)
+  const limits = checkLimits(items, config)
 
   return {
     duplicateGroups: duplicates,
@@ -172,7 +162,8 @@ function debounce<T extends (...args: any[]) => void>(fn: T, delay: number) {
 // --- 持久化逻辑 ---
 
 const saveSnapshot = async () => {
-  if (!currentSnapshot) return
+  // 关键修改：检查 enableAutoSave
+  if (!currentSnapshot || !settings.enableAutoSave) return
 
   try {
     await set(STORAGE_KEY, currentSnapshot)
@@ -184,43 +175,147 @@ const saveSnapshot = async () => {
 
 const scheduleSave = debounce(saveSnapshot, 2000)
 
+// 内部辅助：基于当前快照状态运行验证
+function runValidationOnSnapshot(): ValidationResult {
+  if (!currentSnapshot || !currentSnapshot.editor.activeSchemeId) {
+    return {
+      duplicateGroups: [],
+      limitIssues: { outOfBoundsItemIds: [], oversizedGroups: [] },
+    }
+  }
+
+  const activeScheme = currentSnapshot.editor.schemes.find(
+    (s) => s.id === currentSnapshot!.editor.activeSchemeId
+  )
+
+  if (!activeScheme) {
+    return {
+      duplicateGroups: [],
+      limitIssues: { outOfBoundsItemIds: [], oversizedGroups: [] },
+    }
+  }
+
+  return runValidation(activeScheme.items, settings)
+}
+
 // --- API ---
 
 const api = {
-  async syncWorkspace(snapshot: WorkspaceSnapshot): Promise<ValidationResult> {
+  // 1. 初始化 (全量)
+  async initWorkspace(snapshot: WorkspaceSnapshot) {
     currentSnapshot = snapshot
+    // 初始化时不触发保存
+  },
 
-    // 触发保存
+  // 2. 纯验证 (无状态)
+  validate(
+    items: AppItem[],
+    config?: { enableDuplicateDetection: boolean; enableLimitDetection: boolean }
+  ): ValidationResult {
+    // 使用传入的配置，或者回退到 Worker 内部状态的配置
+    const effectiveConfig = config ? { ...settings, ...config } : settings
+    return runValidation(items, effectiveConfig)
+  },
+
+  // 3. 统一增量同步 (结构 + 内容)
+  async syncWorkspace(payload: {
+    // 元数据
+    meta: {
+      activeSchemeId: string
+      tabs: any[]
+      activeTabId: string
+      schemes: { id: string; name: string; filePath?: string; lastModified?: number }[]
+    }
+    // 当前激活方案的完整数据 (可选)
+    activeSchemeData?: {
+      id: string
+      items: AppItem[]
+      selectedItemIds: any
+      currentViewConfig: any
+      viewState: any
+    }
+  }): Promise<ValidationResult> {
+    if (!currentSnapshot) {
+      return {
+        duplicateGroups: [],
+        limitIssues: { outOfBoundsItemIds: [], oversizedGroups: [] },
+      }
+    }
+
+    // 1. 更新元数据 & 结构 (合并方案列表)
+    currentSnapshot.editor.activeSchemeId = payload.meta.activeSchemeId
+    currentSnapshot.tab.tabs = payload.meta.tabs
+    currentSnapshot.tab.activeTabId = payload.meta.activeTabId
+
+    const newSchemesList: any[] = []
+    for (const metaScheme of payload.meta.schemes) {
+      const existing = currentSnapshot.editor.schemes.find((s) => s.id === metaScheme.id)
+      if (existing) {
+        existing.name = metaScheme.name
+        existing.filePath = metaScheme.filePath
+        if (metaScheme.lastModified) existing.lastModified = metaScheme.lastModified
+        newSchemesList.push(existing)
+      } else {
+        // 新建空方案
+        newSchemesList.push({
+          ...metaScheme,
+          items: [],
+          selectedItemIds: [],
+          currentViewConfig: undefined,
+          viewState: undefined,
+        })
+      }
+    }
+    currentSnapshot.editor.schemes = newSchemesList
+
+    // 2. 更新当前方案内容 (如果提供了)
+    let targetScheme = null
+    if (payload.activeSchemeData) {
+      targetScheme = currentSnapshot.editor.schemes.find(
+        (s) => s.id === payload.activeSchemeData!.id
+      )
+      if (targetScheme) {
+        Object.assign(targetScheme, payload.activeSchemeData)
+        targetScheme.lastModified = Date.now()
+      }
+    }
+
+    // 3. 触发保存
+    currentSnapshot.updatedAt = Date.now()
     scheduleSave()
 
-    // 立即触发验证
-    return runValidation()
+    // 4. 返回验证结果 (基于刚刚更新的数据)
+    if (targetScheme) {
+      return runValidation(targetScheme.items, settings)
+    } else {
+      // 如果没有更新内容，或者更新的是非激活方案（不太可能），尝试验证当前的 activeScheme
+      return runValidationOnSnapshot()
+    }
   },
 
+  // 5. 主动触发全量验证
+  revalidate(): ValidationResult {
+    return runValidationOnSnapshot()
+  },
+
+  // 6. 更新设置
   updateSettings(newSettings: {
-    enableDuplicateDetection: boolean
-    enableLimitDetection: boolean
+    enableDuplicateDetection?: boolean
+    enableLimitDetection?: boolean
+    enableAutoSave?: boolean
   }) {
+    const oldAutoSave = settings.enableAutoSave
     settings = { ...settings, ...newSettings }
-    // 如果有数据，重新运行验证
-    if (currentSnapshot) {
-      return runValidation()
-    }
-    return {
-      duplicateGroups: [],
-      limitIssues: { outOfBoundsItemIds: [], oversizedGroups: [] },
+
+    // 如果刚刚开启了自动保存，且有数据，立即尝试保存一次
+    if (!oldAutoSave && settings.enableAutoSave && currentSnapshot) {
+      scheduleSave()
     }
   },
 
+  // 7. 更新可建造区域 (缓存)
   updateBuildableAreas(areas: Record<string, number[][]> | null) {
     buildableAreas = areas
-    if (currentSnapshot) {
-      return runValidation()
-    }
-    return {
-      duplicateGroups: [],
-      limitIssues: { outOfBoundsItemIds: [], oversizedGroups: [] },
-    }
   },
 }
 

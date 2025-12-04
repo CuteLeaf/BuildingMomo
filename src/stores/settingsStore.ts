@@ -33,7 +33,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   autoUpdateFurniture: true,
   enableDuplicateDetection: true,
   enableLimitDetection: true,
-  enableAutoSave: false,
+  enableAutoSave: true,
   showGizmo: true,
   threeDisplayMode: 'simple-box',
   threeSymbolScale: 1.0,
@@ -54,14 +54,8 @@ export const useSettingsStore = defineStore('settings', () => {
     console.log('[SettingsStore] Settings reset to default')
   }
 
-  // 初始化（现在只需要打印日志）
-  function initialize(): void {
-    console.log('[SettingsStore] Settings initialized:', settings.value)
-  }
-
   return {
     settings,
-    initialize,
     resetSettings,
   }
 })

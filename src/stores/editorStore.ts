@@ -92,6 +92,8 @@ export const useEditorStore = defineStore('editor', () => {
   // 场景版本号，用于通知外部监听者（如 ValidationStore）场景内容发生了变更
   // 即使是原地修改 (In-Place Mutation) 也会触发此版本号更新
   const sceneVersion = ref(0)
+  // 选择状态版本号，用于低开销监听选中变化
+  const selectionVersion = ref(0)
 
   // 手动触发更新的方法
   function triggerSceneUpdate() {
@@ -104,6 +106,7 @@ export const useEditorStore = defineStore('editor', () => {
   function triggerSelectionUpdate() {
     if (activeScheme.value) {
       triggerRef(activeScheme.value.selectedItemIds)
+      selectionVersion.value++
     }
   }
 
@@ -331,6 +334,7 @@ export const useEditorStore = defineStore('editor', () => {
 
     // 手动触发更新 (Crucial for ShallowRef pattern)
     sceneVersion,
+    selectionVersion,
     triggerSceneUpdate,
     triggerSelectionUpdate,
   }

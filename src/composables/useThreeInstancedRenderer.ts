@@ -757,7 +757,10 @@ export function useThreeInstancedRenderer(
   )
 
   watch(
-    () => Array.from(editorStore.activeScheme?.selectedItemIds.value ?? []),
+    [
+      () => editorStore.activeScheme?.selectedItemIds.value, // 监听 Set 引用变化（切换方案时）
+      () => editorStore.selectionVersion, // 监听版本号（选择变化时）
+    ],
     () => {
       if (isTransformDragging?.value) {
         return
