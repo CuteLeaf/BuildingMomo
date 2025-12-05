@@ -244,6 +244,9 @@ export const enLocale = {
   // Common Text
   common: {
     close: 'Close',
+    closeOthers: 'Close Others',
+    closeAll: 'Close All',
+    rename: 'Rename',
     cancel: 'Cancel',
     confirm: 'Confirm',
     save: 'Save',

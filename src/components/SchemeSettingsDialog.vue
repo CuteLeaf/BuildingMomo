@@ -17,6 +17,7 @@ import { useI18n } from '@/composables/useI18n'
 
 const props = defineProps<{
   open: boolean
+  schemeId: string
 }>()
 
 const emit = defineEmits<{
@@ -32,27 +33,42 @@ const formData = ref({
   filePath: '',
 })
 
-// 当对话框打开时，填充当前状态
-watch(
-  () => props.open,
-  (isOpen) => {
-    if (isOpen) {
-      if (editorStore.activeScheme) {
-        formData.value = {
-          name: editorStore.activeScheme.name.value,
-          filePath: editorStore.activeScheme.filePath.value || '',
-        }
-      } else {
-        // 理论上不应该发生，如果没有激活方案就不应该打开此对话框
-        emit('update:open', false)
-      }
-    }
+// 根据当前 props 同步表单数据
+function syncFormFromProps() {
+  // 仅在对话框打开时才同步
+  if (!props.open) return
+
+  // 必须有有效的 schemeId
+  if (!props.schemeId) {
+    emit('update:open', false)
+    return
   }
+
+  const scheme = editorStore.schemes.find((s) => s.id === props.schemeId)
+  if (!scheme) {
+    // 如果指定的 schemeId 不存在，关闭对话框
+    emit('update:open', false)
+    return
+  }
+
+  formData.value = {
+    name: scheme.name.value,
+    filePath: scheme.filePath.value || '',
+  }
+}
+
+// 当 open 或 schemeId 任一变化时，同步一次；挂载时也同步一次
+watch(
+  () => [props.open, props.schemeId],
+  () => {
+    syncFormFromProps()
+  },
+  { immediate: true }
 )
 
 // 确认按钮处理
 function handleConfirm() {
-  if (!editorStore.activeSchemeId) return
+  if (!props.schemeId) return
 
   if (!formData.value.name.trim()) {
     toast.error(t('scheme.toast.nameRequired'))
@@ -64,7 +80,7 @@ function handleConfirm() {
     return
   }
 
-  editorStore.updateSchemeInfo(editorStore.activeSchemeId, {
+  editorStore.updateSchemeInfo(props.schemeId, {
     name: formData.value.name.trim(),
     filePath: formData.value.filePath.trim(),
   })

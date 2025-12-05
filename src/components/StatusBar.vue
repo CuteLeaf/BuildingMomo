@@ -11,6 +11,7 @@ import { useI18n } from '@/composables/useI18n'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { Copy, AlertTriangle, Layers, EyeOff } from 'lucide-vue-next'
 import { MAX_RENDER_INSTANCES } from '@/types/constants'
+import SchemeSettingsDialog from './SchemeSettingsDialog.vue'
 
 const editorStore = useEditorStore()
 const validationStore = useValidationStore()
@@ -21,6 +22,31 @@ const uiStore = useUIStore()
 const commandStore = useCommandStore()
 const settingsStore = useSettingsStore()
 const { t } = useI18n()
+
+// 方案设置对话框状态
+const schemeSettingsOpen = ref(false)
+const schemeSettingsId = ref('')
+
+// Tooltip 控制（避免与对话框焦点恢复导致的 Tooltip 悬挂问题）
+const isFileNameTooltipAllowed = ref(true)
+const isCoordinateTooltipAllowed = ref(true)
+
+// 方案设置对话框打开时，禁用文件名 Tooltip 内容
+watch(schemeSettingsOpen, (open) => {
+  if (open) {
+    isFileNameTooltipAllowed.value = false
+  }
+})
+
+// 工作坐标系对话框打开时，禁用坐标 Tooltip 内容
+watch(
+  () => commandStore.showCoordinateDialog,
+  (open) => {
+    if (open) {
+      isCoordinateTooltipAllowed.value = false
+    }
+  }
+)
 
 // 方案信息
 const fileName = computed(() => {
@@ -87,7 +113,10 @@ const handleCoordinateClick = () => {
 }
 
 const handleFileNameClick = () => {
-  commandStore.showSchemeSettingsDialog = true
+  if (editorStore.activeSchemeId) {
+    schemeSettingsId.value = editorStore.activeSchemeId
+    schemeSettingsOpen.value = true
+  }
 }
 
 // 重复物品检测
@@ -104,33 +133,6 @@ const handleDuplicateClick = () => {
     selectDuplicateItems()
   }
 }
-
-const isDialogClosing = ref(false)
-
-// 监听对话框关闭事件，在焦点还原后立即移除焦点
-// 这解决了 Dialog 关闭后 Tooltip 仍保持打开（因为触发器获得了焦点）的问题
-watch(
-  [() => commandStore.showCoordinateDialog, () => commandStore.showSchemeSettingsDialog],
-  ([newCoord, newScheme], [oldCoord, oldScheme]) => {
-    // 任何一个对话框打开时
-    if (newCoord || newScheme) {
-      isDialogClosing.value = true
-    }
-
-    // 当任一对话框从打开变为关闭时
-    if ((oldCoord && !newCoord) || (oldScheme && !newScheme)) {
-      isDialogClosing.value = true
-      // 使用 setTimeout 确保在 Radix UI 还原焦点之后执行
-      setTimeout(() => {
-        if (document.activeElement instanceof HTMLElement) {
-          document.activeElement.blur()
-        }
-
-        isDialogClosing.value = false
-      }, 500)
-    }
-  }
-)
 </script>
 
 <template>
@@ -145,16 +147,15 @@ watch(
           [{{ currentIndex }}/{{ schemeCount }}]
         </span>
         <Tooltip>
-          <TooltipTrigger as-child>
+          <TooltipTrigger as-child @mouseenter="isFileNameTooltipAllowed = true">
             <span
-              tabindex="0"
               class="shrink-0 cursor-pointer truncate rounded px-1.5 py-0.5 text-xs text-gray-800 transition-colors hover:bg-gray-200"
               @click="handleFileNameClick"
             >
               {{ fileName }}
             </span>
           </TooltipTrigger>
-          <TooltipContent v-if="!isDialogClosing">
+          <TooltipContent v-if="isFileNameTooltipAllowed">
             {{ t('status.rename').replace('{name}', fileName) }}
           </TooltipContent>
         </Tooltip>
@@ -282,9 +283,8 @@ watch(
 
         <!-- 工作坐标系 -->
         <Tooltip>
-          <TooltipTrigger as-child>
+          <TooltipTrigger as-child @mouseenter="isCoordinateTooltipAllowed = true">
             <div
-              tabindex="0"
               class="flex shrink-0 cursor-pointer items-center gap-1 rounded px-2 py-0.5 transition-colors hover:bg-gray-100"
               :class="coordinateSystem.enabled ? 'font-medium text-orange-600' : 'text-gray-400'"
               @click="handleCoordinateClick"
@@ -293,11 +293,18 @@ watch(
               <span class="text-xs">{{ coordinateSystem.angle }}°</span>
             </div>
           </TooltipTrigger>
-          <TooltipContent v-if="!isDialogClosing">
+          <TooltipContent v-if="isCoordinateTooltipAllowed">
             {{ coordinateTooltip }}
           </TooltipContent>
         </Tooltip>
       </div>
     </div>
+
+    <!-- 方案设置对话框 -->
+    <SchemeSettingsDialog
+      v-if="schemeSettingsOpen"
+      v-model:open="schemeSettingsOpen"
+      :scheme-id="schemeSettingsId"
+    />
   </div>
 </template>

@@ -242,6 +242,9 @@ export const zhLocale = {
   // 其他通用文本
   common: {
     close: '关闭',
+    closeOthers: '关闭其他',
+    closeAll: '全部关闭',
+    rename: '重命名',
     cancel: '取消',
     confirm: '确认',
     save: '保存',

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, nextTick, onMounted } from 'vue'
+import { computed, ref, nextTick, onMounted, watch } from 'vue'
 import { useEventListener } from '@vueuse/core'
 import {
   Menubar,
@@ -13,14 +13,23 @@ import {
   MenubarSubContent,
   MenubarSubTrigger,
 } from '@/components/ui/menubar'
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuSeparator,
+  ContextMenuTrigger,
+} from '@/components/ui/context-menu'
 import { Button } from '@/components/ui/button'
 import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { useCommandStore } from '../stores/commandStore'
 import { useEditorStore } from '../stores/editorStore'
 import { useTabStore } from '../stores/tabStore'
 import { useI18n } from '../composables/useI18n'
 import { X, Settings, BookOpen } from 'lucide-vue-next'
 import SettingsDialog from './SettingsDialog.vue'
+import SchemeSettingsDialog from './SchemeSettingsDialog.vue'
 
 // 使用命令系統 Store
 const commandStore = useCommandStore()
@@ -62,7 +71,20 @@ const tabsContainer = ref<HTMLElement | null>(null)
 const scrollAreaRef = ref<HTMLElement | null>(null)
 
 // 设置对话框状态
-const settingsDialogOpen = ref(false)
+const globalSettingsOpen = ref(false)
+const schemeSettingsOpen = ref(false)
+const schemeSettingsTargetId = ref('')
+
+// 设置按钮 Tooltip 控制（避免与对话框冲突）
+const isSettingsTooltipAllowed = ref(true)
+
+// 当设置对话框打开/关闭时，控制 Tooltip 是否渲染
+watch(globalSettingsOpen, (open) => {
+  // 对话框打开时禁用 Tooltip 内容
+  if (open) {
+    isSettingsTooltipAllowed.value = false
+  }
+})
 
 // 执行命令
 function handleCommand(commandId: string) {
@@ -95,18 +117,50 @@ function switchTab(tabId: string) {
   })
 }
 
-// 关闭标签
-function closeTab(tabId: string, event: Event) {
-  event.stopPropagation()
+// 核心关闭逻辑
+function performCloseTab(tabId: string) {
   const tab = tabStore.tabs.find((t) => t.id === tabId)
+  if (!tab) return
 
   // 如果是方案标签，关闭方案（会触发 tabStore.closeTab）
-  if (tab?.type === 'scheme' && tab.schemeId) {
+  if (tab.type === 'scheme' && tab.schemeId) {
     editorStore.closeScheme(tab.schemeId)
   } else {
     // 文档标签直接关闭
     tabStore.closeTab(tabId)
   }
+}
+
+// 关闭标签（点击 X 按钮）
+function handleCloseTabClick(tabId: string, event: Event) {
+  event.stopPropagation()
+  performCloseTab(tabId)
+}
+
+// 关闭其他标签
+function closeOtherTabs(keepTabId: string) {
+  // 创建副本以避免在遍历时修改数组导致的问题
+  const tabsToClose = tabStore.tabs.filter((t) => t.id !== keepTabId)
+  tabsToClose.forEach((t) => performCloseTab(t.id))
+}
+
+// 关闭所有标签
+function closeAllTabs() {
+  const tabsToClose = [...tabStore.tabs]
+  tabsToClose.forEach((t) => performCloseTab(t.id))
+}
+
+// 重命名标签
+function handleRenameTab(tab: any) {
+  if (tab.type === 'scheme' && tab.schemeId) {
+    schemeSettingsTargetId.value = tab.schemeId
+    schemeSettingsOpen.value = true
+  }
+}
+
+// 打开全局设置（顶部按钮）
+function openGlobalSettings() {
+  globalSettingsOpen.value = true
 }
 
 // 自定义滚轮事件：将垂直滚动转换为横向滚动
@@ -242,37 +296,59 @@ onMounted(() => {
     <!-- 中间：标签栏（可滚动） -->
     <ScrollArea v-if="tabStore.tabs.length > 0" ref="scrollAreaRef" class="min-w-0 flex-1">
       <div ref="tabsContainer" class="flex w-max gap-1">
-        <button
-          v-for="tab in tabStore.tabs"
-          :key="tab.id"
-          :data-tab-active="tabStore.activeTabId === tab.id"
-          @click="switchTab(tab.id)"
-          class="group relative my-2 flex flex-none items-center gap-2 rounded-sm border px-3 py-1 text-sm font-medium shadow-sm transition-all focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:outline-none"
-          :class="
-            tabStore.activeTabId === tab.id
-              ? 'border-border bg-background text-foreground'
-              : 'border-border/60 bg-secondary text-muted-foreground hover:border-border hover:bg-secondary/80'
-          "
-        >
-          <!-- 文档标签图标 -->
-          <BookOpen v-if="tab.type === 'doc'" class="h-3 w-3" />
+        <ContextMenu v-for="tab in tabStore.tabs" :key="tab.id">
+          <ContextMenuTrigger as-child>
+            <button
+              :data-tab-active="tabStore.activeTabId === tab.id"
+              @click="switchTab(tab.id)"
+              class="group relative my-2 flex flex-none items-center gap-2 rounded-sm border px-3 py-1 text-sm font-medium shadow-sm transition-all focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:outline-none"
+              :class="
+                tabStore.activeTabId === tab.id
+                  ? 'border-border bg-background text-foreground'
+                  : 'border-border/60 bg-secondary text-muted-foreground hover:border-border hover:bg-secondary/80'
+              "
+            >
+              <!-- 文档标签图标 -->
+              <BookOpen v-if="tab.type === 'doc'" class="h-3 w-3" />
 
-          <span class="max-w-[150px] truncate">
-            {{ tab.title }}
-          </span>
-          <Button
-            @click="closeTab(tab.id, $event)"
-            variant="ghost"
-            size="icon"
-            :class="[
-              'h-4 w-4 flex-shrink-0 transition-opacity',
-              tabStore.activeTabId === tab.id ? 'opacity-100' : 'opacity-0 group-hover:opacity-100',
-            ]"
-            :title="`关闭 ${tab.title}`"
-          >
-            <X class="h-3 w-3" />
-          </Button>
-        </button>
+              <span class="max-w-[150px] truncate">
+                {{ tab.title }}
+              </span>
+              <Button
+                @click="handleCloseTabClick(tab.id, $event)"
+                variant="ghost"
+                size="icon"
+                :class="[
+                  'h-4 w-4 flex-shrink-0 transition-opacity',
+                  tabStore.activeTabId === tab.id
+                    ? 'opacity-100'
+                    : 'opacity-0 group-hover:opacity-100',
+                ]"
+                :title="`关闭 ${tab.title}`"
+              >
+                <X class="h-3 w-3" />
+              </Button>
+            </button>
+          </ContextMenuTrigger>
+          <ContextMenuContent>
+            <template v-if="tab.type === 'scheme'">
+              <ContextMenuItem @click="handleRenameTab(tab)">
+                {{ t('common.rename') }}
+              </ContextMenuItem>
+              <ContextMenuSeparator />
+            </template>
+            <ContextMenuItem @click="performCloseTab(tab.id)">
+              {{ t('common.close') }}
+            </ContextMenuItem>
+            <ContextMenuItem @click="closeOtherTabs(tab.id)">
+              {{ t('common.closeOthers') }}
+            </ContextMenuItem>
+            <ContextMenuSeparator />
+            <ContextMenuItem @click="closeAllTabs()">
+              {{ t('common.closeAll') }}
+            </ContextMenuItem>
+          </ContextMenuContent>
+        </ContextMenu>
       </div>
       <ScrollBar orientation="horizontal" class="h-1.5" />
     </ScrollArea>
@@ -289,12 +365,30 @@ onMounted(() => {
       </div>
 
       <!-- 设置按钮 -->
-      <Button variant="ghost" size="sm" @click="settingsDialogOpen = true" class="flex-none">
-        <Settings class="h-4 w-4" />
-      </Button>
+      <Tooltip>
+        <TooltipTrigger as-child @mouseenter="isSettingsTooltipAllowed = true">
+          <Button
+            variant="ghost"
+            size="sm"
+            @click="openGlobalSettings"
+            class="flex-none"
+            :aria-label="t('settings.title')"
+          >
+            <Settings class="h-4 w-4" />
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent v-if="isSettingsTooltipAllowed" :side-offset="-8">
+          {{ t('settings.title') }}
+        </TooltipContent>
+      </Tooltip>
     </div>
 
     <!-- 设置对话框 -->
-    <SettingsDialog v-model:open="settingsDialogOpen" />
+    <SettingsDialog v-model:open="globalSettingsOpen" />
+    <SchemeSettingsDialog
+      v-if="schemeSettingsOpen"
+      v-model:open="schemeSettingsOpen"
+      :scheme-id="schemeSettingsTargetId"
+    />
   </div>
 </template>

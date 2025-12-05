@@ -12,7 +12,6 @@ import StatusBar from './components/StatusBar.vue'
 import ThreeEditor from './components/ThreeEditor.vue'
 import WelcomeScreen from './components/WelcomeScreen.vue'
 import CoordinateDialog from './components/CoordinateDialog.vue'
-import SchemeSettingsDialog from './components/SchemeSettingsDialog.vue'
 import DocsViewer from './components/DocsViewer.vue'
 import { Toaster } from '@/components/ui/sonner'
 import { toast } from 'vue-sonner'
@@ -154,8 +153,6 @@ onMounted(async () => {
 
   <!-- 工作坐标系设置对话框 -->
   <CoordinateDialog v-model:open="commandStore.showCoordinateDialog" />
-  <!-- 方案设置对话框 -->
-  <SchemeSettingsDialog v-model:open="commandStore.showSchemeSettingsDialog" />
 
   <!-- 全局 AlertDialog -->
   <AlertDialog :open="dialogOpen">
