@@ -30,29 +30,6 @@ export const useEditorStore = defineStore('editor', () => {
   // 选择行为：新选区/加选/减选/交叉
   const selectionAction = ref<'new' | 'add' | 'subtract' | 'intersect'>('new')
 
-  // 可建造区域数据
-  const buildableAreas = shallowRef<Record<string, number[][]> | null>(null)
-  const isBuildableAreaLoaded = ref(false)
-
-  // 加载可建造区域数据
-  async function loadBuildableAreaData() {
-    if (isBuildableAreaLoaded.value) return
-
-    try {
-      const response = await fetch('/assets/data/home-buildable-area.json')
-      if (!response.ok) throw new Error('Failed to load buildable area data')
-      const data = await response.json()
-      buildableAreas.value = data.polygons
-      isBuildableAreaLoaded.value = true
-      console.log('[EditorStore] Buildable area data loaded')
-    } catch (error) {
-      console.error('[EditorStore] Failed to load buildable area data:', error)
-    }
-  }
-
-  // 初始化时加载数据
-  loadBuildableAreaData()
-
   // 计算属性：当前激活的方案
   const activeScheme = computed(
     () => schemes.value.find((s) => s.id === activeSchemeId.value) ?? null
@@ -311,8 +288,6 @@ export const useEditorStore = defineStore('editor', () => {
     activeScheme,
     itemsMap,
     groupsMap,
-    buildableAreas,
-    isBuildableAreaLoaded,
     clipboardList: clipboardRef,
     currentTool,
     selectionMode,

@@ -4,6 +4,7 @@ import { get } from 'idb-keyval'
 import { storeToRefs } from 'pinia'
 import { useEditorStore } from '../stores/editorStore'
 import { useTabStore } from '../stores/tabStore'
+import { useGameDataStore } from '../stores/gameDataStore'
 import { useSettingsStore } from '../stores/settingsStore'
 import { useValidationStore } from '../stores/validationStore'
 import { workerApi } from '../workers/client'
@@ -21,7 +22,8 @@ export function useWorkspaceWorker() {
   const settingsStore = useSettingsStore()
   const validationStore = useValidationStore()
 
-  const { buildableAreas, isBuildableAreaLoaded } = storeToRefs(editorStore)
+  const gameDataStore = useGameDataStore()
+  const { buildableAreas, isBuildableAreaLoaded } = storeToRefs(gameDataStore)
 
   const isRestoring = ref(false)
 

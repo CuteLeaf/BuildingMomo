@@ -2,7 +2,7 @@
 import { computed, ref, watch } from 'vue'
 import { Ruler } from 'lucide-vue-next'
 import { useEditorStore } from '../stores/editorStore'
-import { useFurnitureStore } from '../stores/furnitureStore'
+import { useGameDataStore } from '../stores/gameDataStore'
 import { useEditorGroups } from '../composables/editor/useEditorGroups'
 import { useI18n } from '../composables/useI18n'
 import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area'
@@ -10,7 +10,7 @@ import { Button } from '@/components/ui/button'
 import { Item, ItemActions, ItemContent, ItemMedia, ItemTitle } from '@/components/ui/item'
 
 const editorStore = useEditorStore()
-const furnitureStore = useFurnitureStore()
+const gameDataStore = useGameDataStore()
 const { getGroupItems, groupSelected, ungroupSelected } = useEditorGroups()
 const { t, locale } = useI18n()
 
@@ -73,7 +73,7 @@ const selectedItemDetails = computed(() => {
     const item = selected[0]
     if (!item) return null
 
-    const furniture = furnitureStore.getFurniture(item.gameId)
+    const furniture = gameDataStore.getFurniture(item.gameId)
 
     // 计算尺寸字符串
     let dimensions = null
@@ -88,7 +88,7 @@ const selectedItemDetails = computed(() => {
     return {
       type: 'single' as const,
       name: getFurnitureName(furniture, item.gameId),
-      icon: furniture ? furnitureStore.getIconUrl(item.gameId) : null,
+      icon: furniture ? gameDataStore.getIconUrl(item.gameId) : null,
       itemId: item.gameId,
       dimensions,
       x: item.x,
@@ -113,11 +113,11 @@ const selectedItemDetails = computed(() => {
     if (existing) {
       existing.count++
     } else {
-      const furniture = furnitureStore.getFurniture(item.gameId)
+      const furniture = gameDataStore.getFurniture(item.gameId)
       itemStats.set(item.gameId, {
         itemId: item.gameId,
         name: getFurnitureName(furniture, item.gameId),
-        icon: furniture ? furnitureStore.getIconUrl(item.gameId) : null,
+        icon: furniture ? gameDataStore.getIconUrl(item.gameId) : null,
         count: 1,
       })
     }

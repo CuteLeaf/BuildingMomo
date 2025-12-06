@@ -18,7 +18,7 @@ import {
 import type { useEditorStore } from '@/stores/editorStore'
 import type { AppItem } from '@/types/editor'
 import { coordinates3D } from '@/lib/coordinates'
-import type { useFurnitureStore } from '@/stores/furnitureStore'
+import type { useGameDataStore } from '@/stores/gameDataStore'
 import { useSettingsStore } from '@/stores/settingsStore'
 import { getThreeIconManager, releaseThreeIconManager } from './useThreeIconManager'
 import { useEditorGroups } from './editor/useEditorGroups'
@@ -30,7 +30,7 @@ const DEFAULT_FURNITURE_SIZE: [number, number, number] = [100, 100, 150]
 
 export function useThreeInstancedRenderer(
   editorStore: ReturnType<typeof useEditorStore>,
-  furnitureStore: ReturnType<typeof useFurnitureStore>,
+  gameDataStore: ReturnType<typeof useGameDataStore>,
   isTransformDragging?: Ref<boolean>
 ) {
   const settingsStore = useSettingsStore()
@@ -554,7 +554,7 @@ export function useThreeInstancedRenderer(
         )
         scratchQuaternion.setFromEuler(scratchEuler)
 
-        const furnitureSize = furnitureStore.getFurnitureSize(item.gameId) ?? DEFAULT_FURNITURE_SIZE
+        const furnitureSize = gameDataStore.getFurnitureSize(item.gameId) ?? DEFAULT_FURNITURE_SIZE
         const [sizeX, sizeY, sizeZ] = furnitureSize
         // Z-up: sizeX=Length, sizeY=Width, sizeZ=Height
         scratchScale.set((Scale.X || 1) * sizeX, (Scale.Y || 1) * sizeY, (Scale.Z || 1) * sizeZ)

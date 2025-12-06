@@ -6,7 +6,7 @@ import { Object3D, MOUSE, TextureLoader, SRGBColorSpace, Color } from 'three'
 import backgroundUrl from '@/assets/home.webp'
 import { useEditorStore } from '@/stores/editorStore'
 import { useCommandStore } from '@/stores/commandStore'
-import { useFurnitureStore } from '@/stores/furnitureStore'
+import { useGameDataStore } from '@/stores/gameDataStore'
 import { useSettingsStore } from '@/stores/settingsStore'
 import { useUIStore } from '@/stores/uiStore'
 import { useThreeSelection } from '@/composables/useThreeSelection'
@@ -35,7 +35,7 @@ const { t } = useI18n()
 
 const editorStore = useEditorStore()
 const commandStore = useCommandStore()
-const furnitureStore = useFurnitureStore()
+const gameDataStore = useGameDataStore()
 const settingsStore = useSettingsStore()
 const uiStore = useUIStore()
 
@@ -204,7 +204,7 @@ const {
   updateSelectedInstancesMatrix,
   setHoveredItemId,
   updateIconFacing,
-} = useThreeInstancedRenderer(editorStore, furnitureStore, isTransformDragging)
+} = useThreeInstancedRenderer(editorStore, gameDataStore, isTransformDragging)
 
 // 当前 3D 显示模式（根据设置和视图类型动态决定）
 // 当前 3D 显示模式（完全由用户设置决定）
@@ -381,7 +381,7 @@ const {
   hideTooltip,
 } = useThreeTooltip(
   editorStore,
-  furnitureStore,
+  gameDataStore,
   activeCameraRef,
   threeContainerRef,
   {

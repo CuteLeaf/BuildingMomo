@@ -1,0 +1,190 @@
+import { defineStore } from 'pinia'
+import { ref, computed, shallowRef } from 'vue'
+import type { FurnitureItem, BuildingMomoFurniture, RawFurnitureEntry } from '../types/furniture'
+
+// 远程数据源 (Build time fetched)
+const FURNITURE_DATA_URL = import.meta.env.BASE_URL + 'assets/data/building-momo-furniture.json'
+// 可建造区域数据
+const BUILDABLE_AREA_URL = import.meta.env.BASE_URL + 'assets/data/home-buildable-area.json'
+// 本地图标路径
+const ICON_BASE_URL = import.meta.env.BASE_URL + 'assets/furniture-icon/'
+
+export const useGameDataStore = defineStore('gameData', () => {
+  // ========== 状态 (Furniture) ==========
+  const furnitureData = ref<Record<string, FurnitureItem>>({})
+  const lastFetchTime = ref<number>(0)
+  const isFurnitureLoading = ref(false)
+  const isFurnitureInitialized = ref(false)
+
+  // ========== 状态 (Buildable Areas) ==========
+  const buildableAreas = shallowRef<Record<string, number[][]> | null>(null)
+  const isBuildableAreaLoaded = ref(false)
+
+  // ========== 计算属性 ==========
+  const totalFurnitureCount = computed(() => Object.keys(furnitureData.value).length)
+
+  // ========== 数据加载 (Furniture) ==========
+
+  // 从远程获取数据并转换为内部结构
+  async function fetchFurnitureData(): Promise<Record<string, FurnitureItem>> {
+    const response = await fetch(FURNITURE_DATA_URL)
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`)
+    }
+
+    const json: BuildingMomoFurniture = await response.json()
+
+    // 使用 Map 处理原始条目，然后归一化为 Record<string, FurnitureItem>
+    const rawMap = new Map<number, RawFurnitureEntry[1]>(json.d)
+    const result: Record<string, FurnitureItem> = {}
+
+    for (const [itemId, value] of rawMap.entries()) {
+      const [nameZh, nameEn, iconId, dim] = value
+
+      // 基本校验：尺寸应为长度为3的数组
+      const validSize =
+        Array.isArray(dim) &&
+        dim.length === 3 &&
+        dim.every((n) => typeof n === 'number' && Number.isFinite(n))
+
+      const size: [number, number, number] = validSize
+        ? (dim as [number, number, number])
+        : [100, 100, 150]
+
+      result[itemId.toString()] = {
+        name_cn: String(nameZh ?? ''),
+        name_en: String(nameEn ?? ''),
+        // 这里存储的是 icon_id，实际 URL 在 getIconUrl 中统一拼接 .webp
+        icon: String(iconId ?? ''),
+        size,
+      }
+    }
+
+    return result
+  }
+
+  // 更新家具数据
+  async function updateFurnitureData(silent: boolean = false): Promise<void> {
+    if (!silent) {
+      isFurnitureLoading.value = true
+    }
+
+    try {
+      console.log('[GameDataStore] Fetching furniture data...')
+      const remoteData = await fetchFurnitureData()
+
+      console.log('[GameDataStore] Fetched', Object.keys(remoteData).length, 'items')
+
+      // 更新状态
+      furnitureData.value = remoteData
+      lastFetchTime.value = Date.now()
+      isFurnitureInitialized.value = true
+
+      console.log('[GameDataStore] Furniture data updated')
+    } catch (error) {
+      console.error('[GameDataStore] Update failed:', error)
+      throw error
+    } finally {
+      if (!silent) {
+        isFurnitureLoading.value = false
+      }
+    }
+  }
+
+  // ========== 数据加载 (Buildable Areas) ==========
+
+  async function loadBuildableAreaData() {
+    if (isBuildableAreaLoaded.value) return
+
+    try {
+      console.log('[GameDataStore] Loading buildable area data...')
+      const response = await fetch(BUILDABLE_AREA_URL)
+      if (!response.ok) throw new Error('Failed to load buildable area data')
+      const data = await response.json()
+      buildableAreas.value = data.polygons
+      isBuildableAreaLoaded.value = true
+      console.log('[GameDataStore] Buildable area data loaded')
+    } catch (error) {
+      console.error('[GameDataStore] Failed to load buildable area data:', error)
+    }
+  }
+
+  // ========== 全局初始化 ==========
+
+  // 初始化（应用启动时调用）
+  async function initialize(): Promise<void> {
+    if (isFurnitureInitialized.value && isBuildableAreaLoaded.value) return
+
+    console.log('[GameDataStore] Initializing...')
+
+    // 并行加载
+    await Promise.all([
+      !isFurnitureInitialized.value ? updateFurnitureData(false) : Promise.resolve(),
+      !isBuildableAreaLoaded.value ? loadBuildableAreaData() : Promise.resolve(),
+    ])
+  }
+
+  // ========== 公共方法 (Furniture) ==========
+
+  // 根据 ItemID 获取家具信息
+  function getFurniture(itemId: number): FurnitureItem | null {
+    return furnitureData.value[itemId.toString()] || null
+  }
+
+  // 获取家具尺寸（游戏坐标系：[X, Y, Z] = [长, 宽, 高]）
+  function getFurnitureSize(itemId: number): [number, number, number] | null {
+    const furniture = getFurniture(itemId)
+    return furniture?.size ?? null
+  }
+
+  // 获取图标 URL（导出为 webp 格式）
+  function getIconUrl(itemId: number): string {
+    const furniture = getFurniture(itemId)
+    if (!furniture || !furniture.icon) return ''
+    return ICON_BASE_URL + furniture.icon + '.webp'
+  }
+
+  // 强制更新（用户手动触发）
+  async function forceUpdate(): Promise<void> {
+    console.log('[GameDataStore] Force update triggered')
+    await updateFurnitureData(false)
+  }
+
+  // 清除缓存 (仅重置状态)
+  async function clearCache(): Promise<void> {
+    console.log('[GameDataStore] Clearing state...')
+    furnitureData.value = {}
+    lastFetchTime.value = 0
+    isFurnitureInitialized.value = false
+    buildableAreas.value = null
+    isBuildableAreaLoaded.value = false
+    console.log('[GameDataStore] State cleared')
+  }
+
+  return {
+    // 状态
+    furnitureData, // old: data
+    lastFetchTime,
+    isLoading: isFurnitureLoading, // Compatible alias if needed, or strict separation
+    isInitialized: isFurnitureInitialized, // Compatible alias
+
+    // 状态 (Buildable Areas)
+    buildableAreas,
+    isBuildableAreaLoaded,
+
+    // 计算属性
+    totalCount: totalFurnitureCount,
+
+    // 方法
+    initialize,
+    getFurniture,
+    getFurnitureSize,
+    getIconUrl,
+    forceUpdate,
+    clearCache,
+
+    // 暴露特定方法以便单独调用（如果需要）
+    updateFurnitureData,
+    loadBuildableAreaData,
+  }
+})

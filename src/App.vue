@@ -2,7 +2,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { useEditorStore } from './stores/editorStore'
 import { useNotificationStore } from './stores/notificationStore'
-import { useFurnitureStore } from './stores/furnitureStore'
+import { useGameDataStore } from './stores/gameDataStore'
 import { useSettingsStore } from './stores/settingsStore'
 import { useTabStore } from './stores/tabStore'
 import { useI18n } from './composables/useI18n'
@@ -33,7 +33,7 @@ import { TriangleAlert, Wrench, CircleX, CheckCircle2 } from 'lucide-vue-next'
 
 const editorStore = useEditorStore()
 const notificationStore = useNotificationStore()
-const furnitureStore = useFurnitureStore()
+const gameDataStore = useGameDataStore()
 const settingsStore = useSettingsStore()
 const tabStore = useTabStore()
 const { t } = useI18n()
@@ -67,24 +67,24 @@ onMounted(async () => {
   const hasUnsavedSession = localStorage.getItem('has_unsaved_session') === 'true'
   const shouldRestore = settingsStore.settings.enableAutoSave && hasUnsavedSession
 
-  // 定义家具初始化任务
-  const initFurniture = async () => {
+  // 定义游戏数据初始化任务
+  const initGameData = async () => {
     try {
-      await furnitureStore.initialize()
-      console.log('[App] Furniture data initialized')
+      await gameDataStore.initialize()
+      console.log('[App] Game data initialized')
     } catch (error) {
-      console.error('[App] Failed to initialize furniture data:', error)
-      toast.error(t('notification.furnitureDataLoadFailed'))
+      console.error('[App] Failed to initialize game data:', error)
+      toast.error(t('notification.furnitureDataLoadFailed')) // 可以考虑增加新的 i18n key
     }
   }
 
   if (!shouldRestore) {
     isAppReady.value = true
 
-    initFurniture()
+    initGameData()
   } else {
     try {
-      await initFurniture()
+      await initGameData()
       await restoreWorkspace()
     } catch (e) {
       console.error('[App] Restore failed:', e)

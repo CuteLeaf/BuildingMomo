@@ -1,6 +1,6 @@
 import { ref, markRaw, type Ref } from 'vue'
 import { Raycaster, Vector2, type Camera, type InstancedMesh } from 'three'
-import type { useFurnitureStore } from '@/stores/furnitureStore'
+import type { useGameDataStore } from '@/stores/gameDataStore'
 import type { useEditorStore } from '@/stores/editorStore'
 import { useUIStore } from '@/stores/uiStore'
 import { useI18n } from './useI18n'
@@ -18,7 +18,7 @@ interface ThreeTooltipSources {
 
 export function useThreeTooltip(
   editorStore: ReturnType<typeof useEditorStore>,
-  furnitureStore: ReturnType<typeof useFurnitureStore>,
+  gameDataStore: ReturnType<typeof useGameDataStore>,
   cameraRef: Ref<Camera | null>,
   containerRef: Ref<HTMLElement | null>,
   sources: ThreeTooltipSources,
@@ -122,7 +122,7 @@ export function useThreeTooltip(
       return
     }
 
-    const furnitureInfo = furnitureStore.getFurniture(item.gameId)
+    const furnitureInfo = gameDataStore.getFurniture(item.gameId)
 
     let name = ''
     if (!furnitureInfo) {
@@ -136,7 +136,7 @@ export function useThreeTooltip(
 
     tooltipData.value = {
       name,
-      icon: furnitureInfo ? furnitureStore.getIconUrl(item.gameId) : '',
+      icon: furnitureInfo ? gameDataStore.getIconUrl(item.gameId) : '',
       position: { x, y },
     }
 

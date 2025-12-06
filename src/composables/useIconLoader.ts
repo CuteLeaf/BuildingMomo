@@ -1,4 +1,4 @@
-import { useFurnitureStore } from '../stores/furnitureStore'
+import { useGameDataStore } from '../stores/gameDataStore'
 
 /**
  * 图标加载管理器
@@ -11,7 +11,7 @@ export function useIconLoader() {
   // 正在加载的图标 Promise，避免重复请求
   const loadingPromises = new Map<number, Promise<HTMLImageElement | null>>()
 
-  const furnitureStore = useFurnitureStore()
+  const gameDataStore = useGameDataStore()
 
   /**
    * 加载单个图标
@@ -31,7 +31,7 @@ export function useIconLoader() {
 
     // 3. 开始加载
     const promise = new Promise<HTMLImageElement | null>((resolve) => {
-      const iconUrl = furnitureStore.getIconUrl(itemId)
+      const iconUrl = gameDataStore.getIconUrl(itemId)
 
       // 没有图标 URL，返回 null
       if (!iconUrl) {
