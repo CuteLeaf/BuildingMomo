@@ -96,6 +96,6 @@
       </li>
     </ul>
 
-    <p class="mt-8 text-sm text-muted-foreground">Last Updated: 2025-12-02</p>
+    <p class="mt-8 text-sm text-muted-foreground">Last Updated: 2025-12-06</p>
   </div>
 </template>

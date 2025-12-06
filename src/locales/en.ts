@@ -36,7 +36,7 @@ export const enLocale = {
   welcome: {
     title: 'BuildingMomo',
     subtitle: 'Infinity Nikki Home Visual Editor',
-    features: ['Batch Manage Buildings', 'Merge Across Layouts', 'Visual Coordinate Editor'],
+    features: ['Batch Manage Buildings', 'Merge Across Schemes', 'Visual Coordinate Editor'],
     mobileOnly: {
       title: 'Desktop Only',
       desc: 'This tool is for editing local game files',
@@ -173,7 +173,7 @@ export const enLocale = {
     watch: {
       notSupported: 'File System Access API not supported. Please use Chrome or Edge.',
       noBuildData:
-        'BuildData directory not found. Please select the game folder (InfinityNikki\\X6Game\\Saved\\SavedData\\BuildData).',
+        'BuildData directory not found. Please select the game folder (InfinityNikkiGlobal\\X6Game\\Saved\\SavedData\\BuildData).',
       foundTitle: 'Save File Found',
       foundDesc: 'File: {name}\nLast Modified: {time}\n\nImport now?',
       importNow: 'Import Now',

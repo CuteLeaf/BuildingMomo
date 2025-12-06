@@ -49,7 +49,7 @@
     <h3>Step 2: Import Scheme 2</h3>
     <ol>
       <li>Return to game, re-enter build mode</li>
-      <li>Select <strong>Cancel</strong> on "Restore Building" dialog</li>
+      <li>Select <strong>Cancel</strong> on "Abnormal Exit" dialog</li>
       <li>Load Scheme 2 (target scheme)</li>
       <li>Click top-right menu → <strong>Recover from Stuck > Confirm</strong></li>
       <li>In editor, confirm import, Scheme 2 opens as the second tab</li>
@@ -88,7 +88,7 @@
     <h3>Step 5: Apply In-Game</h3>
     <ol>
       <li>Return to game, re-enter build mode</li>
-      <li>Select <strong>Restore</strong> on "Restore Building" dialog</li>
+      <li>Select <strong>Restore Data</strong> on "Abnormal Exit" dialog</li>
       <li>Done! Your buildings are now in Scheme 2</li>
     </ol>
 

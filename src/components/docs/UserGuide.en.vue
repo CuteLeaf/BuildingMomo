@@ -2,215 +2,194 @@
   <div class="doc-content">
     <h1>User Guide</h1>
 
-    <h2>Importing Schemes</h2>
+    <h2>Importing Build Data</h2>
 
     <h3>Method 1: Link Game Folder (Recommended)</h3>
     <ol>
-      <li>Click <strong>File > Link Game Folder</strong></li>
-      <li>Select the <code>InfinityNikki</code> folder in your game installation directory</li>
-      <li>The system auto-loads current scheme and watches for changes</li>
-      <li>In-game, use "Recover from Stuck" to export data, then import in editor</li>
+      <li>Click <strong>File &gt; Link Game Folder</strong> in the top menu bar</li>
+      <li>
+        Browse and select the <code>InfinityNikkiGlobal</code> folder in your game installation
+        directory
+      </li>
+      <li>The system will auto-load the current scheme and watch for file changes in real-time</li>
+      <li>
+        In-game, use <strong>Recover from Stuck</strong> to export build data, then return to the
+        editor to import
+      </li>
     </ol>
     <p class="text-sm text-muted-foreground">
-      <strong>Finding game folder:</strong><br />
-      In the launcher, click the arrow next to "Launch Game" and select "Open Installation
-      Location".
+      <strong>How to find your game installation folder:</strong><br />
+      In the game launcher, click the small arrow next to the "Start Game" button, then select "Open
+      Installation Location" to get the game path.
     </p>
 
-    <h3>Method 2: Import JSON Manually</h3>
+    <h3>Method 2: Import JSON File Manually</h3>
     <ol>
-      <li>Click <strong>File > Import Data</strong></li>
+      <li>Click <strong>File &gt; Import Build Data</strong> in the top menu bar</li>
       <li>
-        Browse to:
-        <code>InfinityNikki\X6Game\Saved\SavedData\BuildData\BUILD_SAVEDATA_[UID].json</code>
+        Find the build data file in your game installation directory:<br />
+        <code
+          >InfinityNikkiGlobal\X6Game\Saved\SavedData\BuildData\BUILD_SAVEDATA_[YourUID].json</code
+        >
       </li>
-      <li>Select the file to open in a new tab</li>
+      <li>Select the JSON file to import, and it will open as a new scheme tab</li>
     </ol>
 
-    <h2>Basic Operations</h2>
+    <h2>Views & Camera</h2>
 
-    <h3>Selecting</h3>
+    <h3 class="mt-4 mb-2 text-base font-medium">1. Perspective View</h3>
+    <p>Simulates human vision, with two control modes:</p>
     <ul>
-      <li><strong>Click:</strong> Select single item</li>
-      <li><strong>Drag Select:</strong> Click and drag background to draw box</li>
-      <li><strong>Add to Selection:</strong> <code>Shift + Drag</code></li>
-      <li><strong>Deselect:</strong> <code>Alt + Drag</code></li>
-      <li><strong>Intersect:</strong> <code>Shift + Alt + Drag</code> (keep intersection)</li>
-      <li><strong>Select All:</strong> <code>Ctrl + A</code></li>
-    </ul>
-
-    <h3>Moving</h3>
-    <ul>
-      <li><strong>Gizmo:</strong> Drag colored arrows (X/Y/Z) or plane handles</li>
       <li>
-        <strong>Transform Panel (Sidebar):</strong> Edit Position (X, Y, Z)
+        <strong>Orbit Mode (Default)</strong>:
         <ul>
-          <li><strong>Absolute:</strong> Set world coordinates directly</li>
-          <li><strong>Relative:</strong> Move by delta value (useful for multi-selection)</li>
+          <li><strong>Rotate</strong>: Hold <code>Middle Mouse</code> and drag</li>
+          <li><strong>Zoom</strong>: Mouse wheel</li>
         </ul>
       </li>
-    </ul>
-
-    <h3>Rotating</h3>
-    <ul>
-      <li><strong>Transform Panel:</strong> Edit Rotation (°)</li>
       <li>
-        <strong>Axes: </strong>
-        <span style="color: #ef4444">X (Pitch)</span>, <span style="color: #84cc16">Y (Yaw)</span>,
-        <span style="color: #3b82f6">Z (Roll)</span>
-      </li>
-      <li>
-        <strong>Relative Mode:</strong> Add rotation to current angle (forced for multi-selection)
-      </li>
-    </ul>
-
-    <h3>Clipboard & Delete</h3>
-    <ul>
-      <li><strong>Copy/Paste:</strong> <code>Ctrl + C</code> / <code>Ctrl + V</code></li>
-      <li><strong>Cut:</strong> <code>Ctrl + X</code></li>
-      <li><strong>Delete:</strong> <code>Delete</code> key</li>
-      <li><strong>Cross-Scheme:</strong> Copy/paste works between tabs</li>
-    </ul>
-
-    <h3>Camera Controls</h3>
-
-    <h4 class="mt-4 mb-2 text-base font-medium">1. Perspective View</h4>
-    <ul>
-      <li>
-        <strong>Orbit (Default):</strong>
+        <strong>Flight Mode</strong>: Press <code>W/A/S/D</code> to enter, similar to game controls.
         <ul>
-          <li><strong>Rotate:</strong> Middle Mouse Drag</li>
-          <li><strong>Zoom:</strong> Mouse Wheel</li>
           <li>
-            <strong>Pan:</strong> <code>WASD</code> keys (Mouse pan not supported in perspective)
+            <strong>Move</strong>: <code>W/A/S/D</code> (forward/back/left/right) |
+            <strong>Up/Down</strong>: <code>Q</code>(down) <code>Space</code>(up) |
+            <strong>Speed</strong>: Hold <code>Shift</code>
+          </li>
+          <li><strong>Look Around</strong>: Hold <code>Middle Mouse</code> and drag</li>
+          <li>
+            <strong>Exit</strong>: Press <code>F</code> to focus selected items and return to orbit
+            mode
           </li>
         </ul>
       </li>
-      <li>
-        <strong>Flight Mode:</strong> Press <code>WASD</code> to enter
-        <ul>
-          <li>
-            <strong>Move:</strong> <code>WASD</code> + <code>Space</code>(Up)/<code>Q</code>(Down)
-          </li>
-          <li><strong>Look:</strong> Middle Mouse Drag</li>
-          <li><strong>Speed:</strong> Hold <code>Shift</code></li>
-          <li><strong>Exit:</strong> Press <code>F</code> to focus selection</li>
-        </ul>
-      </li>
     </ul>
 
-    <h4 class="mt-4 mb-2 text-base font-medium">2. Orthographic View (Top/Front/etc.)</h4>
-    <ul>
-      <li><strong>Pan:</strong> Middle Mouse Drag (or Space + Left Drag)</li>
-      <li><strong>Zoom:</strong> Mouse Wheel</li>
-    </ul>
-
-    <h4 class="mt-4 mb-2 text-base font-medium">Helpers</h4>
-    <ul>
-      <li><strong>Frame Selection (F):</strong> Center view on selected items</li>
-      <li><strong>Frame All:</strong> <strong>View > Frame All</strong></li>
-    </ul>
-
-    <h3>Display Modes</h3>
+    <h3 class="mt-4 mb-2 text-base font-medium">2. Orthographic View</h3>
+    <p>
+      Parallel projection with no perspective distortion (like top view), locked and cannot rotate:
+    </p>
     <ul>
       <li>
-        <strong>Block Mode (Default):</strong><br />
-        Displays items as standard cubes. Best for layout and selection.
-        <span class="text-sm text-muted-foreground">
-          (Adjust size with bottom-left slider or <code>Ctrl + Wheel</code>)
-        </span>
+        <strong>Pan Canvas</strong>: Hold <code>Middle Mouse</code> and drag, or
+        <code>Space + Left Click</code> and drag
       </li>
-      <li>
-        <strong>Bounding Box:</strong><br />
-        Displays physics bounding box. Good for checking space usage.
-      </li>
-      <li>
-        <strong>Icon Mode:</strong><br />
-        Displays game icons. Icons face camera in perspective view.
-      </li>
+      <li><strong>Zoom Canvas</strong>: Mouse wheel</li>
     </ul>
 
-    <h3>Undo/Redo</h3>
+    <h3 class="mt-4 mb-2 text-base font-medium">Common Controls</h3>
     <ul>
-      <li><strong>Undo:</strong> <code>Ctrl + Z</code> (50 steps)</li>
-      <li><strong>Redo:</strong> <code>Ctrl + Y</code></li>
+      <li>
+        <strong>Frame Selection (F)</strong>: Select an item and press <code>F</code> to quickly
+        focus on it, a lifesaver when you're lost.
+      </li>
+      <li><strong>Reset View</strong>: Menu bar <strong>View &gt; Reset View</strong></li>
+    </ul>
+
+    <h2>Core Editing</h2>
+
+    <h3>Selecting Items</h3>
+    <ul>
+      <li><strong>Basic Selection</strong>: Click to select, drag to box select.</li>
+      <li>
+        <strong>Combined Selection</strong>: <code>Shift</code> to add, <code>Alt</code> to
+        subtract, <code>Shift + Alt</code>
+        to intersect.
+      </li>
+      <li><strong>Select All</strong>: <code>Ctrl + A</code> (selects all visible items).</li>
+    </ul>
+
+    <h3>Moving & Transforming</h3>
+    <ul>
+      <li>
+        <strong>Shortcuts</strong>: <code>Ctrl + C/V</code> (copy/paste), <code>Del</code> (delete),
+        <code>Ctrl + Z/Y</code>
+        (undo/redo).
+      </li>
+      <li>
+        <strong>Move/Rotate</strong>: After selection, drag the colored axes, or enter values in the
+        transform panel on the right.
+      </li>
+      <li>
+        <strong>Grouping</strong>: <code>Ctrl + G</code> (group), <code>Ctrl + Shift + G</code>
+        (ungroup). Grouped items can be moved/copied as a whole.
+      </li>
     </ul>
 
     <h2>Advanced Features</h2>
 
-    <h3>Grouping</h3>
-    <ul>
-      <li><strong>Group:</strong> <code>Ctrl + G</code></li>
-      <li><strong>Ungroup:</strong> <code>Ctrl + Shift + G</code></li>
-      <li><strong>Behavior:</strong> Groups act as single units for selection and transform.</li>
-    </ul>
-
     <h3>Coordinate System</h3>
-    <p>Rotate workspace axes for diagonal layouts (e.g., 45° buildings).</p>
-    <ul>
-      <li><strong>Enable:</strong> <strong>View > Coordinate System</strong></li>
-      <li><strong>Usage:</strong> Movement follows the rotated axes when enabled.</li>
-    </ul>
+    <p>
+      Enable via menu bar <strong>View &gt; Coordinate System</strong>. Supports rotating the
+      coordinate axes, specifically for editing building groups with diagonal layouts like 45°.
+    </p>
 
     <h3>Scheme Validation</h3>
     <p>
-      Warnings appear in the status bar for potential issues.
-      <strong>Click warning to select problem items.</strong>
+      The editor automatically detects and displays warnings in the bottom status bar. Click the
+      warning to locate issues:
     </p>
     <ul>
-      <li><strong>Duplicates:</strong> Items at exact same position/rotation.</li>
-      <li><strong>Out of Bounds:</strong> Items outside valid game area.</li>
-      <li><strong>Group Size:</strong> Groups with >50 items (Game limit).</li>
+      <li><strong>Duplicate Items</strong>: Items with identical position, rotation, and scale.</li>
+      <li><strong>Area Limits</strong>: Items outside the valid build area or height limit.</li>
+      <li><strong>Group Size Limit</strong>: Groups with more than 50 items (game limitation).</li>
     </ul>
 
-    <h2>Data Safety</h2>
-
-    <h3>Workspace Persistence</h3>
+    <h3>Workspace Memory</h3>
     <p>
-      The editor includes a state persistence feature to prevent data loss from accidental closures.
+      The system automatically saves your current scheme and unsaved changes. After accidental
+      closure, you can recover to the previous state. Clearing browser data may result in state
+      loss.
     </p>
+
+    <h2>Display & Performance</h2>
     <ul>
       <li>
-        <strong>Real-time Protection</strong>: Your open tabs and unsaved changes are saved locally
-        in real-time. If the browser closes unexpectedly or reloads, the workspace will be restored
-        exactly as you left it.
+        <strong>Simple Blocks (Recommended)</strong>: Default mode, best performance, ideal for
+        large-scale layout editing.
       </li>
-      <li>
-        <strong>Limitations</strong>: This feature relies on the browser's local database
-        (IndexedDB). Clearing your browser data or using "Incognito Mode" will result in the loss of
-        this temporary state.
-      </li>
-      <li>
-        <strong>Recommendation</strong>: This is for recovery purposes only. Always use
-        <strong>Save to Game</strong> or <strong>Export Data</strong> to permanently save your work.
-      </li>
+      <li><strong>Icon Mode</strong>: Displays game icons, easier to identify item types.</li>
+      <li><strong>Full Volume</strong>: Shows physics bounding box for previewing space usage.</li>
     </ul>
 
-    <h2>Exporting</h2>
+    <h2>Saving & Exporting Data</h2>
 
-    <h3>Save to Game</h3>
+    <h3>Method 1: Save to Game (Recommended)</h3>
+    <p>Available when you import via "Link Game Folder":</p>
     <ol>
-      <li>Press <code>Ctrl + S</code> or <strong>File > Save to Game</strong></li>
-      <li>Overwrites game file directly (if folder linked)</li>
-      <li>Reload in game to see changes</li>
+      <li>
+        After editing, press <code>Ctrl + S</code> or click <strong>File &gt; Save to Game</strong>
+      </li>
+      <li>The file will directly overwrite the scheme file in your game directory</li>
+      <li>Return to the game and restore your build data as usual to apply the changes</li>
     </ol>
 
-    <h3>Export JSON</h3>
+    <h3>Method 2: Export JSON File</h3>
     <ol>
-      <li><strong>File > Export Data</strong></li>
-      <li>Save JSON file, then manually replace the file in game folder</li>
+      <li>Click <strong>File &gt; Export Data</strong></li>
+      <li>Choose save location and download the JSON file</li>
+      <li>
+        Manually copy to game directory and replace the original file:<br />
+        <code
+          >InfinityNikkiGlobal\X6Game\Saved\SavedData\BuildData\BUILD_SAVEDATA_[YourUID].json</code
+        >
+      </li>
     </ol>
 
     <h2>Best Practices</h2>
     <ul>
       <li>
-        <strong>Modular Editing:</strong>
-        Cut complex sections to a new tab to edit in isolation, then paste back.
+        <strong>Do 80% of layout in 2D first</strong>: Recommended to complete most arrangement work
+        in <strong>Top View + Simple Blocks mode</strong>.
       </li>
       <li>
-        <strong>2D Workflow: </strong>
-        <strong>80% of work can be done in Top View + Block Mode.</strong> It's faster and more
-        precise than flying around in 3D.
+        <strong>Use perspective view for detail checks</strong>: Only switch to perspective view
+        briefly when you need to check height, occlusion, or final appearance for preview and
+        fine-tuning.
+      </li>
+      <li>
+        <strong>Edit complex buildings in separate schemes</strong>: For large or structurally
+        complex building groups, consider
+        <strong>cutting that section to a new blank scheme tab</strong> to edit separately.
       </li>
     </ul>
   </div>

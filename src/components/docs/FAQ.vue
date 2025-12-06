@@ -94,6 +94,6 @@
       </li>
     </ul>
 
-    <p class="mt-8 text-sm text-muted-foreground">最后更新：2025-12-2</p>
+    <p class="mt-8 text-sm text-muted-foreground">最后更新：2025-12-06</p>
   </div>
 </template>
