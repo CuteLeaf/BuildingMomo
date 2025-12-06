@@ -1,7 +1,7 @@
 import { ref, markRaw, type Ref } from 'vue'
 import { Raycaster, Vector2, Vector3, type Camera, type InstancedMesh } from 'three'
 import { coordinates3D } from '@/lib/coordinates'
-import type { useEditorStore } from '@/stores/editorStore'
+import { useEditorStore } from '@/stores/editorStore'
 import { useUIStore } from '@/stores/uiStore'
 import { useEditorSelection } from './editor/useEditorSelection'
 import { useEditorSelectionAction } from './useEditorSelectionAction'
@@ -19,7 +19,6 @@ interface SelectionSources {
 }
 
 export function useThreeSelection(
-  editorStore: ReturnType<typeof useEditorStore>,
   cameraRef: Ref<Camera | null>,
   selectionSources: SelectionSources,
   containerRef: Ref<HTMLElement | null>,
@@ -27,6 +26,7 @@ export function useThreeSelection(
 ) {
   const raycaster = markRaw(new Raycaster())
   const pointerNdc = markRaw(new Vector2())
+  const editorStore = useEditorStore()
   const uiStore = useUIStore()
 
   const selectionRect = ref<SelectionRect | null>(null)

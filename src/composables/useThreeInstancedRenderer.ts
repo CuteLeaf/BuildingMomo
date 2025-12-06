@@ -15,10 +15,10 @@ import {
   Sphere,
   DoubleSide,
 } from 'three'
-import type { useEditorStore } from '@/stores/editorStore'
 import type { AppItem } from '@/types/editor'
 import { coordinates3D } from '@/lib/coordinates'
-import type { useGameDataStore } from '@/stores/gameDataStore'
+import { useEditorStore } from '@/stores/editorStore'
+import { useGameDataStore } from '@/stores/gameDataStore'
 import { useSettingsStore } from '@/stores/settingsStore'
 import { getThreeIconManager, releaseThreeIconManager } from './useThreeIconManager'
 import { useEditorGroups } from './editor/useEditorGroups'
@@ -28,11 +28,9 @@ import { MAX_RENDER_INSTANCES as MAX_INSTANCES } from '@/types/constants'
 // 当缺少尺寸信息时使用的默认尺寸（游戏坐标：X=长, Y=宽, Z=高）
 const DEFAULT_FURNITURE_SIZE: [number, number, number] = [100, 100, 150]
 
-export function useThreeInstancedRenderer(
-  editorStore: ReturnType<typeof useEditorStore>,
-  gameDataStore: ReturnType<typeof useGameDataStore>,
-  isTransformDragging?: Ref<boolean>
-) {
+export function useThreeInstancedRenderer(isTransformDragging?: Ref<boolean>) {
+  const editorStore = useEditorStore()
+  const gameDataStore = useGameDataStore()
   const settingsStore = useSettingsStore()
   const { getGroupColor } = useEditorGroups()
 

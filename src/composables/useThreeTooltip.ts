@@ -1,7 +1,7 @@
 import { ref, markRaw, type Ref } from 'vue'
 import { Raycaster, Vector2, type Camera, type InstancedMesh } from 'three'
-import type { useGameDataStore } from '@/stores/gameDataStore'
-import type { useEditorStore } from '@/stores/editorStore'
+import { useGameDataStore } from '@/stores/gameDataStore'
+import { useEditorStore } from '@/stores/editorStore'
 import { useUIStore } from '@/stores/uiStore'
 import { useI18n } from './useI18n'
 
@@ -17,8 +17,6 @@ interface ThreeTooltipSources {
 }
 
 export function useThreeTooltip(
-  editorStore: ReturnType<typeof useEditorStore>,
-  gameDataStore: ReturnType<typeof useGameDataStore>,
   cameraRef: Ref<Camera | null>,
   containerRef: Ref<HTMLElement | null>,
   sources: ThreeTooltipSources,
@@ -29,6 +27,8 @@ export function useThreeTooltip(
   const raycaster = markRaw(new Raycaster())
   const pointerNdc = markRaw(new Vector2())
   const { t, locale } = useI18n()
+  const editorStore = useEditorStore()
+  const gameDataStore = useGameDataStore()
   const uiStore = useUIStore()
 
   const tooltipVisible = ref(false)

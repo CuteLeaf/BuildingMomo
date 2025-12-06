@@ -6,7 +6,6 @@ import { Object3D, MOUSE, TextureLoader, SRGBColorSpace, Color } from 'three'
 import backgroundUrl from '@/assets/home.webp'
 import { useEditorStore } from '@/stores/editorStore'
 import { useCommandStore } from '@/stores/commandStore'
-import { useGameDataStore } from '@/stores/gameDataStore'
 import { useSettingsStore } from '@/stores/settingsStore'
 import { useUIStore } from '@/stores/uiStore'
 import { useThreeSelection } from '@/composables/useThreeSelection'
@@ -35,7 +34,6 @@ const { t } = useI18n()
 
 const editorStore = useEditorStore()
 const commandStore = useCommandStore()
-const gameDataStore = useGameDataStore()
 const settingsStore = useSettingsStore()
 const uiStore = useUIStore()
 
@@ -204,7 +202,7 @@ const {
   updateSelectedInstancesMatrix,
   setHoveredItemId,
   updateIconFacing,
-} = useThreeInstancedRenderer(editorStore, gameDataStore, isTransformDragging)
+} = useThreeInstancedRenderer(isTransformDragging)
 
 // 当前 3D 显示模式（根据设置和视图类型动态决定）
 // 当前 3D 显示模式（完全由用户设置决定）
@@ -311,7 +309,6 @@ const {
   handleGizmoChange,
   transformSpace,
 } = useThreeTransformGizmo(
-  editorStore,
   gizmoPivot,
   updateSelectedInstancesMatrix,
   isTransformDragging,
@@ -363,7 +360,6 @@ watch(axesRef, (v) => {
 
 const { selectionRect, lassoPoints, handlePointerDown, handlePointerMove, handlePointerUp } =
   useThreeSelection(
-    editorStore,
     activeCameraRef,
     {
       instancedMesh: pickInstancedMesh,
@@ -380,8 +376,6 @@ const {
   handlePointerMove: handleTooltipPointerMove,
   hideTooltip,
 } = useThreeTooltip(
-  editorStore,
-  gameDataStore,
   activeCameraRef,
   threeContainerRef,
   {
@@ -540,7 +534,7 @@ const orthoFrustum = computed(() => {
 })
 
 // 网格控制逻辑
-const { containerRotation, innerRotation, gridPosition } = useThreeGrid(uiStore, backgroundPosition)
+const { containerRotation, innerRotation, gridPosition } = useThreeGrid(backgroundPosition)
 
 // 背景显示条件
 const shouldShowBackground = computed(() => {

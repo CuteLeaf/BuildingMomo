@@ -1,13 +1,12 @@
 import { computed, ref, watchEffect, markRaw, type Ref } from 'vue'
 import { Object3D, Vector3, Euler } from 'three'
-import type { useEditorStore } from '@/stores/editorStore'
+import { useEditorStore } from '@/stores/editorStore'
 import { useSettingsStore } from '@/stores/settingsStore'
 import { useUIStore } from '@/stores/uiStore'
 import { useEditorHistory } from '@/composables/editor/useEditorHistory'
 import { useEditorManipulation } from '@/composables/editor/useEditorManipulation'
 
 export function useThreeTransformGizmo(
-  editorStore: ReturnType<typeof useEditorStore>,
   pivotRef: Ref<Object3D | null>,
   updateSelectedInstancesMatrix: (selectedIds: Set<string>, deltaPosition: Vector3) => void,
   isTransformDragging?: Ref<boolean>,
@@ -23,6 +22,7 @@ export function useThreeTransformGizmo(
   // 记录上一次应用的 Three 空间位置（用于计算增量）
   const lastThreePosition = ref<Vector3 | null>(null)
 
+  const editorStore = useEditorStore()
   const settingsStore = useSettingsStore()
   const uiStore = useUIStore()
   const { saveHistory } = useEditorHistory()

@@ -1,5 +1,5 @@
 import { computed, type Ref } from 'vue'
-import type { useUIStore } from '@/stores/uiStore'
+import { useUIStore } from '@/stores/uiStore'
 import type { ViewPreset } from '@/composables/useThreeCamera'
 
 // 网格旋转配置 - 适配不同视图预设
@@ -13,10 +13,9 @@ const PRESET_ROTATIONS: Record<ViewPreset, [number, number, number]> = {
   left: [0, 0, Math.PI / 2],
 }
 
-export function useThreeGrid(
-  uiStore: ReturnType<typeof useUIStore>,
-  basePosition: Ref<[number, number, number]>
-) {
+export function useThreeGrid(basePosition: Ref<[number, number, number]>) {
+  const uiStore = useUIStore()
+
   // 外层旋转：适配视图预设
   const containerRotation = computed<[number, number, number]>(() => {
     const preset = uiStore.currentViewPreset || 'perspective'
