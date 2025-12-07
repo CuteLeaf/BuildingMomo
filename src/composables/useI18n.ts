@@ -52,18 +52,8 @@ function getNestedValue(obj: Record<string, any>, path: string): any {
 }
 
 // 全局i18n状态
-// 注意：如果当前环境强制指定了语言（如 /en/ 路径），则优先使用该语言并更新存储
 const detected = getInitialLanguage()
 const _locale = useLocalStorage<Locale>('buildingmomo_locale', detected)
-
-// 如果检测到的语言与存储的不一致，且是因为路径/注入强制要求的，则更新存储
-if (
-  typeof window !== 'undefined' &&
-  (window.__INITIAL_LANG__ || window.location.pathname.startsWith('/en')) &&
-  _locale.value !== 'en'
-) {
-  _locale.value = 'en'
-}
 
 /**
  * i18n 组合函数
