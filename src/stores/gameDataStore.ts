@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { ref, computed, shallowRef } from 'vue'
+import { ref, shallowRef } from 'vue'
 import type { FurnitureItem, BuildingMomoFurniture, RawFurnitureEntry } from '../types/furniture'
 
 // 远程数据源 (Build time fetched)
@@ -13,15 +13,11 @@ export const useGameDataStore = defineStore('gameData', () => {
   // ========== 状态 (Furniture) ==========
   const furnitureData = ref<Record<string, FurnitureItem>>({})
   const lastFetchTime = ref<number>(0)
-  const isFurnitureLoading = ref(false)
   const isFurnitureInitialized = ref(false)
 
   // ========== 状态 (Buildable Areas) ==========
   const buildableAreas = shallowRef<Record<string, number[][]> | null>(null)
   const isBuildableAreaLoaded = ref(false)
-
-  // ========== 计算属性 ==========
-  const totalFurnitureCount = computed(() => Object.keys(furnitureData.value).length)
 
   // ========== 数据加载 (Furniture) ==========
 
@@ -64,11 +60,7 @@ export const useGameDataStore = defineStore('gameData', () => {
   }
 
   // 更新家具数据
-  async function updateFurnitureData(silent: boolean = false): Promise<void> {
-    if (!silent) {
-      isFurnitureLoading.value = true
-    }
-
+  async function updateFurnitureData(): Promise<void> {
     try {
       console.log('[GameDataStore] Fetching furniture data...')
       const remoteData = await fetchFurnitureData()
@@ -84,15 +76,10 @@ export const useGameDataStore = defineStore('gameData', () => {
     } catch (error) {
       console.error('[GameDataStore] Update failed:', error)
       throw error
-    } finally {
-      if (!silent) {
-        isFurnitureLoading.value = false
-      }
     }
   }
 
-  // ========== 数据加载 (Buildable Areas) ==========
-
+  // 可建造区域数据加载
   async function loadBuildableAreaData() {
     if (isBuildableAreaLoaded.value) return
 
@@ -119,7 +106,7 @@ export const useGameDataStore = defineStore('gameData', () => {
 
     // 并行加载
     await Promise.all([
-      !isFurnitureInitialized.value ? updateFurnitureData(false) : Promise.resolve(),
+      !isFurnitureInitialized.value ? updateFurnitureData() : Promise.resolve(),
       !isBuildableAreaLoaded.value ? loadBuildableAreaData() : Promise.resolve(),
     ])
   }
@@ -144,12 +131,6 @@ export const useGameDataStore = defineStore('gameData', () => {
     return ICON_BASE_URL + furniture.icon + '.webp'
   }
 
-  // 强制更新（用户手动触发）
-  async function forceUpdate(): Promise<void> {
-    console.log('[GameDataStore] Force update triggered')
-    await updateFurnitureData(false)
-  }
-
   // 清除缓存 (仅重置状态)
   async function clearCache(): Promise<void> {
     console.log('[GameDataStore] Clearing state...')
@@ -163,28 +144,19 @@ export const useGameDataStore = defineStore('gameData', () => {
 
   return {
     // 状态
-    furnitureData, // old: data
+    furnitureData,
     lastFetchTime,
-    isLoading: isFurnitureLoading, // Compatible alias if needed, or strict separation
     isInitialized: isFurnitureInitialized, // Compatible alias
 
     // 状态 (Buildable Areas)
     buildableAreas,
     isBuildableAreaLoaded,
 
-    // 计算属性
-    totalCount: totalFurnitureCount,
-
     // 方法
     initialize,
     getFurniture,
     getFurnitureSize,
     getIconUrl,
-    forceUpdate,
     clearCache,
-
-    // 暴露特定方法以便单独调用（如果需要）
-    updateFurnitureData,
-    loadBuildableAreaData,
   }
 })

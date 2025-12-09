@@ -6,6 +6,7 @@ import { useSettingsStore } from '../stores/settingsStore'
 import type { AlertDetailItem } from '../stores/notificationStore'
 import { storeToRefs } from 'pinia'
 import { useValidationStore } from '../stores/validationStore'
+import { useGameDataStore } from '../stores/gameDataStore'
 import { getIconLoader } from './useIconLoader'
 import { useI18n } from './useI18n'
 import backgroundUrl from '@/assets/home.webp'
@@ -137,6 +138,7 @@ export function useFileOperations(editorStore: ReturnType<typeof useEditorStore>
   }
 
   const settingsStore = useSettingsStore()
+  const gameDataStore = useGameDataStore()
   const validationStore = useValidationStore()
   const { hasDuplicate, duplicateItemCount, hasLimitIssues, limitIssues } =
     storeToRefs(validationStore)
@@ -258,10 +260,12 @@ export function useFileOperations(editorStore: ReturnType<typeof useEditorStore>
 
   // 导入 JSON 文件
   async function importJSON(): Promise<void> {
-    return new Promise((resolve) => {
-      // 触发背景图预加载
-      preloadImage(backgroundUrl)
+    // 触发游戏数据加载（如果尚未加载）
+    gameDataStore.initialize()
+    // 触发背景图预加载
+    preloadImage(backgroundUrl)
 
+    return new Promise((resolve) => {
       // 创建临时的文件选择器
       const input = document.createElement('input')
       input.type = 'file'
@@ -571,10 +575,12 @@ export function useFileOperations(editorStore: ReturnType<typeof useEditorStore>
       return
     }
 
-    try {
-      // 触发背景图预加载
-      preloadImage(backgroundUrl)
+    // 触发游戏数据加载（如果尚未加载）
+    gameDataStore.initialize()
+    // 触发背景图预加载
+    preloadImage(backgroundUrl)
 
+    try {
       // 1. 让用户选择目录
       const dirHandle = await (window as any).showDirectoryPicker({
         mode: 'readwrite',

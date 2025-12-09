@@ -680,6 +680,7 @@ export function useThreeInstancedRenderer(isTransformDragging?: Ref<boolean>) {
     [
       () => editorStore.activeScheme?.items.value, // 监听引用变化（切换方案时）
       () => editorStore.sceneVersion, // 监听版本号（内容修改时）
+      () => gameDataStore.isInitialized, // 监听游戏数据加载状态（延迟加载支持）
     ],
     () => {
       // 拖拽时不触发全量更新，由 handleGizmoChange 直接更新实例矩阵

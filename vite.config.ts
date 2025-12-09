@@ -20,6 +20,48 @@ export default defineConfig(() => {
       VitePWA({
         registerType: 'autoUpdate',
         includeAssets: ['favicon.ico', 'logo.png'],
+        workbox: {
+          globPatterns: ['index.html', 'favicon.ico', 'logo.png'],
+          // 运行时缓存：访问时才缓存
+          runtimeCaching: [
+            {
+              // JS/CSS：缓存优先（带 hash，内容不变）
+              urlPattern: /\.(?:js|css)$/,
+              handler: 'CacheFirst',
+              options: {
+                cacheName: 'static-assets',
+                expiration: {
+                  maxEntries: 100,
+                  maxAgeSeconds: 60 * 60 * 24 * 30, // 30 天
+                },
+              },
+            },
+            {
+              // 图片资源：缓存优先
+              urlPattern: /\.(?:png|svg|ico|webp)$/,
+              handler: 'CacheFirst',
+              options: {
+                cacheName: 'images',
+                expiration: {
+                  maxEntries: 500,
+                  maxAgeSeconds: 60 * 60 * 24 * 30, // 30 天
+                },
+              },
+            },
+            {
+              // JSON 数据：边用边更新（数据可能更新）
+              urlPattern: /\.json$/,
+              handler: 'StaleWhileRevalidate',
+              options: {
+                cacheName: 'data-cache',
+                expiration: {
+                  maxEntries: 50,
+                  maxAgeSeconds: 60 * 60 * 24 * 7, // 7 天
+                },
+              },
+            },
+          ],
+        },
         manifest: {
           name: 'BuildingMomo',
           short_name: 'BuildingMomo',

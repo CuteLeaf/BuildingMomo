@@ -4,7 +4,6 @@ import { useEditorStore } from './stores/editorStore'
 import { useGameDataStore } from './stores/gameDataStore'
 import { useSettingsStore } from './stores/settingsStore'
 import { useTabStore } from './stores/tabStore'
-import { useI18n } from './composables/useI18n'
 import Toolbar from './components/Toolbar.vue'
 import Sidebar from './components/Sidebar.vue'
 import StatusBar from './components/StatusBar.vue'
@@ -14,7 +13,6 @@ import CoordinateDialog from './components/CoordinateDialog.vue'
 import DocsViewer from './components/DocsViewer.vue'
 import GlobalAlertDialog from './components/GlobalAlertDialog.vue'
 import { Toaster } from '@/components/ui/sonner'
-import { toast } from 'vue-sonner'
 import 'vue-sonner/style.css'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { useKeyboardShortcuts } from './composables/useKeyboardShortcuts'
@@ -24,7 +22,6 @@ const editorStore = useEditorStore()
 const gameDataStore = useGameDataStore()
 const settingsStore = useSettingsStore()
 const tabStore = useTabStore()
-const { t } = useI18n()
 const { restore: restoreWorkspace, isWorkerActive, startMonitoring } = useWorkspaceWorker()
 
 // 导入 commandStore 用于对话框控制
@@ -45,24 +42,12 @@ onMounted(async () => {
   const hasUnsavedSession = localStorage.getItem('has_unsaved_session') === 'true'
   const shouldRestore = settingsStore.settings.enableAutoSave && hasUnsavedSession
 
-  // 定义游戏数据初始化任务
-  const initGameData = async () => {
-    try {
-      await gameDataStore.initialize()
-      console.log('[App] Game data initialized')
-    } catch (error) {
-      console.error('[App] Failed to initialize game data:', error)
-      toast.error(t('notification.furnitureDataLoadFailed')) // 可以考虑增加新的 i18n key
-    }
-  }
-
   if (!shouldRestore) {
     isAppReady.value = true
-
-    initGameData()
   } else {
     try {
-      await initGameData()
+      // 初始化游戏数据（异步加载）
+      gameDataStore.initialize()
       await restoreWorkspace()
     } catch (e) {
       console.error('[App] Restore failed:', e)

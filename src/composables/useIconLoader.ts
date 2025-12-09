@@ -55,8 +55,6 @@ export function useIconLoader() {
         resolve(null)
       }
 
-      // 设置 crossOrigin 属性，支持跨域图片加载
-      img.crossOrigin = 'anonymous'
       img.src = iconUrl
     })
 
