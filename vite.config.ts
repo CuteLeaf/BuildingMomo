@@ -36,6 +36,18 @@ export default defineConfig(() => {
               },
             },
             {
+              // 字体文件：缓存优先
+              urlPattern: /\.(?:woff2?|ttf|otf|eot)$/,
+              handler: 'CacheFirst',
+              options: {
+                cacheName: 'fonts',
+                expiration: {
+                  maxEntries: 30,
+                  maxAgeSeconds: 60 * 60 * 24 * 365, // 1 年
+                },
+              },
+            },
+            {
               // 图片资源：缓存优先
               urlPattern: /\.(?:png|svg|ico|webp)$/,
               handler: 'CacheFirst',
