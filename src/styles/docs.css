@@ -10,27 +10,36 @@
 
 /* ========== 标题样式 ========== */
 .doc-content h1 {
-  @apply text-3xl font-bold tracking-tight text-foreground;
-  @apply mb-8 border-b border-border pb-4;
+  @apply text-[28px] leading-10 font-semibold tracking-[-0.02em] text-foreground;
+  @apply mb-8;
 }
 
 .doc-content h2 {
-  @apply text-2xl font-semibold text-foreground;
+  @apply text-2xl leading-8 font-semibold tracking-[-0.02em] text-foreground;
   @apply mt-12 mb-4 border-t border-border pt-6;
 }
 
-.doc-content h2:first-of-type {
-  @apply mt-8 border-t-0 pt-0;
+.doc-content h3 {
+  @apply text-xl leading-7 font-semibold tracking-[-0.01em] text-foreground;
+  @apply mt-8;
 }
 
-.doc-content h3 {
-  @apply text-xl font-semibold text-foreground;
-  @apply mt-8 mb-3;
+.doc-content h4 {
+  @apply text-lg leading-6 font-semibold tracking-[-0.01em] text-foreground;
+  @apply mt-6;
 }
 
 /* ========== 段落与文本 ========== */
 .doc-content p {
-  @apply mb-4 leading-7 text-card-foreground;
+  @apply my-4 leading-7 text-card-foreground;
+}
+
+.doc-content blockquote {
+  @apply my-4 border-l-2 border-border pl-4 text-muted-foreground transition-colors;
+}
+
+.doc-content blockquote > p {
+  @apply my-0;
 }
 
 .doc-content strong {
@@ -40,7 +49,7 @@
 /* ========== 列表样式 ========== */
 .doc-content ul,
 .doc-content ol {
-  @apply mb-4 ml-6 space-y-2 text-card-foreground;
+  @apply my-4 pl-5 text-card-foreground;
 }
 
 .doc-content ul {
@@ -55,14 +64,18 @@
   @apply leading-7;
 }
 
+.doc-content li + li {
+  @apply mt-2;
+}
+
 .doc-content li > ul,
 .doc-content li > ol {
-  @apply mt-2 mb-2;
+  @apply mt-2 mb-0;
 }
 
 /* ========== 代码样式 ========== */
 .doc-content code {
-  @apply rounded bg-muted px-1.5 py-0.5 font-mono text-[0.875em];
+  @apply rounded bg-muted px-1.5 py-[3px] font-mono text-[0.875em];
   /* 保留项目风格的粉色 */
   @apply text-rose-600 dark:text-rose-400;
 }
@@ -104,27 +117,31 @@
 
 /* ========== 表格样式 ========== */
 .doc-content table {
-  @apply mb-6 w-full border-collapse overflow-hidden rounded-lg border border-border;
-  @apply text-sm;
+  @apply my-5 block w-full border-collapse overflow-x-auto text-sm;
 }
 
 .doc-content thead {
-  @apply border-b border-border bg-muted/50;
+  @apply bg-muted/50;
+}
+
+.doc-content th,
+.doc-content td {
+  @apply border border-border px-4 py-2;
 }
 
 .doc-content th {
-  @apply p-3 text-left font-semibold text-foreground;
+  @apply text-left font-semibold text-muted-foreground;
 }
 
 .doc-content td {
-  @apply border-b border-border p-3 text-card-foreground;
+  @apply text-card-foreground;
 }
 
-.doc-content tbody tr:last-child td {
-  @apply border-b-0;
+.doc-content tr {
+  @apply border-t border-border bg-background transition-colors;
 }
 
-.doc-content tbody tr:hover {
+.doc-content tr:nth-child(2n) {
   @apply bg-muted/30;
 }
 
@@ -135,24 +152,31 @@
 
 /* ========== 链接样式 ========== */
 .doc-content a {
-  @apply font-medium text-primary underline-offset-4 transition-colors hover:text-primary/80 hover:underline;
+  @apply font-medium text-primary underline underline-offset-2 transition-colors hover:text-primary/80;
+}
+
+/* ========== 分隔线 ========== */
+.doc-content hr {
+  @apply my-4 border-t border-border;
 }
 
 /* ========== 响应式调整 ========== */
+@media (min-width: 768px) {
+  .doc-content h1 {
+    @apply text-[32px];
+  }
+}
+
 @media (max-width: 768px) {
   .doc-content {
     @apply px-4 py-8;
   }
 
-  .doc-content h1 {
-    @apply mb-6 text-2xl;
-  }
-
   .doc-content h2 {
-    @apply mt-8 text-xl;
+    @apply mt-8;
   }
 
   .doc-content h3 {
-    @apply mt-6 text-lg;
+    @apply mt-6;
   }
 }
