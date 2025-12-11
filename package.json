@@ -13,6 +13,7 @@
     "prepare": "husky"
   },
   "dependencies": {
+    "@fontsource/inter": "^5.2.8",
     "@tailwindcss/vite": "^4.1.17",
     "@tresjs/cientos": "^5.1.0",
     "@tresjs/core": "^5.1.0",

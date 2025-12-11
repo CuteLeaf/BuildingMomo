@@ -29,7 +29,7 @@ export interface AppSettings {
 
 // 默认设置
 const DEFAULT_SETTINGS: AppSettings = {
-  theme: 'auto',
+  theme: 'light',
   showFurnitureTooltip: true,
   showBackground: true,
   autoUpdateFurniture: true,

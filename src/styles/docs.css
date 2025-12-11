@@ -10,13 +10,13 @@
 
 /* ========== 标题样式 ========== */
 .doc-content h1 {
-  @apply text-4xl font-bold tracking-tight;
+  @apply text-3xl font-bold tracking-tight text-foreground;
   @apply mb-8 border-b border-border pb-4;
 }
 
 .doc-content h2 {
-  @apply text-2xl font-semibold;
-  @apply mt-12 mb-4 border-t border-border pt-8;
+  @apply text-2xl font-semibold text-foreground;
+  @apply mt-12 mb-4 border-t border-border pt-6;
 }
 
 .doc-content h2:first-of-type {
@@ -24,13 +24,13 @@
 }
 
 .doc-content h3 {
-  @apply text-xl font-semibold;
+  @apply text-xl font-semibold text-foreground;
   @apply mt-8 mb-3;
 }
 
 /* ========== 段落与文本 ========== */
 .doc-content p {
-  @apply mb-4 leading-7 text-foreground/90;
+  @apply mb-4 leading-7 text-card-foreground;
 }
 
 .doc-content strong {
@@ -40,7 +40,7 @@
 /* ========== 列表样式 ========== */
 .doc-content ul,
 .doc-content ol {
-  @apply mb-4 ml-6 space-y-2;
+  @apply mb-4 ml-6 space-y-2 text-card-foreground;
 }
 
 .doc-content ul {
@@ -63,55 +63,69 @@
 /* ========== 代码样式 ========== */
 .doc-content code {
   @apply rounded bg-muted px-1.5 py-0.5 font-mono text-[0.875em];
-  @apply text-pink-600 dark:text-pink-400;
+  /* 保留项目风格的粉色 */
+  @apply text-rose-600 dark:text-rose-400;
 }
 
 .doc-content pre {
-  @apply rounded-lg bg-slate-950 p-4 text-sm text-slate-50;
-  @apply mb-4 overflow-x-auto;
+  @apply rounded-lg border border-border bg-muted/50 p-4 text-sm text-foreground;
+  @apply mb-6 overflow-x-auto;
 }
 
 .doc-content pre code {
-  @apply bg-transparent p-0 text-slate-50;
+  @apply bg-transparent p-0 text-foreground;
 }
 
-/* ========== 提示框样式 ========== */
+/* ========== 提示框样式 (Modernized) ========== */
+
 .doc-tip {
-  @apply border-l-4 border-blue-500 bg-blue-50 dark:bg-blue-950/30;
-  @apply mb-4 rounded-r-lg p-4;
+  @apply mb-6 rounded-lg border px-4 py-3 text-sm transition-colors;
+  @apply border-blue-200 bg-blue-50 text-blue-900;
+  @apply dark:border-blue-800 dark:bg-blue-950/30 dark:text-blue-200;
 }
 
 .doc-warning {
-  @apply border-l-4 border-yellow-500 bg-yellow-50 dark:bg-yellow-950/30;
-  @apply mb-4 rounded-r-lg p-4;
+  @apply mb-6 rounded-lg border px-4 py-3 text-sm transition-colors;
+  @apply border-yellow-200 bg-yellow-50 text-yellow-900;
+  @apply dark:border-yellow-800 dark:bg-yellow-950/30 dark:text-yellow-200;
 }
 
 .doc-success {
-  @apply border-l-4 border-green-500 bg-green-50 dark:bg-green-950/30;
-  @apply mb-4 rounded-r-lg p-4;
+  @apply mb-6 rounded-lg border px-4 py-3 text-sm transition-colors;
+  @apply border-green-200 bg-green-50 text-green-900;
+  @apply dark:border-green-800 dark:bg-green-950/30 dark:text-green-200;
 }
 
 .doc-danger {
-  @apply border-l-4 border-red-500 bg-red-50 dark:bg-red-950/30;
-  @apply mb-4 rounded-r-lg p-4;
+  @apply mb-6 rounded-lg border px-4 py-3 text-sm transition-colors;
+  @apply border-red-200 bg-red-50 text-red-900;
+  @apply dark:border-red-800 dark:bg-red-950/30 dark:text-red-200;
+}
+
+/* 为了兼容旧的HTML结构，如果它们直接用在div上，我们确保内容有合适的间距 */
+.doc-tip p:last-child,
+.doc-warning p:last-child,
+.doc-success p:last-child,
+.doc-danger p:last-child {
+  @apply mb-0;
 }
 
 /* ========== 表格样式 ========== */
 .doc-content table {
-  @apply mb-6 w-full border-collapse;
+  @apply mb-6 w-full border-collapse rounded-lg overflow-hidden border border-border;
   @apply text-sm;
 }
 
 .doc-content thead {
-  @apply border-b-2 border-border;
+  @apply bg-muted/50 border-b border-border;
 }
 
 .doc-content th {
-  @apply bg-muted/50 p-3 text-left font-semibold;
+  @apply p-3 text-left font-semibold text-foreground;
 }
 
 .doc-content td {
-  @apply border-b border-border p-3;
+  @apply border-b border-border p-3 text-card-foreground;
 }
 
 .doc-content tbody tr:last-child td {
@@ -129,7 +143,7 @@
 
 /* ========== 链接样式 ========== */
 .doc-content a {
-  @apply font-medium text-primary underline underline-offset-4 hover:text-primary/80;
+  @apply font-medium text-primary underline-offset-4 transition-colors hover:underline hover:text-primary/80;
 }
 
 /* ========== 响应式调整 ========== */
@@ -139,23 +153,14 @@
   }
 
   .doc-content h1 {
-    @apply text-3xl;
+    @apply text-2xl mb-6;
   }
 
   .doc-content h2 {
-    @apply mt-8 pt-6 text-xl;
+    @apply mt-8 text-xl;
   }
 
   .doc-content h3 {
     @apply mt-6 text-lg;
-  }
-
-  .doc-content table {
-    @apply text-xs;
-  }
-
-  .doc-content th,
-  .doc-content td {
-    @apply p-2;
   }
 }
