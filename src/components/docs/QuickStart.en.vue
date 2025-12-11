@@ -37,7 +37,7 @@
       <li>In-game, enter build mode (ensure Scheme 1 is active)</li>
       <li>Click top-right menu → <strong>Recover from Stuck > Confirm</strong></li>
       <li>In editor, click <strong>File > Link Game Folder</strong></li>
-      <li>Select your game folder (<code>InfinityNikki</code> folder)</li>
+      <li>Select your game folder (<code>InfinityNikkiGlobal</code> folder)</li>
       <li>Confirm import, Scheme 1 opens in a new tab</li>
     </ol>
     <p class="text-sm text-muted-foreground">
@@ -93,7 +93,7 @@
     </ol>
 
     <div class="doc-success">
-      ✅ <strong>Congratulations!</strong> You've mastered cross-scheme merging.
+      <strong>Congratulations!</strong> You've mastered cross-scheme merging.
     </div>
 
     <h2>Scenario: Multi-Story Load Limit Workaround</h2>

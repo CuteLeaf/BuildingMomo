@@ -99,8 +99,8 @@ function handleCancel() {
       <div class="grid gap-6 py-4">
         <!-- 坐标系可视化 -->
         <div class="flex justify-center">
-          <div class="rounded-lg bg-gray-50 p-4">
-            <div class="mb-2 text-center text-sm font-medium text-gray-700">
+          <div class="rounded-lg bg-muted/50 p-4">
+            <div class="mb-2 text-center text-sm font-medium text-muted-foreground">
               {{
                 workingAngle === 0
                   ? t('coordinate.globalLabel')
@@ -109,10 +109,16 @@ function handleCancel() {
             </div>
             <svg width="120" height="120" viewBox="-60 -60 120 120" class="mx-auto">
               <!-- 背景圆 -->
-              <circle cx="0" cy="0" r="50" fill="white" stroke="#e5e7eb" stroke-width="1.5" />
+              <circle
+                cx="0"
+                cy="0"
+                r="50"
+                class="fill-background stroke-border"
+                stroke-width="1.5"
+              />
 
               <!-- 原点 -->
-              <circle cx="0" cy="0" r="3" fill="#6b7280" />
+              <circle cx="0" cy="0" r="3" class="fill-muted-foreground" />
 
               <!-- 箭头标记定义 -->
               <defs>
@@ -125,7 +131,7 @@ function handleCancel() {
                   orient="auto"
                   markerUnits="strokeWidth"
                 >
-                  <polygon points="0 0, 6 3, 0 6" fill="#ef4444" />
+                  <polygon points="0 0, 6 3, 0 6" class="fill-red-500" />
                 </marker>
                 <marker
                   id="arrowGreen"
@@ -136,7 +142,7 @@ function handleCancel() {
                   orient="auto"
                   markerUnits="strokeWidth"
                 >
-                  <polygon points="0 0, 6 3, 0 6" fill="#22c55e" />
+                  <polygon points="0 0, 6 3, 0 6" class="fill-green-500" />
                 </marker>
               </defs>
 
@@ -146,16 +152,14 @@ function handleCancel() {
                 y1="0"
                 :x2="xAxisEnd.x"
                 :y2="xAxisEnd.y"
-                stroke="#ef4444"
+                class="stroke-red-500"
                 stroke-width="3"
                 marker-end="url(#arrowRed)"
               />
               <text
                 :x="xLabelPos.x"
                 :y="xLabelPos.y"
-                fill="#ef4444"
-                font-size="16"
-                font-weight="bold"
+                class="fill-red-500 text-xs font-bold"
                 text-anchor="middle"
                 dominant-baseline="middle"
               >
@@ -168,16 +172,14 @@ function handleCancel() {
                 y1="0"
                 :x2="yAxisEnd.x"
                 :y2="yAxisEnd.y"
-                stroke="#22c55e"
+                class="stroke-green-500"
                 stroke-width="3"
                 marker-end="url(#arrowGreen)"
               />
               <text
                 :x="yLabelPos.x"
                 :y="yLabelPos.y"
-                fill="#22c55e"
-                font-size="16"
-                font-weight="bold"
+                class="fill-green-500 text-xs font-bold"
                 text-anchor="middle"
                 dominant-baseline="middle"
               >
@@ -200,7 +202,7 @@ function handleCancel() {
             <Button
               size="sm"
               variant="outline"
-              :class="{ 'border-blue-500 bg-blue-50': workingAngle === -45 }"
+              :class="{ 'border-primary bg-accent text-accent-foreground': workingAngle === -45 }"
               @click="workingAngle = -45"
             >
               -45°
@@ -208,7 +210,7 @@ function handleCancel() {
             <Button
               size="sm"
               variant="outline"
-              :class="{ 'border-blue-500 bg-blue-50': workingAngle === -30 }"
+              :class="{ 'border-primary bg-accent text-accent-foreground': workingAngle === -30 }"
               @click="workingAngle = -30"
             >
               -30°
@@ -216,7 +218,7 @@ function handleCancel() {
             <Button
               size="sm"
               variant="outline"
-              :class="{ 'border-blue-500 bg-blue-50': workingAngle === 0 }"
+              :class="{ 'border-primary bg-accent text-accent-foreground': workingAngle === 0 }"
               @click="workingAngle = 0"
             >
               0°
@@ -224,7 +226,7 @@ function handleCancel() {
             <Button
               size="sm"
               variant="outline"
-              :class="{ 'border-blue-500 bg-blue-50': workingAngle === 30 }"
+              :class="{ 'border-primary bg-accent text-accent-foreground': workingAngle === 30 }"
               @click="workingAngle = 30"
             >
               30°
@@ -232,7 +234,7 @@ function handleCancel() {
             <Button
               size="sm"
               variant="outline"
-              :class="{ 'border-blue-500 bg-blue-50': workingAngle === 45 }"
+              :class="{ 'border-primary bg-accent text-accent-foreground': workingAngle === 45 }"
               @click="workingAngle = 45"
             >
               45°

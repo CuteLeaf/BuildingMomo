@@ -85,7 +85,7 @@ const canvasClearColor = computed(() => {
 const mapColor = computed(() => {
   const theme = settingsStore.settings.theme
   const isDark = theme === 'dark' || (theme === 'auto' && isPreferredDark.value)
-  return isDark ? 0xe6e6e6 : 0xffffff
+  return isDark ? 0xd9d9d9 : 0xffffff
 })
 
 // 动态计算网格线颜色

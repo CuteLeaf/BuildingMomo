@@ -2,7 +2,7 @@
   <div class="doc-content">
     <h1>FAQ</h1>
 
-    <h2>⚠️ Safety Notice</h2>
+    <h2>Safety Notice</h2>
 
     <div class="doc-warning">
       <strong>Please read carefully before using this tool.</strong>
@@ -97,6 +97,6 @@
       </li>
     </ul>
 
-    <p class="mt-8 text-sm text-muted-foreground">Last Updated: 2025-12-06</p>
+    <p class="mt-8 text-sm text-muted-foreground">Last Updated: 2025-12-11</p>
   </div>
 </template>

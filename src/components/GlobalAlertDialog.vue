@@ -38,7 +38,7 @@ const dialogOpen = computed({
           <!-- 普通描述文本 -->
           <AlertDialogDescription
             v-if="notificationStore.currentAlert.description"
-            class="text-sm whitespace-pre-line text-gray-500"
+            class="text-sm whitespace-pre-line text-muted-foreground"
           >
             {{ notificationStore.currentAlert.description }}
           </AlertDialogDescription>
@@ -56,20 +56,20 @@ const dialogOpen = computed({
               :key="index"
               class="rounded-md border p-3 text-sm"
               :class="{
-                'border-amber-200 bg-amber-50': detail.type === 'warning',
-                'border-blue-200 bg-blue-50': detail.type === 'info',
-                'border-red-200 bg-red-50': detail.type === 'error',
-                'border-green-200 bg-green-50': detail.type === 'success',
+                'border-amber-500/20 bg-amber-500/10': detail.type === 'warning',
+                'border-blue-500/20 bg-blue-500/10': detail.type === 'info',
+                'border-red-500/20 bg-red-500/10': detail.type === 'error',
+                'border-green-500/20 bg-green-500/10': detail.type === 'success',
               }"
             >
               <!-- 标题行 -->
               <div
                 class="mb-1 flex items-center gap-2 font-medium"
                 :class="{
-                  'text-amber-700': detail.type === 'warning',
-                  'text-blue-700': detail.type === 'info',
-                  'text-red-700': detail.type === 'error',
-                  'text-green-700': detail.type === 'success',
+                  'text-amber-700 dark:text-amber-400': detail.type === 'warning',
+                  'text-blue-700 dark:text-blue-400': detail.type === 'info',
+                  'text-red-700 dark:text-red-400': detail.type === 'error',
+                  'text-green-700 dark:text-green-400': detail.type === 'success',
                 }"
               >
                 <TriangleAlert v-if="detail.type === 'warning'" class="h-4 w-4" />
@@ -80,7 +80,7 @@ const dialogOpen = computed({
               </div>
 
               <!-- 内容 -->
-              <div class="space-y-1 pl-6 text-gray-600">
+              <div class="space-y-1 pl-6 text-muted-foreground">
                 <p v-if="detail.text" class="whitespace-pre-line">{{ detail.text }}</p>
                 <ul v-if="detail.list && detail.list.length > 0" class="list-disc space-y-0.5 pl-4">
                   <li v-for="(item, i) in detail.list" :key="i">{{ item }}</li>
@@ -100,7 +100,7 @@ const dialogOpen = computed({
             />
             <label
               for="alert-checkbox"
-              class="cursor-pointer text-sm leading-none text-gray-600 select-none"
+              class="cursor-pointer text-sm leading-none text-muted-foreground select-none"
             >
               {{ notificationStore.currentAlert.checkboxLabel }}
             </label>

@@ -122,7 +122,7 @@ function handleCancel() {
             :placeholder="t('scheme.filePlaceholder')"
           />
         </div>
-        <div class="pl-4 text-xs text-gray-500">
+        <div class="pl-4 text-xs text-muted-foreground">
           <p>{{ t('scheme.tipsTitle') }}</p>
           <ul class="mt-1 list-disc space-y-1 pl-4">
             <li>{{ t('scheme.tips.name') }}</li>

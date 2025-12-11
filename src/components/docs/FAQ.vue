@@ -2,7 +2,7 @@
   <div class="doc-content">
     <h1>常见问题</h1>
 
-    <h2>⚠️ 安全须知与免责声明</h2>
+    <h2>安全须知与免责声明</h2>
 
     <div class="doc-warning">
       <strong>使用本工具前，请仔细阅读并理解以下内容：</strong>
@@ -93,6 +93,6 @@
       </li>
     </ul>
 
-    <p class="mt-8 text-sm text-muted-foreground">最后更新：2025-12-06</p>
+    <p class="mt-8 text-sm text-muted-foreground">最后更新：2025-12-11</p>
   </div>
 </template>

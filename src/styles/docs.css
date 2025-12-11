@@ -81,43 +81,35 @@
 .doc-tip {
   @apply mb-6 rounded-lg border px-4 py-3 text-sm transition-colors;
   @apply border-blue-200 bg-blue-50 text-blue-900;
-  @apply dark:border-blue-800 dark:bg-blue-950/30 dark:text-blue-200;
+  @apply dark:border-blue-800 dark:bg-blue-950/30 dark:text-blue-200/90;
 }
 
 .doc-warning {
   @apply mb-6 rounded-lg border px-4 py-3 text-sm transition-colors;
   @apply border-yellow-200 bg-yellow-50 text-yellow-900;
-  @apply dark:border-yellow-800 dark:bg-yellow-950/30 dark:text-yellow-200;
+  @apply dark:border-yellow-800 dark:bg-yellow-950/30 dark:text-yellow-200/90;
 }
 
 .doc-success {
   @apply mb-6 rounded-lg border px-4 py-3 text-sm transition-colors;
   @apply border-green-200 bg-green-50 text-green-900;
-  @apply dark:border-green-800 dark:bg-green-950/30 dark:text-green-200;
+  @apply dark:border-green-800 dark:bg-green-950/30 dark:text-green-200/90;
 }
 
 .doc-danger {
   @apply mb-6 rounded-lg border px-4 py-3 text-sm transition-colors;
   @apply border-red-200 bg-red-50 text-red-900;
-  @apply dark:border-red-800 dark:bg-red-950/30 dark:text-red-200;
-}
-
-/* 为了兼容旧的HTML结构，如果它们直接用在div上，我们确保内容有合适的间距 */
-.doc-tip p:last-child,
-.doc-warning p:last-child,
-.doc-success p:last-child,
-.doc-danger p:last-child {
-  @apply mb-0;
+  @apply dark:border-red-800 dark:bg-red-950/30 dark:text-red-200/90;
 }
 
 /* ========== 表格样式 ========== */
 .doc-content table {
-  @apply mb-6 w-full border-collapse rounded-lg overflow-hidden border border-border;
+  @apply mb-6 w-full border-collapse overflow-hidden rounded-lg border border-border;
   @apply text-sm;
 }
 
 .doc-content thead {
-  @apply bg-muted/50 border-b border-border;
+  @apply border-b border-border bg-muted/50;
 }
 
 .doc-content th {
@@ -143,7 +135,7 @@
 
 /* ========== 链接样式 ========== */
 .doc-content a {
-  @apply font-medium text-primary underline-offset-4 transition-colors hover:underline hover:text-primary/80;
+  @apply font-medium text-primary underline-offset-4 transition-colors hover:text-primary/80 hover:underline;
 }
 
 /* ========== 响应式调整 ========== */
@@ -153,7 +145,7 @@
   }
 
   .doc-content h1 {
-    @apply text-2xl mb-6;
+    @apply mb-6 text-2xl;
   }
 
   .doc-content h2 {

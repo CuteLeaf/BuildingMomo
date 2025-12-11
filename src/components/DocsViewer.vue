@@ -145,8 +145,8 @@ function switchDoc(value: string | number) {
                 :class="[
                   'w-full rounded-md px-3 py-2 text-left text-sm transition-colors',
                   currentDoc === item.id
-                    ? 'bg-primary font-medium text-primary-foreground'
-                    : 'text-foreground hover:bg-accent/50',
+                    ? 'bg-accent font-medium text-accent-foreground'
+                    : 'text-muted-foreground hover:bg-accent/50 hover:text-foreground',
                 ]"
               >
                 {{ item.label }}

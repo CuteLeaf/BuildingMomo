@@ -88,7 +88,7 @@
     </ol>
 
     <div class="doc-success">
-      ✅ <strong>恭喜！</strong>
+      <strong>恭喜！</strong>
       你已经掌握了跨方案合并的核心流程，这是本工具最强大的功能之一。
     </div>
 
