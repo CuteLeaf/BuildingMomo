@@ -46,6 +46,64 @@
       building tools become available.
     </div>
 
+    <h2>Troubleshooting</h2>
+
+    <h3>UI Shows Placeholder Text (e.g., &lt;MISSING STRING TABLE ENTRY&gt;)</h3>
+    <p>
+      <strong>Issue:</strong> When saving or loading schemes, the game UI displays placeholder text
+      like <code>&lt;MISSING STRING TABLE ENTRY&gt;</code>.
+    </p>
+    <p>
+      <strong>Cause:</strong> This is a known game bug, unrelated to this tool. It has been reported
+      by the community and can randomly occur even during normal gameplay.
+    </p>
+    <p><strong>Solution:</strong></p>
+    <ul>
+      <li>Return to the game's login screen and re-login to restore normal display</li>
+      <li>If the issue persists, report it to the game's official support team</li>
+    </ul>
+
+    <h3>Import Prompts Appear During Building</h3>
+    <p>
+      <strong>Issue:</strong> The editor shows "File Update Detected" import prompts even though you
+      didn't manually click "Recover from Stuck."
+    </p>
+    <p>
+      <strong>Cause:</strong> This is normal behavior. The game auto-saves building data
+      periodically during construction, and the monitoring mode detects these automatic file
+      changes.
+    </p>
+    <p><strong>What to Do:</strong></p>
+    <ul>
+      <li>If you're still actively building, click "Later" to dismiss the prompt</li>
+      <li>
+        Only import when you've intentionally clicked "Recover from Stuck" to export your complete
+        scheme data
+      </li>
+    </ul>
+
+    <h3>No Import Dialog After 'Recover from Stuck'</h3>
+    <p>
+      <strong>Issue:</strong> After clicking "Recover from Stuck" and confirming in-game, no import
+      dialog appears in the editor.
+    </p>
+    <p><strong>Troubleshooting Steps:</strong></p>
+    <ol>
+      <li>Check if the top-right corner displays <strong>"Monitoring BuildData"</strong> status</li>
+      <li>
+        If not displayed, monitoring has stopped—re-link the game folder via
+        <strong>File &gt; Link Game Folder</strong>
+      </li>
+      <li>
+        Note: Refreshing the page or reopening the editor will reset monitoring and require
+        directory re-authorization
+      </li>
+    </ol>
+    <p class="text-sm text-muted-foreground">
+      <strong>Tip:</strong> Monitoring relies on browser file system permissions, which must be
+      re-granted after page refresh.
+    </p>
+
     <h2>Data Sources</h2>
 
     <h3>Furniture Data</h3>
